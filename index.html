@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ParkTop — парковки Ташкента (Яндекс Карты)</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16232B; --bg:#EEF2F4; --card:#FFFFFF;
+    --blue:#1156D6; --teal:#17A398; --amber:#F4A300; --red:#D64541;
+    --muted:#6B7A85; --line:#DCE4E8; --r:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:'Manrope',sans-serif;color:var(--ink);background:var(--bg)}
+  #app{display:flex;flex-direction:column;height:100%}
+
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);z-index:1200;position:relative}
+  .logo{width:38px;height:38px;border-radius:10px;background:var(--blue);color:#fff;font-family:'Unbounded';font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .brand{font-family:'Unbounded';font-weight:800;font-size:15px}
+  .brand small{display:block;font-family:'Manrope';font-weight:600;font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+  .search{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+  .search input{border:0;background:none;outline:none;width:100%;font:600 14px 'Manrope';color:var(--ink)}
+  .search input::placeholder{color:var(--muted)}
+
+  #mapwrap{flex:1;position:relative}
+  #map{position:absolute;inset:0;z-index:1}
+  #nokey{position:absolute;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:24px;background:var(--bg);text-align:center}
+  #nokey .box{max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px}
+  #nokey h3{font-family:'Unbounded';font-size:15px;margin-bottom:10px}
+  #nokey p{font:600 13px 'Manrope';color:var(--muted);line-height:1.6}
+  #nokey code{background:var(--bg);padding:2px 6px;border-radius:6px;font-size:12px;color:var(--ink)}
+
+  .pmark{width:44px;height:44px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-weight:800;box-shadow:0 3px 10px rgba(22,35,43,.35);border:3px solid #fff;line-height:1;cursor:pointer}
+  .pmark .n{font-size:15px}
+  .pmark .l{font-size:7px;font-weight:700;text-transform:uppercase;opacity:.9}
+  .pmark.me{background:var(--blue);width:20px;height:20px;box-shadow:0 0 0 8px rgba(17,86,214,.2)}
+
+  .fabcol{position:absolute;right:12px;bottom:calc(var(--sheet,180px) + 14px);z-index:1100;display:flex;flex-direction:column;gap:10px;transition:bottom .25s}
+  .fab{width:48px;height:48px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(22,35,43,.18);font-size:20px;cursor:pointer}
+  .fab:active{transform:scale(.94)}
+
+  .chips{position:absolute;top:12px;left:12px;right:12px;z-index:1100;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);font:700 12.5px 'Manrope';color:var(--ink);box-shadow:0 2px 8px rgba(22,35,43,.10);cursor:pointer}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  #sheet{background:var(--card);border-radius:20px 20px 0 0;z-index:1150;box-shadow:0 -6px 24px rgba(22,35,43,.14);display:flex;flex-direction:column;max-height:72%;transition:height .25s}
+  .grab{padding:10px 0 4px;display:flex;justify-content:center;cursor:pointer}
+  .grab i{width:42px;height:5px;border-radius:3px;background:var(--line);display:block}
+  .sheethead{display:flex;align-items:baseline;justify-content:space-between;padding:2px 18px 10px}
+  .sheethead h2{font-family:'Unbounded';font-size:14px;font-weight:600}
+  .sheethead span{font:700 12px 'Manrope';color:var(--muted)}
+  #list{overflow-y:auto;padding:0 12px 16px}
+  .row{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+  .row:last-child{border:0}
+  .dot{width:46px;height:46px;border-radius:12px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;line-height:1}
+  .dot b{font-size:16px}
+  .dot small{font-size:7.5px;font-weight:700;text-transform:uppercase;opacity:.9}
+  .rowtxt{flex:1;min-width:0}
+  .rowtxt b{font-size:14.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rowtxt span{font:600 12px 'Manrope';color:var(--muted)}
+  .rowdist{font:800 12.5px 'Manrope';color:var(--blue);white-space:nowrap}
+
+  #card{position:fixed;inset:0;background:rgba(22,35,43,.45);z-index:2000;display:none;align-items:flex-end}
+  #card.open{display:flex}
+  .cardin{background:var(--card);width:100%;border-radius:22px 22px 0 0;padding:14px 20px 26px;animation:up .25s ease}
+  @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  .cardtop{display:flex;gap:14px;align-items:flex-start;margin-top:8px}
+  .cardtop .dot{width:56px;height:56px}
+  .cardtop h3{font-family:'Unbounded';font-size:16px;font-weight:600;line-height:1.25}
+  .cardtop p{font:600 12.5px 'Manrope';color:var(--muted);margin-top:3px}
+  .stats{display:flex;gap:8px;margin:16px 0}
+  .stat{flex:1;background:var(--bg);border-radius:var(--r);padding:12px;text-align:center}
+  .stat b{font-family:'Unbounded';font-size:15px;font-weight:600;display:block}
+  .stat span{font:700 10px 'Manrope';color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .cs{background:var(--bg);border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
+  .cs p{font:700 12px 'Manrope';color:var(--muted);margin-bottom:8px}
+  .csbtns{display:flex;gap:8px}
+  .csbtn{flex:1;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font:800 13px 'Manrope';cursor:pointer;color:var(--ink)}
+  .csbtn:active{transform:scale(.97)}
+  .csbtn.take{border-color:var(--red);color:var(--red)}
+  .csbtn.free{border-color:var(--teal);color:var(--teal)}
+  .actions{display:flex;gap:10px}
+  .btn{flex:1;padding:15px;border-radius:14px;border:0;font:800 14px 'Manrope';cursor:pointer;text-align:center;text-decoration:none}
+  .btn.route{background:var(--blue);color:#fff}
+  .btn.close{background:var(--bg);color:var(--ink);flex:0 0 auto;padding:15px 18px}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:100px;z-index:3000;background:var(--ink);color:#fff;font:700 13px 'Manrope';padding:12px 20px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">P</div>
+    <div class="brand">ParkTop<small>Ташкент · Яндекс</small></div>
+    <div class="search">🔍<input id="q" placeholder="Чорсу, Magic City…"></div>
+  </header>
+
+  <div id="mapwrap">
+    <div id="map"></div>
+    <div id="nokey"><div class="box">
+      <h3>Нужен ключ Яндекс Карт</h3>
+      <p>1. Зайди на <code>developer.tech.yandex.ru</code><br>
+      2. Создай ключ «JavaScript API и HTTP Геокодер» (бесплатно)<br>
+      3. Вставь его в начале скрипта в этом файле:<br>
+      <code>const YANDEX_API_KEY = 'твой-ключ'</code><br><br>
+      Список парковок ниже работает и без карты.</p>
+    </div></div>
+    <div class="chips">
+      <button class="chip on" data-f="all">Все</button>
+      <button class="chip" data-f="free">Есть места</button>
+      <button class="chip" data-f="cheap">До 5 000 сум</button>
+      <button class="chip" data-f="free0">Бесплатные</button>
+    </div>
+    <div class="fabcol">
+      <button class="fab" id="locbtn" title="Моё местоположение">📍</button>
+    </div>
+  </div>
+
+  <div id="sheet">
+    <div class="grab" id="grab"><i></i></div>
+    <div class="sheethead"><h2>Парковки рядом</h2><span id="count"></span></div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<div id="card"><div class="cardin" id="cardin"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   ВСТАВЬ СЮДА СВОЙ КЛЮЧ ЯНДЕКС КАРТ (бесплатный):
+   https://developer.tech.yandex.ru → JavaScript API
+   ══════════════════════════════════════════════════ */
+const YANDEX_API_KEY = 'be1856ef-50e1-40ed-abb7-80a23f99ddb3';
+
+/* ═══════════ ДАННЫЕ: парковки Ташкента ═══════════ */
+const BASE = [
+ {id:'chorsu',  name:'Базар Чорсу',          addr:'Старый город, ул. Навои', lat:41.3266, lng:69.2345, total:150, free:34,  price:3000,  hours:'06:00–20:00'},
+ {id:'magic',   name:'Magic City Park',       addr:'ул. Бабура, 174',         lat:41.2846, lng:69.2274, total:400, free:120, price:5000,  hours:'Круглосуточно'},
+ {id:'mega',    name:'ТРЦ Mega Planet',       addr:'ул. Кичик Халка Йули',    lat:41.3452, lng:69.2860, total:300, free:85,  price:0,     hours:'10:00–22:00'},
+ {id:'samdar',  name:'ТЦ Samarqand Darvoza',  addr:'ул. Коратош, 5А',         lat:41.3163, lng:69.2312, total:250, free:12,  price:0,     hours:'10:00–23:00'},
+ {id:'timur',   name:'Сквер Амира Темура',    addr:'пр-т Амира Темура',       lat:41.3111, lng:69.2797, total:80,  free:0,   price:5000,  hours:'Круглосуточно'},
+ {id:'tcity',   name:'Tashkent City Park',    addr:'ул. Ислама Каримова',     lat:41.3138, lng:69.2481, total:500, free:210, price:6000,  hours:'Круглосуточно'},
+ {id:'next',    name:'ТРЦ NEXT',              addr:'ул. Бабура, 2',           lat:41.2953, lng:69.2670, total:350, free:44,  price:0,     hours:'10:00–23:00'},
+ {id:'alay',    name:'Алайский базар',        addr:'пр-т Амира Темура, 42',   lat:41.3208, lng:69.2853, total:100, free:6,   price:3000,  hours:'06:00–20:00'},
+ {id:'rail',    name:'Ж/д вокзал «Ташкент»',  addr:'пл. Привокзальная',       lat:41.2907, lng:69.2874, total:200, free:57,  price:4000,  hours:'Круглосуточно'},
+ {id:'compass', name:'ТРЦ Compass',           addr:'ул. Фаргона Йули',        lat:41.2822, lng:69.3140, total:280, free:130, price:0,     hours:'10:00–22:00'},
+ {id:'minor',   name:'Мечеть Минор',          addr:'ул. Кичик Халка Йули',    lat:41.3347, lng:69.2683, total:60,  free:18,  price:0,     hours:'05:00–22:00'},
+ {id:'airport', name:'Аэропорт (терминал 2)', addr:'ул. Хамида Гуляма, 41',   lat:41.2612, lng:69.2823, total:450, free:190, price:10000, hours:'Круглосуточно'},
+];
+
+let spots = JSON.parse(JSON.stringify(BASE));
+let filter='all', query='', mePos=null;
+let ymap=null, placemarks={}, meMark=null;
+
+/* ═══════════ Сохранение (краудсорсинг) ═══════════ */
+async function loadSaved(){
+  try{
+    const r = await window.storage.get('parking-free-v1', true);
+    if(r && r.value){
+      const saved = JSON.parse(r.value);
+      spots.forEach(s=>{ if(saved[s.id]!==undefined) s.free = saved[s.id]; });
+    }
+  }catch(e){}
+}
+async function saveState(){
+  try{
+    const m={}; spots.forEach(s=>m[s.id]=s.free);
+    await window.storage.set('parking-free-v1', JSON.stringify(m), true);
+  }catch(e){console.warn('save failed',e)}
+}
+
+/* ═══════════ Подключение Яндекс Карт ═══════════ */
+function loadYandex(){
+  const src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU' + (YANDEX_API_KEY ? '&apikey='+YANDEX_API_KEY : '');
+  const sc = document.createElement('script');
+  sc.src = src;
+  sc.onload = ()=> ymaps.ready(initMap);
+  sc.onerror = ()=> { document.getElementById('nokey').style.display='flex'; };
+  document.head.appendChild(sc);
+  // если через 6 сек карта не поднялась — показываем подсказку про ключ
+  setTimeout(()=>{ if(!ymap) document.getElementById('nokey').style.display='flex'; }, 6000);
+}
+
+function colorOf(s){
+  if(s.free===0) return '#D64541';
+  if(s.free/s.total < .15) return '#F4A300';
+  return '#17A398';
+}
+
+function initMap(){
+  ymap = new ymaps.Map('map', {
+    center:[41.3111,69.2650], zoom:13,
+    controls:['zoomControl']
+  }, {suppressMapOpenBlock:true});
+  document.getElementById('nokey').style.display='none';
+  drawMarkers();
+}
+
+function markLayout(s){
+  return ymaps.templateLayoutFactory.createClass(
+    `<div class="pmark" style="background:${colorOf(s)}">
+       <span class="n">${s.free}</span><span class="l">мест</span>
+     </div>`
+  );
+}
+
+function drawMarkers(){
+  if(!ymap) return;
+  Object.values(placemarks).forEach(p=>ymap.geoObjects.remove(p));
+  placemarks={};
+  visible().forEach(s=>{
+    const pm = new ymaps.Placemark([s.lat,s.lng], {}, {
+      iconLayout: markLayout(s),
+      iconShape: {type:'Circle', coordinates:[22,22], radius:22},
+      iconOffset: [-22,-22]
+    });
+    pm.events.add('click', ()=>openCard(s.id));
+    ymap.geoObjects.add(pm);
+    placemarks[s.id]=pm;
+  });
+  if(meMark) ymap.geoObjects.add(meMark);
+}
+
+/* ═══════════ Список и фильтры ═══════════ */
+function dist(a,b,c,d){
+  const R=6371,dl=(c-a)*Math.PI/180,dg=(d-b)*Math.PI/180;
+  const h=Math.sin(dl/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dg/2)**2;
+  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+function visible(){
+  let v=spots.filter(s=>s.name.toLowerCase().includes(query)||s.addr.toLowerCase().includes(query));
+  if(filter==='free') v=v.filter(s=>s.free>0);
+  if(filter==='cheap') v=v.filter(s=>s.price>0&&s.price<=5000);
+  if(filter==='free0') v=v.filter(s=>s.price===0);
+  if(mePos) v.sort((a,b)=>dist(mePos.lat,mePos.lng,a.lat,a.lng)-dist(mePos.lat,mePos.lng,b.lat,b.lng));
+  else v.sort((a,b)=>b.free-a.free);
+  return v;
+}
+function fmtPrice(p){return p===0?'Бесплатно':p.toLocaleString('ru')+' сум/ч';}
+function render(){
+  const v=visible(), list=document.getElementById('list');
+  document.getElementById('count').textContent=v.length+' из '+spots.length;
+  list.innerHTML = v.length? v.map(s=>`
+    <div class="row" onclick="openCard('${s.id}')">
+      <div class="dot" style="background:${colorOf(s)}"><b>${s.free}</b><small>мест</small></div>
+      <div class="rowtxt"><b>${s.name}</b><span>${fmtPrice(s.price)} · ${s.hours}</span></div>
+      ${mePos?`<div class="rowdist">${dist(mePos.lat,mePos.lng,s.lat,s.lng).toFixed(1)} км</div>`:''}
+    </div>`).join('')
+  : '<div style="padding:30px;text-align:center;color:var(--muted);font-weight:700">Ничего не найдено.<br>Измените фильтр или запрос.</div>';
+  drawMarkers();
+}
+
+/* ═══════════ Карточка ═══════════ */
+window.openCard = function(id){
+  const s=spots.find(x=>x.id===id); if(!s)return;
+  const pct=Math.round(s.free/s.total*100);
+  document.getElementById('cardin').innerHTML=`
+    <div class="grab" onclick="closeCard()"><i></i></div>
+    <div class="cardtop">
+      <div class="dot" style="background:${colorOf(s)}"><b style="font-size:19px">${s.free}</b><small>мест</small></div>
+      <div><h3>${s.name}</h3><p>${s.addr}</p></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>${fmtPrice(s.price).replace(' сум/ч','')}</b><span>${s.price?'сум/час':'тариф'}</span></div>
+      <div class="stat"><b>${s.free}/${s.total}</b><span>свободно · ${pct}%</span></div>
+      <div class="stat"><b style="font-size:12px">${s.hours}</b><span>режим</span></div>
+    </div>
+    <div class="cs">
+      <p>Помогите другим водителям — отметьте:</p>
+      <div class="csbtns">
+        <button class="csbtn take" onclick="mark('${s.id}',-1)">🚗 Я занял место</button>
+        <button class="csbtn free" onclick="mark('${s.id}',1)">✅ Я освободил</button>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn route" href="https://yandex.uz/maps/?rtext=~${s.lat},${s.lng}&rtn=1" target="_blank">Маршрут в Яндекс →</a>
+      <button class="btn close" onclick="closeCard()">✕</button>
+    </div>`;
+  document.getElementById('card').classList.add('open');
+  if(ymap) ymap.setCenter([s.lat,s.lng], 15, {duration:400});
+};
+window.closeCard=()=>document.getElementById('card').classList.remove('open');
+document.getElementById('card').addEventListener('click',e=>{if(e.target.id==='card')closeCard()});
+
+window.mark=function(id,d){
+  const s=spots.find(x=>x.id===id);
+  s.free=Math.max(0,Math.min(s.total,s.free+d));
+  saveState(); render(); openCard(id);
+  toast(d<0?'Спасибо! Место отмечено занятым':'Спасибо! Место освободилось');
+};
+
+function toast(t){
+  const el=document.getElementById('toast');
+  el.textContent=t; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+/* ═══════════ Геолокация ═══════════ */
+document.getElementById('locbtn').onclick=()=>{
+  if(!navigator.geolocation){toast('Геолокация недоступна');return}
+  toast('Определяю местоположение…');
+  navigator.geolocation.getCurrentPosition(p=>{
+    mePos={lat:p.coords.latitude,lng:p.coords.longitude};
+    if(ymap){
+      if(meMark) ymap.geoObjects.remove(meMark);
+      const L = ymaps.templateLayoutFactory.createClass('<div class="pmark me"></div>');
+      meMark = new ymaps.Placemark([mePos.lat,mePos.lng], {}, {iconLayout:L, iconOffset:[-10,-10]});
+      ymap.geoObjects.add(meMark);
+      ymap.setCenter([mePos.lat,mePos.lng],14,{duration:400});
+    }
+    render(); toast('Сортирую по расстоянию');
+  },()=>toast('Не удалось определить. Разрешите доступ к геолокации'));
+};
+
+/* ═══════════ Поиск, фильтры, шторка ═══════════ */
+document.getElementById('q').addEventListener('input',e=>{query=e.target.value.toLowerCase();render()});
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); filter=c.dataset.f; render();
+});
+let big=false;
+document.getElementById('grab').onclick=()=>{
+  big=!big;
+  document.getElementById('sheet').style.height=big?'62%':'';
+  document.documentElement.style.setProperty('--sheet',big?'62vh':'180px');
+  setTimeout(()=>{ if(ymap) ymap.container.fitToViewport(); },300);
+};
+document.getElementById('sheet').style.height='180px';
+
+/* ═══════════ Старт ═══════════ */
+loadSaved().then(render);
+loadYandex();
+</script>
+</body>
+</html>
