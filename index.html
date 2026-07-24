@@ -208,6 +208,10 @@ const T = {
   geoTime:'Не удалось определить за 15 сек. Попробуйте на улице.',
   geoNo:'Геолокация не поддерживается',
   geoHttp:'Геолокация работает только на HTTPS-сайте',
+  geoRetry:'GPS не отвечает, пробую по сети…',
+  geoRough:'Примерное местоположение (по сети). Для точного включите GPS',
+  geoBlocked:'Сайту запрещён доступ. Нажмите на 🔒 в адресной строке → Разрешения → Геоданные → Разрешить',
+  geoManual:'Точка установлена вручную',
   live:'Слежение включено', liveOff:'Слежение выключено',
   trafOn:'Пробки включены', trafOff:'Пробки выключены',
   pick:'Двигайте карту — метка укажет место', cancel:'Отмена', ok:'Готово',
@@ -230,6 +234,10 @@ const T = {
   geoTime:'15 soniyada aniqlanmadi. Ko‘chada urinib ko‘ring.',
   geoNo:'Geolokatsiya qo‘llab-quvvatlanmaydi',
   geoHttp:'Geolokatsiya faqat HTTPS saytda ishlaydi',
+  geoRetry:'GPS javob bermayapti, tarmoq orqali urinyapman…',
+  geoRough:'Taxminiy joylashuv (tarmoq bo‘yicha). Aniq bo‘lishi uchun GPS’ni yoqing',
+  geoBlocked:'Saytga ruxsat berilmagan. Manzil satridagi 🔒 → Ruxsatlar → Joylashuv → Ruxsat berish',
+  geoManual:'Nuqta qo‘lda belgilandi',
   live:'Kuzatuv yoqildi', liveOff:'Kuzatuv o‘chirildi',
   trafOn:'Tirbandlik yoqildi', trafOff:'Tirbandlik o‘chirildi',
   pick:'Xaritani suring — belgi joyni ko‘rsatadi', cancel:'Bekor', ok:'Tayyor',
@@ -305,6 +313,7 @@ function initMap(){
     {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
   document.getElementById('warn').style.display='none';
   draw();
+  enableManualPin();
 }
 const colorOf=s=> s.free===0?'#D64541' : (s.free/s.total<.15?'#F4A300':'#17A398');
 
@@ -411,7 +420,37 @@ function putMe(lat,lng,acc){
   meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-9,-9],zIndex:900});
   ymap.geoObjects.add(meCircle); ymap.geoObjects.add(meMark);
 }
-document.getElementById('locbtn').onclick=function(){
+const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
+
+async function permState(){
+  try{
+    if(navigator.permissions){
+      const p=await navigator.permissions.query({name:'geolocation'});
+      return p.state;                       // granted | prompt | denied
+    }
+  }catch(e){}
+  return 'unknown';
+}
+
+// запасной вариант: Яндекс определяет город по IP/сети (неточно, но лучше чем ничего)
+function yandexGeo(){
+  return new Promise((res,rej)=>{
+    if(!window.ymaps||!ymaps.geolocation)return rej();
+    ymaps.geolocation.get({provider:'auto',autoReverseGeocode:false})
+      .then(r=>{
+        const c=r.geoObjects.get(0).geometry.getCoordinates();
+        res({lat:c[0],lng:c[1],acc:3000});
+      },rej);
+  });
+}
+
+function applyPos(lat,lng,acc,zoom){
+  putMe(lat,lng,acc);
+  if(ymap)ymap.setCenter([lat,lng],zoom,{duration:500});
+  render();
+}
+
+document.getElementById('locbtn').onclick=async function(){
   const b=this;
   if(watchId!=null){                       // второй тап — выключить слежение
     navigator.geolocation.clearWatch(watchId); watchId=null;
@@ -419,21 +458,57 @@ document.getElementById('locbtn').onclick=function(){
   }
   if(!navigator.geolocation){toast(t('geoNo'));return}
   if(location.protocol!=='https:'&&location.hostname!=='localhost'){toast(t('geoHttp'));return}
+
+  const st=await permState();
+  if(st==='denied'){ toast(t('geoBlocked')); return; }
+
   toast(t('geoing'));
-  const opts={enableHighAccuracy:true,timeout:15000,maximumAge:0};
-  navigator.geolocation.getCurrentPosition(p=>{
-    putMe(p.coords.latitude,p.coords.longitude,p.coords.accuracy);
-    if(ymap)ymap.setCenter([mePos.lat,mePos.lng],16,{duration:500});
-    render(); toast(t('geoOk')+' ±'+Math.round(p.coords.accuracy)+' m');
-    // включаем живое слежение
+  let p=null, lastErr=null;
+
+  // 1) точный GPS
+  try{ p=await getPos({enableHighAccuracy:true,timeout:12000,maximumAge:0}); }
+  catch(e){ lastErr=e; }
+
+  // 2) если не вышло — по сети/вышкам, дольше и мягче
+  if(!p && lastErr && lastErr.code!==1){
+    toast(t('geoRetry'));
+    try{ p=await getPos({enableHighAccuracy:false,timeout:20000,maximumAge:120000}); }
+    catch(e){ lastErr=e; }
+  }
+
+  if(p){
+    applyPos(p.coords.latitude,p.coords.longitude,p.coords.accuracy,16);
+    toast(t('geoOk')+' ±'+Math.round(p.coords.accuracy)+' m');
     watchId=navigator.geolocation.watchPosition(
       q=>{putMe(q.coords.latitude,q.coords.longitude,q.coords.accuracy);render()},
-      ()=>{}, opts);
+      ()=>{}, {enableHighAccuracy:true,timeout:20000,maximumAge:5000});
     b.classList.add('live');
-  },err=>{
-    toast(err.code===1?t('geoDeny'):err.code===2?t('geoUnav'):t('geoTime'));
-  },opts);
+    return;
+  }
+
+  // 3) отказ доступа — подсказка, как включить
+  if(lastErr && lastErr.code===1){ toast(t('geoDeny')); return; }
+
+  // 4) последняя попытка — через Яндекс (приблизительно)
+  try{
+    const y=await yandexGeo();
+    applyPos(y.lat,y.lng,y.acc,13);
+    toast(t('geoRough'));
+  }catch(e){
+    toast((lastErr&&lastErr.code===2?t('geoUnav'):t('geoTime'))+
+      (lastErr?' <span style="opacity:.6">[code '+lastErr.code+']</span>':''));
+  }
 };
+
+// запасной способ: долгое нажатие на карту — поставить себя вручную
+function enableManualPin(){
+  if(!ymap)return;
+  ymap.events.add('contextmenu',e=>{
+    const c=e.get('coords');
+    applyPos(c[0],c[1],30,ymap.getZoom());
+    toast(t('geoManual'));
+  });
+}
 
 /* ═════════ ПРОБКИ ═════════ */
 document.getElementById('trafbtn').onclick=function(){
