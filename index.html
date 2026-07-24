@@ -139,8 +139,29 @@
   .me{width:18px;height:18px;border-radius:50%;background:var(--blue);border:3px solid #fff;
     box-shadow:0 0 0 7px rgba(17,86,214,.22),0 2px 8px rgba(0,0,0,.3)}
 
-  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);z-index:300;
-    bottom:calc(var(--peek,96px) + 70px);background:var(--ink);color:#fff;font:700 12.5px 'Manrope';
+  /* ── панель маршрута ── */
+  #rp{position:fixed;left:10px;right:10px;bottom:calc(14px + var(--bot));z-index:95;
+    background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:13px 15px;display:none}
+  #rp.on{display:block;animation:up .25s cubic-bezier(.2,.8,.3,1)}
+  .rphead{display:flex;align-items:center;gap:11px}
+  .rpname{flex:1;min-width:0}
+  .rpname b{font:700 13.5px 'Manrope';display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rpname span{font:600 11.5px 'Manrope';color:var(--muted)}
+  .rpbig{text-align:right;flex-shrink:0}
+  .rpbig b{font:600 16px 'Unbounded';color:var(--blue);display:block;line-height:1.15}
+  .rpbig span{font:700 10.5px 'Manrope';color:var(--muted)}
+  .rpx{width:34px;height:34px;border-radius:11px;background:var(--bg);border:0;font-size:15px;
+    cursor:pointer;flex-shrink:0;color:var(--ink)}
+  .rpmodes{display:flex;gap:7px;margin-top:11px}
+  .rpm{flex:1;padding:9px;border-radius:11px;border:1.5px solid var(--line);background:var(--card);
+    font:700 12px 'Manrope';cursor:pointer;color:var(--ink)}
+  .rpm.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .rpnav{width:100%;margin-top:8px;padding:12px;border-radius:12px;background:var(--blue);color:#fff;
+    border:0;font:800 12.5px 'Manrope';cursor:pointer;display:block;text-align:center;text-decoration:none}
+  .routing #sheet{opacity:0;pointer-events:none;transition:.2s}
+  .routing .fabs{bottom:calc(var(--rph,150px) + 12px + var(--bot))}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);z-index:300;    bottom:calc(var(--peek,96px) + 70px);background:var(--ink);color:#fff;font:700 12.5px 'Manrope';
     padding:12px 18px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;
     max-width:86vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.35)}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -185,6 +206,7 @@
   <div id="list"></div>
 </div>
 
+<div id="rp"></div>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 <div id="toast"></div>
 <div id="warn"><div class="b"><h3 id="warnt"></h3><p id="warnp"></p></div></div>
@@ -200,7 +222,9 @@ const T = {
   all:'Все', free:'Есть места', cheap:'До 5 000 сум', free0:'Бесплатные', mine:'Мои',
   spots:'мест', freeP:'Бесплатно', sum:'сум/ч', mode:'режим', avail:'свободно',
   help:'Помогите другим водителям — отметьте:', took:'🚗 Занял место', gave:'✅ Освободил',
-  route:'Маршрут в Яндекс →', thanksT:'Спасибо! Место отмечено занятым',
+  route:'Проложить маршрут', byCar:'На машине', onFoot:'Пешком',
+  building:'строю…', min:'мин', rough:'примерно', openNav:'Открыть в Яндекс.Навигаторе →',
+  needGeo:'Сначала определите своё местоположение', thanksT:'Спасибо! Место отмечено занятым',
   thanksF:'Спасибо! Место освободилось', nores:'Ничего не найдено.<br>Измените фильтр или запрос.',
   geoing:'Определяю местоположение…', geoOk:'Вы здесь · точность',
   geoDeny:'Доступ к геолокации запрещён. Разрешите его в настройках браузера.',
@@ -226,7 +250,9 @@ const T = {
   all:'Barchasi', free:'Joy bor', cheap:'5 000 so‘mgacha', free0:'Bepul', mine:'Meniki',
   spots:'joy', freeP:'Bepul', sum:'so‘m/soat', mode:'ish vaqti', avail:'bo‘sh',
   help:'Boshqa haydovchilarga yordam bering:', took:'🚗 Joy egalladim', gave:'✅ Bo‘shatdim',
-  route:'Yandex’da yo‘nalish →', thanksT:'Rahmat! Joy band deb belgilandi',
+  route:'Yo‘nalish qurish', byCar:'Mashinada', onFoot:'Piyoda',
+  building:'qurilmoqda…', min:'daq', rough:'taxminan', openNav:'Yandex Navigatorda ochish →',
+  needGeo:'Avval joylashuvingizni aniqlang', thanksT:'Rahmat! Joy band deb belgilandi',
   thanksF:'Rahmat! Joy bo‘shadi', nores:'Hech narsa topilmadi.<br>Filtrni o‘zgartiring.',
   geoing:'Joylashuv aniqlanmoqda…', geoOk:'Siz shu yerdasiz · aniqlik',
   geoDeny:'Joylashuvga ruxsat berilmagan. Brauzer sozlamalaridan yoqing.',
@@ -381,7 +407,7 @@ window.openCard=function(id){
       <button class="csbtn free" onclick="mark('${s.id}',1)">${t('gave')}</button>
     </div></div>
     <div class="acts">
-      <a class="btn go" href="https://yandex.uz/maps/?rtext=${mePos?mePos.lat+','+mePos.lng:''}~${s.lat},${s.lng}&rtt=auto" target="_blank">${t('route')}</a>
+      <button class="btn go" onclick="routeTo('${s.id}')">${t('route')}</button>
       ${s.user?`<button class="btn del" onclick="delSpot('${s.id}')">🗑</button>`:''}
       <button class="btn gh" onclick="closeMask()">✕</button>
     </div>`;
@@ -510,6 +536,84 @@ function enableManualPin(){
   });
 }
 
+/* ═════════ МАРШРУТ ВНУТРИ ПРИЛОЖЕНИЯ ═════════ */
+let route=null, routeTarget=null, routeMode='auto';
+
+window.routeTo=function(id,mode){
+  const s=spots.find(x=>x.id===id); if(!s||!ymap)return;
+  if(!mePos){ closeMask(); toast(t('needGeo')); document.getElementById('locbtn').click(); return; }
+  routeTarget=s; routeMode=mode||routeMode;
+  closeMask(); setSnap(0);
+  document.body.classList.add('routing');
+  drawRoutePanel(null);
+  clearRoute();
+
+  route=new ymaps.multiRouter.MultiRoute({
+    referencePoints:[[mePos.lat,mePos.lng],[s.lat,s.lng]],
+    params:{routingMode:routeMode,results:1,avoidTrafficJams:true}
+  },{
+    boundsAutoApply:true, zoomMargin:[90,40,190,40],
+    wayPointVisible:false, viaPointVisible:false, pinVisible:false,
+    routeActiveStrokeWidth:6, routeActiveStrokeColor:'1156D6',
+    routeActivePedestrianSegmentStrokeColor:'17A398',
+    routeStrokeWidth:4, routeStrokeColor:'8FA3AE88'
+  });
+
+  route.model.events.add('requestsuccess',()=>{
+    const a=route.getActiveRoute();
+    if(!a){ fallbackRoute(s); return }
+    const d=a.properties.get('distance');
+    const dur=a.properties.get('durationInTraffic')||a.properties.get('duration');
+    drawRoutePanel({dist:d&&d.text, time:dur&&dur.text});
+  });
+  route.model.events.add('requestfail',()=>fallbackRoute(s));
+  ymap.geoObjects.add(route);
+};
+
+// если сервис маршрутов недоступен — рисуем прямую и считаем сами
+function fallbackRoute(s){
+  clearRoute();
+  route=new ymaps.Polyline([[mePos.lat,mePos.lng],[s.lat,s.lng]],{},{
+    strokeColor:'#1156D6',strokeWidth:4,strokeStyle:'shortdash'});
+  ymap.geoObjects.add(route);
+  ymap.setBounds([[Math.min(mePos.lat,s.lat),Math.min(mePos.lng,s.lng)],
+                 [Math.max(mePos.lat,s.lat),Math.max(mePos.lng,s.lng)]],
+                 {checkZoomRange:true,zoomMargin:[90,40,190,40]});
+  const km=dist(mePos.lat,mePos.lng,s.lat,s.lng);
+  const speed=routeMode==='pedestrian'?4.5:22;   // км/ч по городу
+  drawRoutePanel({dist:km.toFixed(1)+' km', time:Math.max(1,Math.round(km/speed*60))+' '+t('min'), rough:true});
+}
+
+function clearRoute(){
+  if(route&&ymap){ ymap.geoObjects.remove(route); route=null; }
+}
+window.closeRoute=function(){
+  clearRoute(); routeTarget=null;
+  document.body.classList.remove('routing');
+  document.getElementById('rp').classList.remove('on');
+};
+
+function drawRoutePanel(info){
+  const s=routeTarget; if(!s)return;
+  const el=document.getElementById('rp');
+  el.classList.add('on');
+  el.innerHTML=`
+    <div class="rphead">
+      <div class="dot" style="background:${colorOf(s)};width:40px;height:40px;border-radius:11px">
+        <b style="font-size:14px">${s.free}</b><small>${t('spots')}</small></div>
+      <div class="rpname"><b>${s.name}</b><span>${fmtP(s.price)}${info&&info.rough?' · '+t('rough'):''}</span></div>
+      <div class="rpbig"><b>${info?info.time:'…'}</b><span>${info?info.dist:t('building')}</span></div>
+      <button class="rpx" onclick="closeRoute()">✕</button>
+    </div>
+    <div class="rpmodes">
+      <button class="rpm${routeMode==='auto'?' on':''}" onclick="routeTo('${s.id}','auto')">🚗 ${t('byCar')}</button>
+      <button class="rpm${routeMode==='pedestrian'?' on':''}" onclick="routeTo('${s.id}','pedestrian')">🚶 ${t('onFoot')}</button>
+    </div>
+    <a class="rpnav" target="_blank"
+       href="https://yandex.uz/maps/?rtext=${mePos.lat},${mePos.lng}~${s.lat},${s.lng}&rtt=${routeMode==='pedestrian'?'pd':'auto'}">
+       ${t('openNav')}</a>`;
+  document.documentElement.style.setProperty('--rph',el.offsetHeight+'px');
+}
 /* ═════════ ПРОБКИ ═════════ */
 document.getElementById('trafbtn').onclick=function(){
   if(!ymap)return;
