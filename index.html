@@ -2,339 +2,554 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ParkTop — парковки Ташкента (Яндекс Карты)</title>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#16232B">
+<title>ParkTop — parkovkalar / парковки Ташкента</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#16232B; --bg:#EEF2F4; --card:#FFFFFF;
+    --ink:#16232B; --bg:#EEF2F4; --card:#FFF;
     --blue:#1156D6; --teal:#17A398; --amber:#F4A300; --red:#D64541;
-    --muted:#6B7A85; --line:#DCE4E8; --r:16px;
+    --muted:#6B7A85; --line:#E2E8EB;
+    --sh:0 6px 22px rgba(22,35,43,.16);
+    --top:env(safe-area-inset-top,0px);
+    --bot:env(safe-area-inset-bottom,0px);
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;overflow:hidden}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
   body{font-family:'Manrope',sans-serif;color:var(--ink);background:var(--bg)}
-  #app{display:flex;flex-direction:column;height:100%}
 
-  header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);z-index:1200;position:relative}
-  .logo{width:38px;height:38px;border-radius:10px;background:var(--blue);color:#fff;font-family:'Unbounded';font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .brand{font-family:'Unbounded';font-weight:800;font-size:15px}
-  .brand small{display:block;font-family:'Manrope';font-weight:600;font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
-  .search{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
-  .search input{border:0;background:none;outline:none;width:100%;font:600 14px 'Manrope';color:var(--ink)}
-  .search input::placeholder{color:var(--muted)}
+  /* карта на весь экран */
+  #map{position:fixed;inset:0;z-index:1}
+  #map .ymaps-2-1-79-copyright{opacity:.5}
 
-  #mapwrap{flex:1;position:relative}
-  #map{position:absolute;inset:0;z-index:1}
-  #nokey{position:absolute;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:24px;background:var(--bg);text-align:center}
-  #nokey .box{max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px}
-  #nokey h3{font-family:'Unbounded';font-size:15px;margin-bottom:10px}
-  #nokey p{font:600 13px 'Manrope';color:var(--muted);line-height:1.6}
-  #nokey code{background:var(--bg);padding:2px 6px;border-radius:6px;font-size:12px;color:var(--ink)}
+  /* ── плавающая шапка ── */
+  .top{position:fixed;top:calc(10px + var(--top));left:10px;right:10px;z-index:60;display:flex;gap:8px}
+  .bar{
+    flex:1;display:flex;align-items:center;gap:9px;background:var(--card);
+    border-radius:14px;padding:9px 12px;box-shadow:var(--sh);min-width:0;
+  }
+  .logo{width:30px;height:30px;border-radius:9px;background:var(--blue);color:#fff;
+    font:800 16px 'Unbounded';display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .bar input{border:0;outline:none;background:none;width:100%;font:600 14px 'Manrope';color:var(--ink);min-width:0}
+  .bar input::placeholder{color:var(--muted)}
+  .lang{
+    background:var(--card);border-radius:14px;box-shadow:var(--sh);border:0;
+    padding:0 13px;font:800 13px 'Manrope';color:var(--ink);cursor:pointer;flex-shrink:0;
+  }
 
-  .pmark{width:44px;height:44px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-weight:800;box-shadow:0 3px 10px rgba(22,35,43,.35);border:3px solid #fff;line-height:1;cursor:pointer}
-  .pmark .n{font-size:15px}
-  .pmark .l{font-size:7px;font-weight:700;text-transform:uppercase;opacity:.9}
-  .pmark.me{background:var(--blue);width:20px;height:20px;box-shadow:0 0 0 8px rgba(17,86,214,.2)}
-
-  .fabcol{position:absolute;right:12px;bottom:calc(var(--sheet,180px) + 14px);z-index:1100;display:flex;flex-direction:column;gap:10px;transition:bottom .25s}
-  .fab{width:48px;height:48px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(22,35,43,.18);font-size:20px;cursor:pointer}
-  .fab:active{transform:scale(.94)}
-
-  .chips{position:absolute;top:12px;left:12px;right:12px;z-index:1100;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+  .chips{position:fixed;top:calc(62px + var(--top));left:10px;right:10px;z-index:60;
+    display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
   .chips::-webkit-scrollbar{display:none}
-  .chip{flex-shrink:0;padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);font:700 12.5px 'Manrope';color:var(--ink);box-shadow:0 2px 8px rgba(22,35,43,.10);cursor:pointer}
-  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip{flex-shrink:0;padding:7px 13px;border-radius:999px;background:var(--card);border:0;
+    font:700 12px 'Manrope';color:var(--ink);box-shadow:0 2px 10px rgba(22,35,43,.14);cursor:pointer}
+  .chip.on{background:var(--ink);color:#fff}
 
-  #sheet{background:var(--card);border-radius:20px 20px 0 0;z-index:1150;box-shadow:0 -6px 24px rgba(22,35,43,.14);display:flex;flex-direction:column;max-height:72%;transition:height .25s}
-  .grab{padding:10px 0 4px;display:flex;justify-content:center;cursor:pointer}
-  .grab i{width:42px;height:5px;border-radius:3px;background:var(--line);display:block}
-  .sheethead{display:flex;align-items:baseline;justify-content:space-between;padding:2px 18px 10px}
-  .sheethead h2{font-family:'Unbounded';font-size:14px;font-weight:600}
-  .sheethead span{font:700 12px 'Manrope';color:var(--muted)}
-  #list{overflow-y:auto;padding:0 12px 16px}
-  .row{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+  /* ── кнопки справа ── */
+  .fabs{position:fixed;right:12px;z-index:60;display:flex;flex-direction:column;gap:9px;
+    bottom:calc(var(--peek,96px) + 12px + var(--bot));transition:bottom .28s cubic-bezier(.4,0,.2,1)}
+  .fab{width:46px;height:46px;border-radius:14px;background:var(--card);border:0;box-shadow:var(--sh);
+    font-size:19px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
+  .fab:active{transform:scale(.93)}
+  .fab.on{background:var(--blue);color:#fff}
+  .fab.live{background:var(--teal);color:#fff}
+
+  /* ── нижняя шторка ── */
+  #sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--card);
+    border-radius:22px 22px 0 0;box-shadow:0 -8px 28px rgba(22,35,43,.16);
+    height:var(--peek,96px);transition:height .28s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;padding-bottom:var(--bot);
+  }
+  .grab{padding:9px 0 3px;display:flex;justify-content:center;cursor:grab;touch-action:none}
+  .grab i{width:40px;height:5px;border-radius:3px;background:var(--line)}
+  .shead{display:flex;align-items:baseline;justify-content:space-between;padding:2px 18px 9px;cursor:pointer}
+  .shead h2{font:600 13.5px 'Unbounded'}
+  .shead span{font:700 11.5px 'Manrope';color:var(--muted)}
+  #list{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 12px 14px;flex:1}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--line);cursor:pointer}
   .row:last-child{border:0}
-  .dot{width:46px;height:46px;border-radius:12px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;line-height:1}
+  .dot{width:46px;height:46px;border-radius:13px;flex-shrink:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;color:#fff;line-height:1}
   .dot b{font-size:16px}
-  .dot small{font-size:7.5px;font-weight:700;text-transform:uppercase;opacity:.9}
-  .rowtxt{flex:1;min-width:0}
-  .rowtxt b{font-size:14.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rowtxt span{font:600 12px 'Manrope';color:var(--muted)}
-  .rowdist{font:800 12.5px 'Manrope';color:var(--blue);white-space:nowrap}
+  .dot small{font-size:7px;font-weight:700;text-transform:uppercase;opacity:.92}
+  .rt{flex:1;min-width:0}
+  .rt b{font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rt span{font:600 11.5px 'Manrope';color:var(--muted)}
+  .rd{font:800 12px 'Manrope';color:var(--blue);white-space:nowrap}
+  .empty{padding:26px;text-align:center;color:var(--muted);font:700 13px 'Manrope';line-height:1.6}
 
-  #card{position:fixed;inset:0;background:rgba(22,35,43,.45);z-index:2000;display:none;align-items:flex-end}
-  #card.open{display:flex}
-  .cardin{background:var(--card);width:100%;border-radius:22px 22px 0 0;padding:14px 20px 26px;animation:up .25s ease}
-  @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
-  .cardtop{display:flex;gap:14px;align-items:flex-start;margin-top:8px}
-  .cardtop .dot{width:56px;height:56px}
-  .cardtop h3{font-family:'Unbounded';font-size:16px;font-weight:600;line-height:1.25}
-  .cardtop p{font:600 12.5px 'Manrope';color:var(--muted);margin-top:3px}
-  .stats{display:flex;gap:8px;margin:16px 0}
-  .stat{flex:1;background:var(--bg);border-radius:var(--r);padding:12px;text-align:center}
-  .stat b{font-family:'Unbounded';font-size:15px;font-weight:600;display:block}
-  .stat span{font:700 10px 'Manrope';color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-  .cs{background:var(--bg);border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
-  .cs p{font:700 12px 'Manrope';color:var(--muted);margin-bottom:8px}
-  .csbtns{display:flex;gap:8px}
-  .csbtn{flex:1;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font:800 13px 'Manrope';cursor:pointer;color:var(--ink)}
+  /* ── модалки ── */
+  .mask{position:fixed;inset:0;background:rgba(22,35,43,.5);z-index:200;display:none;align-items:flex-end}
+  .mask.open{display:flex}
+  .modal{background:var(--card);width:100%;border-radius:24px 24px 0 0;padding:12px 20px calc(24px + var(--bot));
+    animation:up .26s cubic-bezier(.2,.8,.3,1);max-height:88vh;overflow-y:auto}
+  @keyframes up{from{transform:translateY(50px);opacity:0}to{transform:none;opacity:1}}
+  .ctop{display:flex;gap:13px;align-items:flex-start;margin-top:6px}
+  .ctop .dot{width:54px;height:54px}
+  .ctop h3{font:600 15.5px 'Unbounded';line-height:1.3}
+  .ctop p{font:600 12px 'Manrope';color:var(--muted);margin-top:3px}
+  .stats{display:flex;gap:7px;margin:15px 0}
+  .stat{flex:1;background:var(--bg);border-radius:14px;padding:11px 6px;text-align:center}
+  .stat b{font:600 14px 'Unbounded';display:block}
+  .stat span{font:700 9px 'Manrope';color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .cs{background:var(--bg);border-radius:14px;padding:11px 13px;margin-bottom:13px}
+  .cs p{font:700 11.5px 'Manrope';color:var(--muted);margin-bottom:8px}
+  .csb{display:flex;gap:8px}
+  .csbtn{flex:1;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);
+    font:800 12.5px 'Manrope';cursor:pointer;color:var(--ink)}
   .csbtn:active{transform:scale(.97)}
   .csbtn.take{border-color:var(--red);color:var(--red)}
   .csbtn.free{border-color:var(--teal);color:var(--teal)}
-  .actions{display:flex;gap:10px}
-  .btn{flex:1;padding:15px;border-radius:14px;border:0;font:800 14px 'Manrope';cursor:pointer;text-align:center;text-decoration:none}
-  .btn.route{background:var(--blue);color:#fff}
-  .btn.close{background:var(--bg);color:var(--ink);flex:0 0 auto;padding:15px 18px}
+  .acts{display:flex;gap:9px}
+  .btn{flex:1;padding:15px;border-radius:14px;border:0;font:800 13.5px 'Manrope';cursor:pointer;
+    text-align:center;text-decoration:none;display:block}
+  .btn.go{background:var(--blue);color:#fff}
+  .btn.gh{background:var(--bg);color:var(--ink);flex:0 0 auto;padding:15px 18px}
+  .btn.del{background:var(--bg);color:var(--red);flex:0 0 auto;padding:15px 17px}
 
-  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:100px;z-index:3000;background:var(--ink);color:#fff;font:700 13px 'Manrope';padding:12px 20px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  .fld{margin-bottom:11px}
+  .fld label{font:700 11px 'Manrope';color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px}
+  .fld input{width:100%;padding:13px;border:1.5px solid var(--line);border-radius:12px;
+    font:600 14px 'Manrope';color:var(--ink);outline:none;background:var(--card)}
+  .fld input:focus{border-color:var(--blue)}
+  .two{display:flex;gap:9px}
+  .two .fld{flex:1}
+  .mh{font:600 15px 'Unbounded';margin:6px 0 14px}
+
+  /* режим выбора точки */
+  .picking #sheet,.picking .chips{opacity:0;pointer-events:none;transition:.2s}
+  .pickbar{position:fixed;left:12px;right:12px;bottom:calc(20px + var(--bot));z-index:90;display:none;
+    background:var(--ink);color:#fff;border-radius:16px;padding:14px 16px;box-shadow:var(--sh);
+    align-items:center;gap:12px}
+  .picking .pickbar{display:flex}
+  .pickbar b{font:700 13px 'Manrope';flex:1}
+  .pickbar button{background:rgba(255,255,255,.16);border:0;color:#fff;font:800 12px 'Manrope';
+    padding:9px 14px;border-radius:10px;cursor:pointer}
+  .crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:85;display:none;
+    font-size:34px;pointer-events:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
+  .picking .crosshair{display:block}
+
+  /* метки */
+  .pm{width:44px;height:44px;border-radius:50%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;color:#fff;font-weight:800;box-shadow:0 3px 11px rgba(22,35,43,.4);
+    border:3px solid #fff;line-height:1;cursor:pointer}
+  .pm .n{font-size:15px}
+  .pm .l{font-size:6.5px;font-weight:700;text-transform:uppercase;opacity:.9}
+  .me{width:18px;height:18px;border-radius:50%;background:var(--blue);border:3px solid #fff;
+    box-shadow:0 0 0 7px rgba(17,86,214,.22),0 2px 8px rgba(0,0,0,.3)}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);z-index:300;
+    bottom:calc(var(--peek,96px) + 70px);background:var(--ink);color:#fff;font:700 12.5px 'Manrope';
+    padding:12px 18px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;
+    max-width:86vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.35)}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  #warn{position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;
+    padding:24px;background:var(--bg);text-align:center}
+  #warn .b{max-width:400px;background:var(--card);border-radius:18px;padding:24px;box-shadow:var(--sh)}
+  #warn h3{font:600 15px 'Unbounded';margin-bottom:10px}
+  #warn p{font:600 13px 'Manrope';color:var(--muted);line-height:1.65}
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
+
+<div id="map"></div>
+
+<div class="top">
+  <div class="bar">
     <div class="logo">P</div>
-    <div class="brand">ParkTop<small>Ташкент · Яндекс</small></div>
-    <div class="search">🔍<input id="q" placeholder="Чорсу, Magic City…"></div>
-  </header>
-
-  <div id="mapwrap">
-    <div id="map"></div>
-    <div id="nokey"><div class="box">
-      <h3>Нужен ключ Яндекс Карт</h3>
-      <p>1. Зайди на <code>developer.tech.yandex.ru</code><br>
-      2. Создай ключ «JavaScript API и HTTP Геокодер» (бесплатно)<br>
-      3. Вставь его в начале скрипта в этом файле:<br>
-      <code>const YANDEX_API_KEY = 'твой-ключ'</code><br><br>
-      Список парковок ниже работает и без карты.</p>
-    </div></div>
-    <div class="chips">
-      <button class="chip on" data-f="all">Все</button>
-      <button class="chip" data-f="free">Есть места</button>
-      <button class="chip" data-f="cheap">До 5 000 сум</button>
-      <button class="chip" data-f="free0">Бесплатные</button>
-    </div>
-    <div class="fabcol">
-      <button class="fab" id="locbtn" title="Моё местоположение">📍</button>
-    </div>
+    <input id="q" placeholder="Chorsu, Magic City…">
   </div>
-
-  <div id="sheet">
-    <div class="grab" id="grab"><i></i></div>
-    <div class="sheethead"><h2>Парковки рядом</h2><span id="count"></span></div>
-    <div id="list"></div>
-  </div>
+  <button class="lang" id="lang">UZ</button>
 </div>
 
-<div id="card"><div class="cardin" id="cardin"></div></div>
+<div class="chips" id="chips"></div>
+
+<div class="fabs">
+  <button class="fab" id="addbtn" title="add">➕</button>
+  <button class="fab" id="trafbtn" title="traffic">🚦</button>
+  <button class="fab" id="locbtn" title="geo">📍</button>
+</div>
+
+<div class="crosshair">📍</div>
+<div class="pickbar">
+  <b id="picktxt"></b>
+  <button id="pickcancel"></button>
+  <button id="pickok" style="background:var(--teal)"></button>
+</div>
+
+<div id="sheet">
+  <div class="grab" id="grab"><i></i></div>
+  <div class="shead" id="shead"><h2 id="stitle"></h2><span id="count"></span></div>
+  <div id="list"></div>
+</div>
+
+<div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 <div id="toast"></div>
+<div id="warn"><div class="b"><h3 id="warnt"></h3><p id="warnp"></p></div></div>
 
 <script>
-/* ══════════════════════════════════════════════════
-   ВСТАВЬ СЮДА СВОЙ КЛЮЧ ЯНДЕКС КАРТ (бесплатный):
-   https://developer.tech.yandex.ru → JavaScript API
-   ══════════════════════════════════════════════════ */
+/* ═════════ КЛЮЧ ЯНДЕКС КАРТ ═════════ */
 const YANDEX_API_KEY = 'be1856ef-50e1-40ed-abb7-80a23f99ddb3';
 
-/* ═══════════ ДАННЫЕ: парковки Ташкента ═══════════ */
-const BASE = [
- {id:'chorsu',  name:'Базар Чорсу',          addr:'Старый город, ул. Навои', lat:41.3266, lng:69.2345, total:150, free:34,  price:3000,  hours:'06:00–20:00'},
- {id:'magic',   name:'Magic City Park',       addr:'ул. Бабура, 174',         lat:41.2846, lng:69.2274, total:400, free:120, price:5000,  hours:'Круглосуточно'},
- {id:'mega',    name:'ТРЦ Mega Planet',       addr:'ул. Кичик Халка Йули',    lat:41.3452, lng:69.2860, total:300, free:85,  price:0,     hours:'10:00–22:00'},
- {id:'samdar',  name:'ТЦ Samarqand Darvoza',  addr:'ул. Коратош, 5А',         lat:41.3163, lng:69.2312, total:250, free:12,  price:0,     hours:'10:00–23:00'},
- {id:'timur',   name:'Сквер Амира Темура',    addr:'пр-т Амира Темура',       lat:41.3111, lng:69.2797, total:80,  free:0,   price:5000,  hours:'Круглосуточно'},
- {id:'tcity',   name:'Tashkent City Park',    addr:'ул. Ислама Каримова',     lat:41.3138, lng:69.2481, total:500, free:210, price:6000,  hours:'Круглосуточно'},
- {id:'next',    name:'ТРЦ NEXT',              addr:'ул. Бабура, 2',           lat:41.2953, lng:69.2670, total:350, free:44,  price:0,     hours:'10:00–23:00'},
- {id:'alay',    name:'Алайский базар',        addr:'пр-т Амира Темура, 42',   lat:41.3208, lng:69.2853, total:100, free:6,   price:3000,  hours:'06:00–20:00'},
- {id:'rail',    name:'Ж/д вокзал «Ташкент»',  addr:'пл. Привокзальная',       lat:41.2907, lng:69.2874, total:200, free:57,  price:4000,  hours:'Круглосуточно'},
- {id:'compass', name:'ТРЦ Compass',           addr:'ул. Фаргона Йули',        lat:41.2822, lng:69.3140, total:280, free:130, price:0,     hours:'10:00–22:00'},
- {id:'minor',   name:'Мечеть Минор',          addr:'ул. Кичик Халка Йули',    lat:41.3347, lng:69.2683, total:60,  free:18,  price:0,     hours:'05:00–22:00'},
- {id:'airport', name:'Аэропорт (терминал 2)', addr:'ул. Хамида Гуляма, 41',   lat:41.2612, lng:69.2823, total:450, free:190, price:10000, hours:'Круглосуточно'},
+/* ═════════ ЯЗЫКИ ═════════ */
+const T = {
+ ru:{
+  ph:'Чорсу, Magic City…', near:'Парковки рядом', of:'из',
+  all:'Все', free:'Есть места', cheap:'До 5 000 сум', free0:'Бесплатные', mine:'Мои',
+  spots:'мест', freeP:'Бесплатно', sum:'сум/ч', mode:'режим', avail:'свободно',
+  help:'Помогите другим водителям — отметьте:', took:'🚗 Занял место', gave:'✅ Освободил',
+  route:'Маршрут в Яндекс →', thanksT:'Спасибо! Место отмечено занятым',
+  thanksF:'Спасибо! Место освободилось', nores:'Ничего не найдено.<br>Измените фильтр или запрос.',
+  geoing:'Определяю местоположение…', geoOk:'Вы здесь · точность',
+  geoDeny:'Доступ к геолокации запрещён. Разрешите его в настройках браузера.',
+  geoUnav:'Местоположение недоступно. Включите GPS.',
+  geoTime:'Не удалось определить за 15 сек. Попробуйте на улице.',
+  geoNo:'Геолокация не поддерживается',
+  geoHttp:'Геолокация работает только на HTTPS-сайте',
+  live:'Слежение включено', liveOff:'Слежение выключено',
+  trafOn:'Пробки включены', trafOff:'Пробки выключены',
+  pick:'Двигайте карту — метка укажет место', cancel:'Отмена', ok:'Готово',
+  addT:'Новая парковка', nm:'Название', pr:'Цена, сум/час (0 — бесплатно)',
+  tt:'Всего мест', ff:'Свободно сейчас', hh:'Режим работы', save:'Сохранить парковку',
+  added:'Парковка добавлена!', needName:'Введите название', del:'Удалить',
+  delOk:'Парковка удалена', warnT:'Карта не загрузилась',
+  warnP:'Проверьте интернет или ограничения домена в кабинете Яндекс API.'
+ },
+ uz:{
+  ph:'Chorsu, Magic City…', near:'Yaqindagi parkovkalar', of:'/',
+  all:'Barchasi', free:'Joy bor', cheap:'5 000 so‘mgacha', free0:'Bepul', mine:'Meniki',
+  spots:'joy', freeP:'Bepul', sum:'so‘m/soat', mode:'ish vaqti', avail:'bo‘sh',
+  help:'Boshqa haydovchilarga yordam bering:', took:'🚗 Joy egalladim', gave:'✅ Bo‘shatdim',
+  route:'Yandex’da yo‘nalish →', thanksT:'Rahmat! Joy band deb belgilandi',
+  thanksF:'Rahmat! Joy bo‘shadi', nores:'Hech narsa topilmadi.<br>Filtrni o‘zgartiring.',
+  geoing:'Joylashuv aniqlanmoqda…', geoOk:'Siz shu yerdasiz · aniqlik',
+  geoDeny:'Joylashuvga ruxsat berilmagan. Brauzer sozlamalaridan yoqing.',
+  geoUnav:'Joylashuv mavjud emas. GPS’ni yoqing.',
+  geoTime:'15 soniyada aniqlanmadi. Ko‘chada urinib ko‘ring.',
+  geoNo:'Geolokatsiya qo‘llab-quvvatlanmaydi',
+  geoHttp:'Geolokatsiya faqat HTTPS saytda ishlaydi',
+  live:'Kuzatuv yoqildi', liveOff:'Kuzatuv o‘chirildi',
+  trafOn:'Tirbandlik yoqildi', trafOff:'Tirbandlik o‘chirildi',
+  pick:'Xaritani suring — belgi joyni ko‘rsatadi', cancel:'Bekor', ok:'Tayyor',
+  addT:'Yangi parkovka', nm:'Nomi', pr:'Narx, so‘m/soat (0 — bepul)',
+  tt:'Jami joylar', ff:'Hozir bo‘sh', hh:'Ish vaqti', save:'Saqlash',
+  added:'Parkovka qo‘shildi!', needName:'Nomini kiriting', del:'O‘chirish',
+  delOk:'Parkovka o‘chirildi', warnT:'Xarita yuklanmadi',
+  warnP:'Internetni yoki Yandex API domen cheklovlarini tekshiring.'
+ }
+};
+let lang = localStorage.getItem('pt-lang') || 'ru';
+const t = k => T[lang][k];
+
+/* ═════════ ПАРКОВКИ ═════════ */
+const BASE=[
+ {id:'chorsu', name:'Чорсу / Chorsu',        addr:'Eski shahar, Navoiy ko‘chasi', lat:41.3266,lng:69.2345,total:150,free:34, price:3000, hours:'06:00–20:00'},
+ {id:'magic',  name:'Magic City Park',        addr:'Bobur ko‘chasi, 174',          lat:41.2846,lng:69.2274,total:400,free:120,price:5000, hours:'24/7'},
+ {id:'mega',   name:'Mega Planet',            addr:'Kichik Halqa Yo‘li',           lat:41.3452,lng:69.2860,total:300,free:85, price:0,    hours:'10:00–22:00'},
+ {id:'samdar', name:'Samarqand Darvoza',      addr:'Qoratosh ko‘chasi, 5A',        lat:41.3163,lng:69.2312,total:250,free:12, price:0,    hours:'10:00–23:00'},
+ {id:'timur',  name:'Amir Temur xiyoboni',    addr:'Amir Temur shoh ko‘chasi',     lat:41.3111,lng:69.2797,total:80, free:0,  price:5000, hours:'24/7'},
+ {id:'tcity',  name:'Tashkent City Park',     addr:'Islom Karimov ko‘chasi',       lat:41.3138,lng:69.2481,total:500,free:210,price:6000, hours:'24/7'},
+ {id:'next',   name:'NEXT',                   addr:'Bobur ko‘chasi, 2',            lat:41.2953,lng:69.2670,total:350,free:44, price:0,    hours:'10:00–23:00'},
+ {id:'alay',   name:'Oloy bozori',            addr:'Amir Temur, 42',               lat:41.3208,lng:69.2853,total:100,free:6,  price:3000, hours:'06:00–20:00'},
+ {id:'rail',   name:'Toshkent vokzali',       addr:'Vokzal maydoni',               lat:41.2907,lng:69.2874,total:200,free:57, price:4000, hours:'24/7'},
+ {id:'compass',name:'Compass',                addr:'Farg‘ona Yo‘li',               lat:41.2822,lng:69.3140,total:280,free:130,price:0,    hours:'10:00–22:00'},
+ {id:'minor',  name:'Minor masjidi',          addr:'Kichik Halqa Yo‘li',           lat:41.3347,lng:69.2683,total:60, free:18, price:0,    hours:'05:00–22:00'},
+ {id:'airport',name:'Aeroport T2',            addr:'Hamid Olimjon, 41',            lat:41.2612,lng:69.2823,total:450,free:190,price:10000,hours:'24/7'},
 ];
+let spots=[], filter='all', query='', mePos=null, meAcc=0;
+let ymap=null, pmarks={}, meMark=null, meCircle=null, traffic=null;
+let watchId=null, picking=false;
 
-let spots = JSON.parse(JSON.stringify(BASE));
-let filter='all', query='', mePos=null;
-let ymap=null, placemarks={}, meMark=null;
-
-/* ═══════════ Сохранение (краудсорсинг) ═══════════ */
-async function loadSaved(){
-  try{
-    const r = await window.storage.get('parking-free-v1', true);
-    if(r && r.value){
-      const saved = JSON.parse(r.value);
-      spots.forEach(s=>{ if(saved[s.id]!==undefined) s.free = saved[s.id]; });
-    }
-  }catch(e){}
+/* ═════════ ХРАНИЛИЩЕ (работает и на сайте, и в Claude) ═════════ */
+const store={
+  async get(k){
+    try{ if(window.storage){const r=await window.storage.get(k,true); return r&&r.value?r.value:null} }catch(e){}
+    try{ return localStorage.getItem(k) }catch(e){ return null }
+  },
+  async set(k,v){
+    try{ if(window.storage){ await window.storage.set(k,v,true); } }catch(e){}
+    try{ localStorage.setItem(k,v) }catch(e){}
+  }
+};
+async function loadData(){
+  spots=JSON.parse(JSON.stringify(BASE));
+  const f=await store.get('pt-free');
+  if(f){ try{const m=JSON.parse(f); spots.forEach(s=>{if(m[s.id]!=null)s.free=m[s.id]})}catch(e){} }
+  const u=await store.get('pt-user');
+  if(u){ try{ spots=spots.concat(JSON.parse(u)) }catch(e){} }
 }
-async function saveState(){
-  try{
-    const m={}; spots.forEach(s=>m[s.id]=s.free);
-    await window.storage.set('parking-free-v1', JSON.stringify(m), true);
-  }catch(e){console.warn('save failed',e)}
+async function saveFree(){
+  const m={}; spots.filter(s=>!s.user).forEach(s=>m[s.id]=s.free);
+  await store.set('pt-free',JSON.stringify(m));
+  await store.set('pt-user',JSON.stringify(spots.filter(s=>s.user)));
 }
 
-/* ═══════════ Подключение Яндекс Карт ═══════════ */
+/* ═════════ КАРТА ═════════ */
 function loadYandex(){
-  const src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU' + (YANDEX_API_KEY ? '&apikey='+YANDEX_API_KEY : '');
-  const sc = document.createElement('script');
-  sc.src = src;
-  sc.onload = ()=> ymaps.ready(initMap);
-  sc.onerror = ()=> { document.getElementById('nokey').style.display='flex'; };
+  const sc=document.createElement('script');
+  sc.src='https://api-maps.yandex.ru/2.1/?lang='+(lang==='uz'?'ru_RU':'ru_RU')+'&apikey='+YANDEX_API_KEY;
+  sc.onload=()=>ymaps.ready(initMap);
+  sc.onerror=showWarn;
   document.head.appendChild(sc);
-  // если через 6 сек карта не поднялась — показываем подсказку про ключ
-  setTimeout(()=>{ if(!ymap) document.getElementById('nokey').style.display='flex'; }, 6000);
+  setTimeout(()=>{ if(!ymap) showWarn() },9000);
 }
-
-function colorOf(s){
-  if(s.free===0) return '#D64541';
-  if(s.free/s.total < .15) return '#F4A300';
-  return '#17A398';
+function showWarn(){
+  document.getElementById('warnt').textContent=t('warnT');
+  document.getElementById('warnp').textContent=t('warnP');
+  document.getElementById('warn').style.display='flex';
 }
-
 function initMap(){
-  ymap = new ymaps.Map('map', {
-    center:[41.3111,69.2650], zoom:13,
-    controls:['zoomControl']
-  }, {suppressMapOpenBlock:true});
-  document.getElementById('nokey').style.display='none';
-  drawMarkers();
+  ymap=new ymaps.Map('map',{center:[41.3111,69.2650],zoom:13,controls:[]},
+    {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
+  document.getElementById('warn').style.display='none';
+  draw();
 }
+const colorOf=s=> s.free===0?'#D64541' : (s.free/s.total<.15?'#F4A300':'#17A398');
 
-function markLayout(s){
-  return ymaps.templateLayoutFactory.createClass(
-    `<div class="pmark" style="background:${colorOf(s)}">
-       <span class="n">${s.free}</span><span class="l">мест</span>
-     </div>`
-  );
-}
-
-function drawMarkers(){
-  if(!ymap) return;
-  Object.values(placemarks).forEach(p=>ymap.geoObjects.remove(p));
-  placemarks={};
+function draw(){
+  if(!ymap)return;
+  Object.values(pmarks).forEach(p=>ymap.geoObjects.remove(p)); pmarks={};
   visible().forEach(s=>{
-    const pm = new ymaps.Placemark([s.lat,s.lng], {}, {
-      iconLayout: markLayout(s),
-      iconShape: {type:'Circle', coordinates:[22,22], radius:22},
-      iconOffset: [-22,-22]
-    });
-    pm.events.add('click', ()=>openCard(s.id));
-    ymap.geoObjects.add(pm);
-    placemarks[s.id]=pm;
+    const L=ymaps.templateLayoutFactory.createClass(
+      `<div class="pm" style="background:${colorOf(s)}"><span class="n">${s.free}</span><span class="l">${t('spots')}</span></div>`);
+    const pm=new ymaps.Placemark([s.lat,s.lng],{},{
+      iconLayout:L, iconShape:{type:'Circle',coordinates:[0,0],radius:22}, iconOffset:[-22,-22]});
+    pm.events.add('click',()=>openCard(s.id));
+    ymap.geoObjects.add(pm); pmarks[s.id]=pm;
   });
+  if(meCircle) ymap.geoObjects.add(meCircle);
   if(meMark) ymap.geoObjects.add(meMark);
 }
 
-/* ═══════════ Список и фильтры ═══════════ */
+/* ═════════ СПИСОК ═════════ */
 function dist(a,b,c,d){
   const R=6371,dl=(c-a)*Math.PI/180,dg=(d-b)*Math.PI/180;
   const h=Math.sin(dl/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dg/2)**2;
   return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
 }
 function visible(){
-  let v=spots.filter(s=>s.name.toLowerCase().includes(query)||s.addr.toLowerCase().includes(query));
-  if(filter==='free') v=v.filter(s=>s.free>0);
-  if(filter==='cheap') v=v.filter(s=>s.price>0&&s.price<=5000);
-  if(filter==='free0') v=v.filter(s=>s.price===0);
-  if(mePos) v.sort((a,b)=>dist(mePos.lat,mePos.lng,a.lat,a.lng)-dist(mePos.lat,mePos.lng,b.lat,b.lng));
+  let v=spots.filter(s=>(s.name+s.addr).toLowerCase().includes(query));
+  if(filter==='free')v=v.filter(s=>s.free>0);
+  if(filter==='cheap')v=v.filter(s=>s.price>0&&s.price<=5000);
+  if(filter==='free0')v=v.filter(s=>s.price===0);
+  if(filter==='mine')v=v.filter(s=>s.user);
+  if(mePos)v.sort((a,b)=>dist(mePos.lat,mePos.lng,a.lat,a.lng)-dist(mePos.lat,mePos.lng,b.lat,b.lng));
   else v.sort((a,b)=>b.free-a.free);
   return v;
 }
-function fmtPrice(p){return p===0?'Бесплатно':p.toLocaleString('ru')+' сум/ч';}
+const fmtP=p=>p===0?t('freeP'):p.toLocaleString('ru')+' '+t('sum');
 function render(){
-  const v=visible(), list=document.getElementById('list');
-  document.getElementById('count').textContent=v.length+' из '+spots.length;
-  list.innerHTML = v.length? v.map(s=>`
+  const v=visible();
+  document.getElementById('count').textContent=v.length+' '+t('of')+' '+spots.length;
+  document.getElementById('list').innerHTML = v.length ? v.map(s=>`
     <div class="row" onclick="openCard('${s.id}')">
-      <div class="dot" style="background:${colorOf(s)}"><b>${s.free}</b><small>мест</small></div>
-      <div class="rowtxt"><b>${s.name}</b><span>${fmtPrice(s.price)} · ${s.hours}</span></div>
-      ${mePos?`<div class="rowdist">${dist(mePos.lat,mePos.lng,s.lat,s.lng).toFixed(1)} км</div>`:''}
-    </div>`).join('')
-  : '<div style="padding:30px;text-align:center;color:var(--muted);font-weight:700">Ничего не найдено.<br>Измените фильтр или запрос.</div>';
-  drawMarkers();
+      <div class="dot" style="background:${colorOf(s)}"><b>${s.free}</b><small>${t('spots')}</small></div>
+      <div class="rt"><b>${s.user?'⭐ ':''}${s.name}</b><span>${fmtP(s.price)} · ${s.hours}</span></div>
+      ${mePos?`<div class="rd">${dist(mePos.lat,mePos.lng,s.lat,s.lng).toFixed(1)} km</div>`:''}
+    </div>`).join('') : `<div class="empty">${t('nores')}</div>`;
+  draw();
 }
 
-/* ═══════════ Карточка ═══════════ */
-window.openCard = function(id){
+/* ═════════ КАРТОЧКА ═════════ */
+window.openCard=function(id){
   const s=spots.find(x=>x.id===id); if(!s)return;
   const pct=Math.round(s.free/s.total*100);
-  document.getElementById('cardin').innerHTML=`
-    <div class="grab" onclick="closeCard()"><i></i></div>
-    <div class="cardtop">
-      <div class="dot" style="background:${colorOf(s)}"><b style="font-size:19px">${s.free}</b><small>мест</small></div>
-      <div><h3>${s.name}</h3><p>${s.addr}</p></div>
+  document.getElementById('modal').innerHTML=`
+    <div class="grab" onclick="closeMask()"><i></i></div>
+    <div class="ctop">
+      <div class="dot" style="background:${colorOf(s)}"><b style="font-size:19px">${s.free}</b><small>${t('spots')}</small></div>
+      <div><h3>${s.user?'⭐ ':''}${s.name}</h3><p>${s.addr}</p></div>
     </div>
     <div class="stats">
-      <div class="stat"><b>${fmtPrice(s.price).replace(' сум/ч','')}</b><span>${s.price?'сум/час':'тариф'}</span></div>
-      <div class="stat"><b>${s.free}/${s.total}</b><span>свободно · ${pct}%</span></div>
-      <div class="stat"><b style="font-size:12px">${s.hours}</b><span>режим</span></div>
+      <div class="stat"><b>${s.price?s.price.toLocaleString('ru'):t('freeP')}</b><span>${s.price?t('sum'):'—'}</span></div>
+      <div class="stat"><b>${s.free}/${s.total}</b><span>${t('avail')} ${pct}%</span></div>
+      <div class="stat"><b style="font-size:11.5px">${s.hours}</b><span>${t('mode')}</span></div>
     </div>
-    <div class="cs">
-      <p>Помогите другим водителям — отметьте:</p>
-      <div class="csbtns">
-        <button class="csbtn take" onclick="mark('${s.id}',-1)">🚗 Я занял место</button>
-        <button class="csbtn free" onclick="mark('${s.id}',1)">✅ Я освободил</button>
-      </div>
-    </div>
-    <div class="actions">
-      <a class="btn route" href="https://yandex.uz/maps/?rtext=~${s.lat},${s.lng}&rtn=1" target="_blank">Маршрут в Яндекс →</a>
-      <button class="btn close" onclick="closeCard()">✕</button>
+    <div class="cs"><p>${t('help')}</p><div class="csb">
+      <button class="csbtn take" onclick="mark('${s.id}',-1)">${t('took')}</button>
+      <button class="csbtn free" onclick="mark('${s.id}',1)">${t('gave')}</button>
+    </div></div>
+    <div class="acts">
+      <a class="btn go" href="https://yandex.uz/maps/?rtext=${mePos?mePos.lat+','+mePos.lng:''}~${s.lat},${s.lng}&rtt=auto" target="_blank">${t('route')}</a>
+      ${s.user?`<button class="btn del" onclick="delSpot('${s.id}')">🗑</button>`:''}
+      <button class="btn gh" onclick="closeMask()">✕</button>
     </div>`;
-  document.getElementById('card').classList.add('open');
-  if(ymap) ymap.setCenter([s.lat,s.lng], 15, {duration:400});
+  document.getElementById('mask').classList.add('open');
+  if(ymap)ymap.setCenter([s.lat,s.lng],15,{duration:400});
 };
-window.closeCard=()=>document.getElementById('card').classList.remove('open');
-document.getElementById('card').addEventListener('click',e=>{if(e.target.id==='card')closeCard()});
+window.closeMask=()=>document.getElementById('mask').classList.remove('open');
+document.getElementById('mask').onclick=e=>{if(e.target.id==='mask')closeMask()};
 
 window.mark=function(id,d){
   const s=spots.find(x=>x.id===id);
   s.free=Math.max(0,Math.min(s.total,s.free+d));
-  saveState(); render(); openCard(id);
-  toast(d<0?'Спасибо! Место отмечено занятым':'Спасибо! Место освободилось');
+  saveFree(); render(); openCard(id);
+  toast(d<0?t('thanksT'):t('thanksF'));
+};
+window.delSpot=function(id){
+  spots=spots.filter(s=>s.id!==id);
+  saveFree(); closeMask(); render(); toast(t('delOk'));
 };
 
-function toast(t){
+function toast(x){
   const el=document.getElementById('toast');
-  el.textContent=t; el.classList.add('show');
-  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200);
+  el.innerHTML=x; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2600);
 }
 
-/* ═══════════ Геолокация ═══════════ */
-document.getElementById('locbtn').onclick=()=>{
-  if(!navigator.geolocation){toast('Геолокация недоступна');return}
-  toast('Определяю местоположение…');
+/* ═════════ ГЕОЛОКАЦИЯ (реальная) ═════════ */
+function putMe(lat,lng,acc){
+  mePos={lat,lng}; meAcc=acc;
+  if(!ymap)return;
+  if(meMark)ymap.geoObjects.remove(meMark);
+  if(meCircle)ymap.geoObjects.remove(meCircle);
+  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc,20)],{},{
+    fillColor:'#1156D622',strokeColor:'#1156D655',strokeWidth:1,interactivityModel:'default#transparent'});
+  const L=ymaps.templateLayoutFactory.createClass('<div class="me"></div>');
+  meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-9,-9],zIndex:900});
+  ymap.geoObjects.add(meCircle); ymap.geoObjects.add(meMark);
+}
+document.getElementById('locbtn').onclick=function(){
+  const b=this;
+  if(watchId!=null){                       // второй тап — выключить слежение
+    navigator.geolocation.clearWatch(watchId); watchId=null;
+    b.classList.remove('live'); toast(t('liveOff')); return;
+  }
+  if(!navigator.geolocation){toast(t('geoNo'));return}
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'){toast(t('geoHttp'));return}
+  toast(t('geoing'));
+  const opts={enableHighAccuracy:true,timeout:15000,maximumAge:0};
   navigator.geolocation.getCurrentPosition(p=>{
-    mePos={lat:p.coords.latitude,lng:p.coords.longitude};
-    if(ymap){
-      if(meMark) ymap.geoObjects.remove(meMark);
-      const L = ymaps.templateLayoutFactory.createClass('<div class="pmark me"></div>');
-      meMark = new ymaps.Placemark([mePos.lat,mePos.lng], {}, {iconLayout:L, iconOffset:[-10,-10]});
-      ymap.geoObjects.add(meMark);
-      ymap.setCenter([mePos.lat,mePos.lng],14,{duration:400});
-    }
-    render(); toast('Сортирую по расстоянию');
-  },()=>toast('Не удалось определить. Разрешите доступ к геолокации'));
+    putMe(p.coords.latitude,p.coords.longitude,p.coords.accuracy);
+    if(ymap)ymap.setCenter([mePos.lat,mePos.lng],16,{duration:500});
+    render(); toast(t('geoOk')+' ±'+Math.round(p.coords.accuracy)+' m');
+    // включаем живое слежение
+    watchId=navigator.geolocation.watchPosition(
+      q=>{putMe(q.coords.latitude,q.coords.longitude,q.coords.accuracy);render()},
+      ()=>{}, opts);
+    b.classList.add('live');
+  },err=>{
+    toast(err.code===1?t('geoDeny'):err.code===2?t('geoUnav'):t('geoTime'));
+  },opts);
 };
 
-/* ═══════════ Поиск, фильтры, шторка ═══════════ */
+/* ═════════ ПРОБКИ ═════════ */
+document.getElementById('trafbtn').onclick=function(){
+  if(!ymap)return;
+  if(!traffic){
+    traffic=new ymaps.traffic.provider.Actual({},{infoLayerShown:true});
+    traffic.setMap(ymap); this.classList.add('on'); toast(t('trafOn'));
+  }else{
+    traffic.setMap(null); traffic=null; this.classList.remove('on'); toast(t('trafOff'));
+  }
+};
+
+/* ═════════ ДОБАВЛЕНИЕ ПАРКОВКИ ═════════ */
+document.getElementById('addbtn').onclick=()=>{
+  if(!ymap)return;
+  picking=true; document.body.classList.add('picking');
+  document.getElementById('picktxt').textContent=t('pick');
+  document.getElementById('pickcancel').textContent=t('cancel');
+  document.getElementById('pickok').textContent=t('ok');
+};
+document.getElementById('pickcancel').onclick=()=>{
+  picking=false; document.body.classList.remove('picking');
+};
+document.getElementById('pickok').onclick=()=>{
+  const c=ymap.getCenter();
+  picking=false; document.body.classList.remove('picking');
+  openAddForm(c[0],c[1]);
+};
+function openAddForm(lat,lng){
+  document.getElementById('modal').innerHTML=`
+    <div class="grab" onclick="closeMask()"><i></i></div>
+    <div class="mh">${t('addT')}</div>
+    <div class="fld"><label>${t('nm')}</label><input id="f_n" placeholder="Chorsu 2"></div>
+    <div class="fld"><label>${t('pr')}</label><input id="f_p" type="number" inputmode="numeric" value="0"></div>
+    <div class="two">
+      <div class="fld"><label>${t('tt')}</label><input id="f_t" type="number" inputmode="numeric" value="20"></div>
+      <div class="fld"><label>${t('ff')}</label><input id="f_f" type="number" inputmode="numeric" value="10"></div>
+    </div>
+    <div class="fld"><label>${t('hh')}</label><input id="f_h" value="24/7"></div>
+    <div class="acts" style="margin-top:14px">
+      <button class="btn go" onclick="saveNew(${lat},${lng})">${t('save')}</button>
+      <button class="btn gh" onclick="closeMask()">✕</button>
+    </div>`;
+  document.getElementById('mask').classList.add('open');
+}
+window.saveNew=function(lat,lng){
+  const n=document.getElementById('f_n').value.trim();
+  if(!n){toast(t('needName'));return}
+  const total=Math.max(1,+document.getElementById('f_t').value||1);
+  spots.push({
+    id:'u'+Date.now(), user:true, name:n,
+    addr:lat.toFixed(4)+', '+lng.toFixed(4), lat, lng, total,
+    free:Math.min(total,Math.max(0,+document.getElementById('f_f').value||0)),
+    price:Math.max(0,+document.getElementById('f_p').value||0),
+    hours:document.getElementById('f_h').value||'24/7'
+  });
+  saveFree(); closeMask(); render(); toast(t('added'));
+};
+
+/* ═════════ ШТОРКА (с перетаскиванием) ═════════ */
+const SNAP=[96,300,window.innerHeight*0.78];
+let snapIdx=0;
+function setSnap(i){
+  snapIdx=Math.max(0,Math.min(2,i));
+  const h=SNAP[snapIdx];
+  document.getElementById('sheet').style.height=h+'px';
+  document.documentElement.style.setProperty('--peek',h+'px');
+  setTimeout(()=>{if(ymap)ymap.container.fitToViewport()},300);
+}
+document.getElementById('shead').onclick=()=>setSnap(snapIdx===2?0:snapIdx+1);
+(function(){
+  const g=document.getElementById('grab'); let y0=0,h0=0,drag=false;
+  const start=e=>{drag=true;y0=(e.touches?e.touches[0]:e).clientY;h0=document.getElementById('sheet').offsetHeight;
+    document.getElementById('sheet').style.transition='none'};
+  const move=e=>{if(!drag)return;e.preventDefault();
+    const y=(e.touches?e.touches[0]:e).clientY;
+    const h=Math.max(96,Math.min(window.innerHeight*0.85,h0+(y0-y)));
+    document.getElementById('sheet').style.height=h+'px';
+    document.documentElement.style.setProperty('--peek',h+'px')};
+  const end=()=>{if(!drag)return;drag=false;
+    document.getElementById('sheet').style.transition='';
+    const h=document.getElementById('sheet').offsetHeight;
+    let best=0,bd=1e9; SNAP.forEach((s,i)=>{if(Math.abs(s-h)<bd){bd=Math.abs(s-h);best=i}});
+    setSnap(best)};
+  g.addEventListener('touchstart',start,{passive:true});
+  g.addEventListener('touchmove',move,{passive:false});
+  g.addEventListener('touchend',end);
+  g.addEventListener('mousedown',start);
+  window.addEventListener('mousemove',move);
+  window.addEventListener('mouseup',end);
+})();
+
+/* ═════════ ФИЛЬТРЫ / ЯЗЫК ═════════ */
+function buildUI(){
+  document.getElementById('q').placeholder=t('ph');
+  document.getElementById('stitle').textContent=t('near');
+  document.getElementById('lang').textContent=lang==='ru'?'UZ':'RU';
+  document.documentElement.lang=lang;
+  const fs=[['all','all'],['free','free'],['cheap','cheap'],['free0','free0'],['mine','mine']];
+  document.getElementById('chips').innerHTML=fs.map(([k,l])=>
+    `<button class="chip${filter===k?' on':''}" data-f="${k}">${t(l)}</button>`).join('');
+  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    filter=c.dataset.f; buildUI(); render();
+  });
+}
+document.getElementById('lang').onclick=()=>{
+  lang=lang==='ru'?'uz':'ru'; localStorage.setItem('pt-lang',lang);
+  buildUI(); render(); closeMask();
+};
 document.getElementById('q').addEventListener('input',e=>{query=e.target.value.toLowerCase();render()});
-document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
-  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
-  c.classList.add('on'); filter=c.dataset.f; render();
-});
-let big=false;
-document.getElementById('grab').onclick=()=>{
-  big=!big;
-  document.getElementById('sheet').style.height=big?'62%':'';
-  document.documentElement.style.setProperty('--sheet',big?'62vh':'180px');
-  setTimeout(()=>{ if(ymap) ymap.container.fitToViewport(); },300);
-};
-document.getElementById('sheet').style.height='180px';
 
-/* ═══════════ Старт ═══════════ */
-loadSaved().then(render);
+/* ═════════ СТАРТ ═════════ */
+setSnap(0); buildUI();
+loadData().then(render);
 loadYandex();
+window.addEventListener('resize',()=>{SNAP[2]=window.innerHeight*0.78});
 </script>
 </body>
 </html>
