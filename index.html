@@ -340,7 +340,7 @@ const I18N={
   lFew:'Мало мест', lNone:'Нет мест', lEv:'Зарядка для ЭМ', lUnknown:'Неизвестно',
   geoing:'Определяю местоположение…', geoOk:'Вы здесь', geoDeny:'Разрешите доступ к геолокации в настройках браузера',
   geoCached:'Последнее известное место · уточняю…', geoSearching:'Ищу спутники…',
-  geoPrecise:'Точное место (GPS)', geoRoughWait:'Примерно · ищу GPS…',
+  geoPrecise:'Точное место (GPS)', geoRoughWait:'Примерно · ищу GPS…', approxTilde:'приблизительно',
   geoStillRough:'GPS не поймал спутники. Выйдите на улицу для точного места',
   geoRetry:'GPS не отвечает, пробую по сети…', geoRough:'Примерное местоположение',
   geoUnav:'Включите GPS', geoTime:'Не удалось определить. Попробуйте на улице',
@@ -469,7 +469,7 @@ function initMap(){
   // позиция могла прийти раньше карты — показываем её сразу
   if(pendingCenter){
     const c=pendingCenter;pendingCenter=null;
-    putMe(c.lat,c.lng,c.acc);
+    putMe(c.lat,c.lng,c.acc,c.rough);
     ymap.setCenter([c.lat,c.lng],zoomFor(c.acc));
     drawMarkers();
   }
@@ -694,12 +694,15 @@ async function ensurePermission(){
 }
 
 let pendingCenter=null;
-function putMe(lat,lng,acc){
+function putMe(lat,lng,acc,rough){
   mePos={lat,lng};meAcc=acc||0;
-  if(!ymap){pendingCenter={lat,lng,acc};return}   // карта ещё грузится — применим позже
+  if(!ymap){pendingCenter={lat,lng,acc,rough};return}   // карта ещё грузится — применим позже
   if(meMark)ymap.geoObjects.remove(meMark);if(meCircle)ymap.geoObjects.remove(meCircle);
-  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
-  const L=ymaps.templateLayoutFactory.createClass('<div class="me-marker"></div>');
+  const isRough = rough || (acc||0)>1200;
+  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},
+    isRough?{fillColor:'#F5A62322',strokeColor:'#F5A623aa',strokeWidth:1,strokeStyle:'shortdash'}
+           :{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
+  const L=ymaps.templateLayoutFactory.createClass('<div class="me-marker"'+(isRough?' style="background:#F5A623"':'')+'></div>');
   meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-10,-10],zIndex:900});
   ymap.geoObjects.add(meCircle);ymap.geoObjects.add(meMark);
 }
@@ -709,29 +712,30 @@ function applyFix(lat,lng,acc,label,precise){
   const better = !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot);
   if(!better)return false;
   const jumped = mePos ? dist(mePos.lat,mePos.lng,lat,lng)>0.2 : true;
-  putMe(lat,lng,acc);
+  putMe(lat,lng,acc,!precise&&acc>1200);
   if(acc<=1000)saveLastPos(lat,lng,acc);
   if(precise)gpsGot=true;
   drawMarkers();
   // переезжаем, если пользователь сам карту не двигал
   if(!userPanned&&(jumped||precise)) ymap&&ymap.setCenter([lat,lng],zoomFor(acc),{duration:450});
-  if(label)toast(label+' · ±'+Math.round(acc)+' м');
+  if(label)toast(label+(acc>1200?' · '+t('approxTilde'):'')+' · ±'+(acc>1000?Math.round(acc/1000)+' км':Math.round(acc)+' м'));
   return true;
 }
 
 /* МГНОВЕННО: последняя известная позиция от системы (от любого приложения).
-   maximumAge:Infinity отдаёт её сразу, за миллисекунды — это и есть трюк Яндекса. */
+   ВАЖНО: ограничиваем возраст 10 минутами — иначе Android может отдать
+   координату многочасовой давности из совсем другого места (ложная "ошибка в 5 км"). */
 function instantFix(){
   const Geo=GeoPlugin();
-  const o={enableHighAccuracy:false,timeout:3000,maximumAge:Infinity};
+  const o={enableHighAccuracy:false,timeout:3000,maximumAge:600000};
   const wrap=p=>({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});
   return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
 }
 
-/* быстрый замер: сеть/вышки. Кэш системы разрешаем только свежий (1 мин) */
+/* быстрый замер: сеть/вышки. Кэш системы разрешаем только совсем свежий (30 сек) */
 function fastFix(){
   const Geo=GeoPlugin();
-  const o={enableHighAccuracy:false,timeout:7000,maximumAge:60000};
+  const o={enableHighAccuracy:false,timeout:7000,maximumAge:30000};
   const wrap=p=>({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});
   return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
 }
@@ -1051,6 +1055,13 @@ loadYandex();buildQchips();buildNav();
     startPreciseWatch();
     instantFix().then(i=>{if(!gpsGot)applyFix(i.lat,i.lng,i.acc,null,false)}).catch(()=>{});
     fastFix().then(f=>{if(!gpsGot)applyFix(f.lat,f.lng,f.acc,null,false)}).catch(()=>{});
+    // пока спутники не пойманы — раз в 5 сек пробуем сеть заново (данные Wi-Fi/вышек
+    // могут уточниться по мере сканирования), но не дольше минуты
+    for(let i=0;i<12&&!gpsGot;i++){
+      await new Promise(r=>setTimeout(r,5000));
+      if(gpsGot)break;
+      try{const f=await fastFix();applyFix(f.lat,f.lng,f.acc,null,false)}catch(e){}
+    }
   }
 
   async function run(){
