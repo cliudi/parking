@@ -57,6 +57,11 @@
   .sfab:active{transform:scale(.93)}
   .sfab.on{background:var(--blue);color:#fff}
   .sfab.live{background:var(--green2);color:#fff}
+  .accbadge{background:var(--card);border-radius:10px;box-shadow:var(--sh);padding:5px 8px;
+    font:800 10px 'Manrope';color:var(--ink2);text-align:center;display:none;white-space:nowrap}
+  .accbadge.on{display:block}
+  .accbadge.good{color:var(--green2)}
+  .accbadge.bad{color:var(--amber)}
   .zoomcol{display:flex;flex-direction:column;background:var(--card);border-radius:13px;box-shadow:var(--sh);overflow:hidden}
   .zoomcol button{width:46px;height:44px;border:0;background:var(--card);font-size:20px;font-weight:700;cursor:pointer;color:var(--ink)}
   .zoomcol button:first-child{border-bottom:1px solid var(--line)}
@@ -268,6 +273,7 @@
   <div class="sidefabs">
     <button class="sfab" id="filtbtn">⚙️</button>
     <button class="sfab" id="locbtn">◎</button>
+    <div class="accbadge" id="accbadge"></div>
     <div class="zoomcol">
       <button id="zin">+</button>
       <button id="zout">−</button>
@@ -341,6 +347,7 @@ const I18N={
   geoing:'Определяю местоположение…', geoOk:'Вы здесь', geoDeny:'Разрешите доступ к геолокации в настройках браузера',
   geoCached:'Последнее известное место · уточняю…', geoSearching:'Ищу спутники…',
   geoPrecise:'Точное место (GPS)', geoRoughWait:'Примерно · ищу GPS…', approxTilde:'приблизительно',
+  geoImprove:'Точность низкая. Включите Настройки → Местоположение → Улучшить точность, и выйдите на открытое место',
   geoStillRough:'GPS не поймал спутники. Выйдите на улицу для точного места',
   geoRetry:'GPS не отвечает, пробую по сети…', geoRough:'Примерное местоположение',
   geoUnav:'Включите GPS', geoTime:'Не удалось определить. Попробуйте на улице',
@@ -698,7 +705,7 @@ function putMe(lat,lng,acc,rough){
   mePos={lat,lng};meAcc=acc||0;
   if(!ymap){pendingCenter={lat,lng,acc,rough};return}   // карта ещё грузится — применим позже
   if(meMark)ymap.geoObjects.remove(meMark);if(meCircle)ymap.geoObjects.remove(meCircle);
-  const isRough = rough || (acc||0)>1200;
+  const isRough = rough || (acc||0)>ROUGH_OVER;
   meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},
     isRough?{fillColor:'#F5A62322',strokeColor:'#F5A623aa',strokeWidth:1,strokeStyle:'shortdash'}
            :{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
@@ -708,17 +715,22 @@ function putMe(lat,lng,acc,rough){
 }
 
 /* применяем координату, если она лучше текущей */
+let lastFixTs=0;
+const GPS_GOOD=60;      // настоящий спутниковый замер — до 60 м
+const ROUGH_OVER=100;   // всё, что хуже 100 м, показываем как приблизительное
 function applyFix(lat,lng,acc,label,precise){
-  const better = !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot);
+  const stale = Date.now()-lastFixTs>20000;   // старый замер устарел — берём любой новый
+  const better = !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot) || stale;
   if(!better)return false;
+  lastFixTs=Date.now();
   const jumped = mePos ? dist(mePos.lat,mePos.lng,lat,lng)>0.2 : true;
-  putMe(lat,lng,acc,!precise&&acc>1200);
+  putMe(lat,lng,acc,acc>ROUGH_OVER);
   if(acc<=1000)saveLastPos(lat,lng,acc);
   if(precise)gpsGot=true;
   drawMarkers();
   // переезжаем, если пользователь сам карту не двигал
   if(!userPanned&&(jumped||precise)) ymap&&ymap.setCenter([lat,lng],zoomFor(acc),{duration:450});
-  if(label)toast(label+(acc>1200?' · '+t('approxTilde'):'')+' · ±'+(acc>1000?Math.round(acc/1000)+' км':Math.round(acc)+' м'));
+  if(label)toast(label+(acc>ROUGH_OVER?' · '+t('approxTilde'):'')+' · ±'+(acc>1000?Math.round(acc/1000)+' км':Math.round(acc)+' м'));
   return true;
 }
 
@@ -740,6 +752,19 @@ function fastFix(){
   return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
 }
 
+/* живой показ точности — видно, как GPS сходится к нескольким метрам */
+let accHintShown=false, accStart=0;
+function showAcc(acc){
+  const el=document.getElementById('accbadge');if(!el)return;
+  el.textContent='±'+(acc>=1000?(acc/1000).toFixed(1)+' км':Math.round(acc)+' м');
+  el.className='accbadge on '+(acc<=GPS_GOOD?'good':'bad');
+  if(!accStart)accStart=Date.now();
+  // если через 30 сек точность всё ещё плохая — честно подсказываем, что делать
+  if(!accHintShown&&acc>ROUGH_OVER&&Date.now()-accStart>30000){
+    accHintShown=true;toast(t('geoImprove'));
+  }
+}
+
 /* точный GPS: постоянно слушаем, уточняем точку */
 async function startPreciseWatch(){
   if(watchId!=null||precising)return;precising=true;
@@ -748,8 +773,9 @@ async function startPreciseWatch(){
   const onFix=p=>{
     if(!p||!p.coords)return;
     const acc=p.coords.accuracy;
-    const first=!gpsGot&&acc<500;
-    applyFix(p.coords.latitude,p.coords.longitude,acc,first?t('geoPrecise'):null,acc<500);
+    const first=!gpsGot&&acc<=GPS_GOOD;
+    applyFix(p.coords.latitude,p.coords.longitude,acc,first?t('geoPrecise'):null,acc<=GPS_GOOD);
+    showAcc(acc);
   };
   try{
     if(Geo) watchId=await Geo.watchPosition(o,onFix);
@@ -780,7 +806,7 @@ async function locate(silent){
   // МГНОВЕННО: системная последняя позиция (обычно 0-100 мс)
   instantFix().then(i=>{
     if(gpsGot)return;
-    applyFix(i.lat,i.lng,i.acc,silent?null:(i.acc<500?t('geoOk'):t('geoRoughWait')),false);
+    applyFix(i.lat,i.lng,i.acc,silent?null:(i.acc<=ROUGH_OVER?t('geoOk'):t('geoRoughWait')),false);
   }).catch(()=>{});
 
   // сеть — как быстрая заглушка, пока GPS ищет спутники
