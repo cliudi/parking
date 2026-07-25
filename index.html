@@ -3,405 +3,877 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#0E1B2A">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Parkly">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Parkly — parkovkalar / парковки Ташкента</title>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<title>Parkly — парковки Ташкента</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#0E1B2A; --bg:#EEF2F4; --card:#FFF;
-    --blue:#1156D6; --teal:#17A398; --amber:#F4A300; --green:#2FA84F; --violet:#7A5CFF;
-    --muted:#6B7A85; --line:#E2E8EB;
-    --sh:0 6px 22px rgba(14,27,42,.16);
-    --top:env(safe-area-inset-top,0px);
-    --bot:env(safe-area-inset-bottom,0px);
+    --ink:#12202E; --ink2:#5A6B7A; --bg:#F4F6F8; --card:#FFF; --line:#E6EBEF;
+    --blue:#2563EB; --blue-d:#1D4ED8; --green:#22A24C; --green2:#1FA84C;
+    --amber:#F5A623; --red:#E5484D; --violet:#7A5CFF; --grey:#9AA7B2;
+    --sh-s:0 2px 8px rgba(18,32,46,.08); --sh:0 6px 20px rgba(18,32,46,.12); --sh-l:0 -6px 24px rgba(18,32,46,.10);
+    --top:env(safe-area-inset-top,0px); --bot:env(safe-area-inset-bottom,0px);
+    --nav:60px;
   }
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
   html,body{height:100%;overflow:hidden;overscroll-behavior:none}
   body{font-family:'Manrope',sans-serif;color:var(--ink);background:var(--bg)}
-  #map{position:fixed;inset:0;z-index:1}
-  .top{position:fixed;top:calc(10px + var(--top));left:10px;right:10px;z-index:60;display:flex;gap:8px}
-  .bar{flex:1;display:flex;align-items:center;gap:9px;background:var(--card);border-radius:14px;padding:9px 12px;box-shadow:var(--sh);min-width:0}
-  .logo{width:30px;height:30px;border-radius:9px;background:var(--blue);color:#fff;font:800 15px 'Unbounded';display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .bar input{border:0;outline:none;background:none;width:100%;font:600 14px 'Manrope';color:var(--ink);min-width:0}
-  .bar input::placeholder{color:var(--muted)}
-  .lang{background:var(--card);border-radius:14px;box-shadow:var(--sh);border:0;padding:0 13px;font:800 13px 'Manrope';color:var(--ink);cursor:pointer;flex-shrink:0}
-  .chips{position:fixed;top:calc(62px + var(--top));left:10px;right:10px;z-index:60;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
-  .chips::-webkit-scrollbar{display:none}
-  .chip{flex-shrink:0;padding:7px 12px;border-radius:999px;background:var(--card);border:0;font:700 12px 'Manrope';color:var(--ink);box-shadow:0 2px 10px rgba(14,27,42,.14);cursor:pointer;display:flex;align-items:center;gap:5px}
-  .chip.on{background:var(--ink);color:#fff}
-  .fabs{position:fixed;right:12px;z-index:60;display:flex;flex-direction:column;gap:9px;bottom:calc(var(--peek,96px) + 12px + var(--bot));transition:bottom .28s cubic-bezier(.4,0,.2,1)}
-  .fab{width:46px;height:46px;border-radius:14px;background:var(--card);border:0;box-shadow:var(--sh);font-size:19px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
-  .fab:active{transform:scale(.93)}
-  .fab.on{background:var(--blue);color:#fff}
-  .fab.live{background:var(--teal);color:#fff}
-  #sheet{position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -8px 28px rgba(14,27,42,.16);height:var(--peek,96px);transition:height .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;padding-bottom:var(--bot)}
-  .grab{padding:9px 0 3px;display:flex;justify-content:center;cursor:grab;touch-action:none}
-  .grab i{width:40px;height:5px;border-radius:3px;background:var(--line)}
-  .shead{display:flex;align-items:baseline;justify-content:space-between;padding:2px 18px 9px;cursor:pointer}
-  .shead h2{font:600 13.5px 'Unbounded'}
-  .shead span{font:700 11.5px 'Manrope';color:var(--muted)}
-  #list{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 12px 14px;flex:1}
-  .row{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--line);cursor:pointer}
-  .row:last-child{border:0}
-  .ic{width:46px;height:46px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px}
-  .rt{flex:1;min-width:0}
-  .rt b{font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rt span{font:600 11.5px 'Manrope';color:var(--muted);display:flex;align-items:center;gap:6px}
-  .tag{font:700 9px 'Manrope';padding:2px 6px;border-radius:5px;text-transform:uppercase;letter-spacing:.03em;color:#fff;flex-shrink:0}
-  .rd{font:800 12px 'Manrope';color:var(--blue);white-space:nowrap}
-  .empty{padding:26px;text-align:center;color:var(--muted);font:700 13px 'Manrope';line-height:1.6}
-  .mask{position:fixed;inset:0;background:rgba(14,27,42,.5);z-index:200;display:none;align-items:flex-end}
+  button{font-family:inherit}
+  .hidden{display:none!important}
+
+  /* ─────────── КАРТА (экран) ─────────── */
+  #screen-map{position:fixed;inset:0}
+  #map{position:absolute;inset:0;z-index:1;background:#E8EDF0}
+
+  .topwrap{position:fixed;top:calc(10px + var(--top));left:12px;right:12px;z-index:60}
+  .searchbar{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;
+    padding:12px 14px;box-shadow:var(--sh)}
+  .searchbar .si{color:var(--ink2);font-size:17px}
+  .searchbar input{flex:1;border:0;outline:none;background:none;font:600 14.5px 'Manrope';color:var(--ink);min-width:0}
+  .searchbar input::placeholder{color:var(--ink2)}
+  .bell{width:26px;height:26px;border-radius:50%;background:var(--bg);border:0;position:relative;font-size:14px;cursor:pointer;flex-shrink:0}
+  .bell .dot{position:absolute;top:-2px;right:-2px;width:9px;height:9px;background:var(--red);border-radius:50%;border:2px solid var(--card)}
+
+  .qchips{display:flex;gap:8px;margin-top:10px;overflow-x:auto;scrollbar-width:none;padding:1px}
+  .qchips::-webkit-scrollbar{display:none}
+  .qchip{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:9px 15px;border-radius:999px;
+    background:var(--card);border:0;font:700 13px 'Manrope';color:var(--ink);box-shadow:var(--sh-s);cursor:pointer;white-space:nowrap}
+  .qchip.on{background:var(--blue);color:#fff}
+  .qchip.on .qi{filter:brightness(3)}
+
+  .sidefabs{position:absolute;right:12px;z-index:55;display:flex;flex-direction:column;gap:10px;
+    top:50%;transform:translateY(-60%)}
+  .sfab{width:46px;height:46px;border-radius:13px;background:var(--card);border:0;box-shadow:var(--sh);
+    font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
+  .sfab:active{transform:scale(.93)}
+  .sfab.on{background:var(--blue);color:#fff}
+  .sfab.live{background:var(--green2);color:#fff}
+  .zoomcol{display:flex;flex-direction:column;background:var(--card);border-radius:13px;box-shadow:var(--sh);overflow:hidden}
+  .zoomcol button{width:46px;height:44px;border:0;background:var(--card);font-size:20px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .zoomcol button:first-child{border-bottom:1px solid var(--line)}
+
+  .legendbtn{position:absolute;left:12px;z-index:55;top:50%;transform:translateY(120%);
+    width:42px;height:42px;border-radius:12px;background:var(--card);border:0;box-shadow:var(--sh);
+    font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  /* нижняя мини-карточка */
+  #minicard{position:fixed;left:12px;right:12px;bottom:calc(var(--nav) + 10px + var(--bot));z-index:58;
+    background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:14px 16px;display:none}
+  #minicard.on{display:block;animation:slideUp .28s cubic-bezier(.2,.8,.3,1)}
+  @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+  .mc-head{display:flex;align-items:flex-start;gap:12px}
+  .mc-ic{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
+  .mc-body{flex:1;min-width:0}
+  .mc-body h3{font:700 15px 'Manrope';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mc-sub{font:600 12.5px 'Manrope';color:var(--ink2);margin-top:2px}
+  .mc-meta{display:flex;align-items:center;gap:5px;font:700 12px 'Manrope';margin-top:5px}
+  .mc-dist{font:800 13px 'Manrope';color:var(--blue);white-space:nowrap;display:flex;align-items:center;gap:3px}
+  .mc-btn{width:100%;margin-top:12px;padding:13px;border-radius:12px;background:var(--blue);color:#fff;border:0;font:800 14px 'Manrope';cursor:pointer}
+  .mc-btn:active{background:var(--blue-d)}
+
+  /* ─────────── НИЖНЯЯ НАВИГАЦИЯ ─────────── */
+  .bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:65;height:calc(var(--nav) + var(--bot));
+    padding-bottom:var(--bot);background:var(--card);border-top:1px solid var(--line);
+    display:flex;align-items:stretch}
+  .navitem{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    border:0;background:none;cursor:pointer;color:var(--ink2);position:relative}
+  .navitem .ni{font-size:19px;line-height:1}
+  .navitem span{font:700 10px 'Manrope'}
+  .navitem.on{color:var(--blue)}
+  .navadd{transform:translateY(-2px)}
+  .navadd .ni{width:42px;height:42px;border-radius:50%;background:var(--blue);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(37,99,235,.4)}
+  .navadd span{color:var(--blue)}
+
+  /* ─────────── ЛИСТЫ (Избранное, Профиль, полная карточка) ─────────── */
+  .screen{position:fixed;inset:0;bottom:calc(var(--nav) + var(--bot));z-index:40;background:var(--bg);
+    overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;padding-top:var(--top)}
+  .screen.on{display:block}
+  .scr-head{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);
+    padding:16px 18px;display:flex;align-items:center;justify-content:space-between;z-index:2}
+  .scr-head h1{font:800 19px 'Manrope'}
+  .scr-head .act{font:700 14px 'Manrope';color:var(--blue);border:0;background:none;cursor:pointer}
+
+  /* ─────────── МОДАЛКИ (bottom sheet) ─────────── */
+  .mask{position:fixed;inset:0;background:rgba(18,32,46,.5);z-index:200;display:none;align-items:flex-end}
   .mask.open{display:flex}
-  .modal{background:var(--card);width:100%;border-radius:24px 24px 0 0;overflow:hidden;animation:up .26s cubic-bezier(.2,.8,.3,1);max-height:90vh;overflow-y:auto}
-  @keyframes up{from{transform:translateY(50px);opacity:0}to{transform:none;opacity:1}}
-  .photo{width:100%;height:170px;object-fit:cover;background:var(--line) center/cover;display:block}
-  .mbody{padding:14px 20px calc(24px + var(--bot))}
-  .grabm{padding:0;display:flex;justify-content:center;position:absolute;left:0;right:0;top:8px}
-  .grabm i{width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,.85)}
-  .ctop{display:flex;gap:13px;align-items:flex-start}
-  .ctop .ic{width:52px;height:52px;font-size:24px}
-  .ctop h3{font:600 15.5px 'Unbounded';line-height:1.3}
-  .ctop p{font:600 12px 'Manrope';color:var(--muted);margin-top:3px}
-  .badges{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
-  .stats{display:flex;gap:7px;margin:14px 0}
-  .stat{flex:1;background:var(--bg);border-radius:14px;padding:11px 6px;text-align:center}
-  .stat b{font:600 13.5px 'Unbounded';display:block}
-  .stat span{font:700 8.5px 'Manrope';color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-  .acts{display:flex;gap:9px;margin-top:4px}
-  .btn{flex:1;padding:15px;border-radius:14px;border:0;font:800 13.5px 'Manrope';cursor:pointer;text-align:center;text-decoration:none;display:block;color:#fff}
-  .btn.go{background:var(--blue)}
-  .btn.gh{background:var(--bg);color:var(--ink);flex:0 0 auto;padding:15px 18px}
-  #rp{position:fixed;left:10px;right:10px;bottom:calc(14px + var(--bot));z-index:95;background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:13px 15px;display:none}
-  #rp.on{display:block;animation:up .25s cubic-bezier(.2,.8,.3,1)}
-  .rphead{display:flex;align-items:center;gap:11px}
-  .rpname{flex:1;min-width:0}
-  .rpname b{font:700 13.5px 'Manrope';display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rpname span{font:600 11.5px 'Manrope';color:var(--muted)}
-  .rpbig{text-align:right;flex-shrink:0}
-  .rpbig b{font:600 16px 'Unbounded';color:var(--blue);display:block;line-height:1.15}
-  .rpbig span{font:700 10px 'Manrope';color:var(--muted)}
-  .rpx{width:34px;height:34px;border-radius:11px;background:var(--bg);border:0;font-size:15px;cursor:pointer;flex-shrink:0;color:var(--ink)}
-  .rpmodes{display:flex;gap:7px;margin-top:11px}
-  .rpm{flex:1;padding:9px;border-radius:11px;border:1.5px solid var(--line);background:var(--card);font:700 12px 'Manrope';cursor:pointer;color:var(--ink)}
-  .rpm.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .rpnav{width:100%;margin-top:8px;padding:12px;border-radius:12px;background:var(--blue);color:#fff;border:0;font:800 12.5px 'Manrope';cursor:pointer;display:block;text-align:center;text-decoration:none}
-  .routing #sheet{opacity:0;pointer-events:none;transition:.2s}
-  .routing .fabs{bottom:calc(var(--rph,150px) + 12px + var(--bot))}
-  .pm{width:42px;height:42px;border-radius:50% 50% 50% 4px;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 11px rgba(14,27,42,.4);border:3px solid #fff;cursor:pointer}
-  .pm span{transform:rotate(-45deg);font-size:19px;line-height:1}
-  .me{width:18px;height:18px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 7px rgba(17,86,214,.22),0 2px 8px rgba(0,0,0,.3)}
-  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);z-index:300;bottom:calc(var(--peek,96px) + 70px);background:var(--ink);color:#fff;font:700 12.5px 'Manrope';padding:12px 18px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;max-width:86vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  .sheet{background:var(--card);width:100%;border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;
+    animation:up .28s cubic-bezier(.2,.8,.3,1);padding-bottom:calc(20px + var(--bot))}
+  @keyframes up{from{transform:translateY(60px);opacity:0}to{transform:none;opacity:1}}
+  .grabber{padding:10px 0 4px;display:flex;justify-content:center;position:sticky;top:0}
+  .grabber i{width:42px;height:5px;border-radius:3px;background:var(--line)}
+
+  /* полная карточка */
+  .fc-photo{position:relative;height:210px;background:#DCE3E8 center/cover;margin:-4px -0 0}
+  .fc-photo .navbtns{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between}
+  .fc-photo .rbtns{display:flex;gap:8px}
+  .cbtn{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.92);border:0;font-size:16px;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-s)}
+  .cbtn.fav.on{color:var(--red)}
+  .fc-body{padding:16px 18px 0}
+  .fc-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .fc-title h2{font:800 20px 'Manrope';line-height:1.2}
+  .rating{display:flex;align-items:center;gap:3px;background:#E9F7EE;color:var(--green2);
+    padding:4px 8px;border-radius:8px;font:800 12px 'Manrope';flex-shrink:0}
+  .fc-addr{display:flex;align-items:center;gap:6px;font:600 13px 'Manrope';color:var(--ink2);margin-top:8px}
+  .fc-status{display:flex;align-items:center;gap:6px;font:700 13px 'Manrope';margin-top:6px}
+  .fc-status .dist{color:var(--blue);margin-left:auto}
+  .fc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+  .fc-cell{background:var(--bg);border-radius:14px;padding:13px 14px}
+  .fc-cell .lbl{font:700 10.5px 'Manrope';color:var(--ink2);text-transform:uppercase;letter-spacing:.03em}
+  .fc-cell .val{font:800 16px 'Manrope';margin-top:4px}
+  .fc-cell .val.sm{font-size:13.5px}
+  .fc-cell .val.free{color:var(--green2)}
+  .fc-cell .val.ev{color:var(--violet)}
+  .legalnote{background:#FEF6E7;border:1px solid #F6E2B8;border-radius:12px;padding:11px 13px;
+    font:600 12px 'Manrope';color:#8A6D1F;line-height:1.5;margin-bottom:14px;display:flex;gap:8px}
+  .verify{font:600 12px 'Manrope';color:var(--ink2);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+  .fc-actions{display:flex;flex-direction:column;gap:9px}
+  .btn-primary{width:100%;padding:15px;border-radius:14px;background:var(--blue);color:#fff;border:0;
+    font:800 15px 'Manrope';cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-primary:active{background:var(--blue-d)}
+  .btn-outline{width:100%;padding:14px;border-radius:14px;background:var(--card);color:var(--blue);
+    border:1.5px solid var(--line);font:800 14px 'Manrope';cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-report{width:100%;padding:12px;border-radius:12px;background:none;color:var(--ink2);border:0;
+    font:700 13px 'Manrope';cursor:pointer;margin-top:2px}
+
+  /* фильтры */
+  .filt-head{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 12px}
+  .filt-head h2{font:800 18px 'Manrope'}
+  .filt-head .x{width:32px;height:32px;border-radius:50%;background:var(--bg);border:0;font-size:15px;cursor:pointer}
+  .filt-body{padding:0 18px}
+  .filt-group{margin-bottom:20px}
+  .filt-group h3{font:700 13px 'Manrope';color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+  .radio-row,.check-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .radio-row:last-child,.check-row:last-child{border:0}
+  .radio-row .ri{width:26px;text-align:center;font-size:16px}
+  .radio-row .rl{flex:1;font:700 14.5px 'Manrope'}
+  .radio-mark{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;position:relative}
+  .radio-row.sel .radio-mark{border-color:var(--blue)}
+  .radio-row.sel .radio-mark::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--blue)}
+  .toggle{width:44px;height:26px;border-radius:13px;background:var(--line);flex-shrink:0;position:relative;transition:.2s;cursor:pointer}
+  .toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:var(--sh-s)}
+  .toggle.on{background:var(--blue)}
+  .toggle.on::after{left:21px}
+  .price-row{display:flex;justify-content:space-between;font:700 13px 'Manrope';color:var(--ink2);margin-bottom:8px}
+  .slider{width:100%}
+  .filt-foot{padding:14px 18px calc(14px + var(--bot));display:flex;flex-direction:column;gap:9px;position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--line)}
+  .btn-ghost{width:100%;padding:13px;border-radius:12px;background:none;color:var(--ink2);border:0;font:700 14px 'Manrope';cursor:pointer}
+
+  /* добавление / отчёт формы */
+  .form-head{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 14px;position:sticky;top:0;background:var(--card);z-index:2}
+  .form-head .fh-side{font:700 14px 'Manrope';color:var(--blue);border:0;background:none;cursor:pointer;min-width:60px;text-align:left}
+  .form-head .fh-side.right{text-align:right}
+  .form-head h2{font:800 16px 'Manrope'}
+  .form-body{padding:0 18px}
+  .field{margin-bottom:14px}
+  .field label{font:700 11px 'Manrope';color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;padding:13px;border:1.5px solid var(--line);border-radius:12px;
+    font:600 14px 'Manrope';color:var(--ink);outline:none;background:var(--card);appearance:none}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue)}
+  .field textarea{resize:none;height:70px}
+  .field .req{color:var(--red)}
+  .field-row{display:flex;gap:10px}.field-row .field{flex:1}
+  .photo-add{display:flex;gap:8px;margin-top:4px}
+  .photo-slot{width:70px;height:70px;border-radius:12px;border:1.5px dashed var(--line);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:3px;font:700 9px 'Manrope';color:var(--ink2);cursor:pointer;flex-shrink:0}
+  .photo-thumb{width:70px;height:70px;border-radius:12px;object-fit:cover;flex-shrink:0;background:var(--line)}
+
+  /* избранное список */
+  .fav-list{padding:12px}
+  .fav-item{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:16px;padding:13px 14px;margin-bottom:10px;box-shadow:var(--sh-s);cursor:pointer}
+  .fav-ic{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;color:#fff;flex-shrink:0}
+  .fav-txt{flex:1;min-width:0}
+  .fav-txt b{font:700 14.5px 'Manrope';display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fav-txt span{font:600 12px 'Manrope';color:var(--ink2)}
+  .fav-right{text-align:right;flex-shrink:0}
+  .fav-dist{font:800 12.5px 'Manrope';color:var(--blue)}
+  .fav-more{font-size:18px;color:var(--grey);padding:4px}
+
+  /* профиль */
+  .prof-card{background:var(--card);margin:12px;border-radius:18px;padding:18px;display:flex;align-items:center;gap:14px;box-shadow:var(--sh-s)}
+  .prof-ava{width:56px;height:56px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:800 22px 'Manrope';flex-shrink:0}
+  .prof-info b{font:800 17px 'Manrope';display:block}
+  .prof-info span{font:600 13px 'Manrope';color:var(--ink2)}
+  .prof-list{background:var(--card);margin:0 12px 12px;border-radius:18px;overflow:hidden;box-shadow:var(--sh-s)}
+  .prof-row{display:flex;align-items:center;gap:13px;padding:15px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+  .prof-row:last-child{border:0}
+  .prof-row .pri{width:26px;text-align:center;font-size:17px}
+  .prof-row .prl{flex:1;font:700 14.5px 'Manrope'}
+  .prof-row .prv{font:700 13px 'Manrope';color:var(--ink2)}
+  .prof-row .arr{color:var(--grey);font-size:15px}
+  .prof-logout{width:calc(100% - 24px);margin:0 12px;padding:15px;border-radius:16px;background:var(--card);
+    color:var(--red);border:0;font:800 15px 'Manrope';cursor:pointer;box-shadow:var(--sh-s)}
+  .empty-state{padding:60px 30px;text-align:center}
+  .empty-state .ei{font-size:44px;margin-bottom:14px}
+  .empty-state b{font:800 16px 'Manrope';display:block;margin-bottom:6px}
+  .empty-state span{font:600 13.5px 'Manrope';color:var(--ink2);line-height:1.5}
+
+  /* легенда */
+  .legend-body{padding:4px 18px 8px}
+  .legend-item{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .legend-item:last-child{border:0}
+  .legend-mark{width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .legend-item b{font:700 14px 'Manrope';display:block}
+  .legend-item span{font:600 12px 'Manrope';color:var(--ink2)}
+
+  /* маркеры на карте */
+  .marker{position:relative;cursor:pointer}
+  .marker .pin{width:34px;height:34px;border-radius:50% 50% 50% 3px;transform:rotate(45deg);
+    display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(18,32,46,.35);border:2.5px solid #fff}
+  .marker .pin b{transform:rotate(-45deg);color:#fff;font:800 14px 'Manrope'}
+  .marker.big .pin{width:44px;height:44px}
+  .marker .bolt{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:var(--violet);
+    border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;z-index:2}
+  .me-marker{width:20px;height:20px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 8px rgba(37,99,235,.2),0 2px 8px rgba(0,0,0,.3)}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);z-index:400;
+    bottom:calc(var(--nav) + 80px + var(--bot));background:var(--ink);color:#fff;font:700 13px 'Manrope';
+    padding:13px 20px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;max-width:86vw;text-align:center;box-shadow:var(--sh)}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  #warn{position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;padding:24px;background:var(--bg);text-align:center}
-  #warn .b{max-width:400px;background:var(--card);border-radius:18px;padding:24px;box-shadow:var(--sh)}
-  #warn h3{font:600 15px 'Unbounded';margin-bottom:10px}
-  #warn p{font:600 13px 'Manrope';color:var(--muted);line-height:1.65}
+  #maperr{position:absolute;inset:0;z-index:3;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;background:var(--bg)}
 </style>
 </head>
 <body>
-<div id="map"></div>
-<div class="top">
-  <div class="bar"><div class="logo">P</div><input id="q"></div>
-  <button class="lang" id="lang">UZ</button>
+
+<!-- ═══════════ ЭКРАН: КАРТА ═══════════ -->
+<div id="screen-map">
+  <div id="map"></div>
+  <div id="maperr">
+    <div style="font-size:40px;margin-bottom:12px">🗺️</div>
+    <b id="maperr-t" style="font:800 16px Manrope"></b>
+    <span id="maperr-p" style="font:600 13px Manrope;color:var(--ink2);margin-top:8px;line-height:1.5"></span>
+  </div>
+
+  <div class="topwrap">
+    <div class="searchbar">
+      <span class="si">🔍</span>
+      <input id="search" >
+      <button class="bell"><span class="dot"></span>🔔</button>
+    </div>
+    <div class="qchips" id="qchips"></div>
+  </div>
+
+  <button class="legendbtn" id="legendbtn">ⓘ</button>
+
+  <div class="sidefabs">
+    <button class="sfab" id="filtbtn">⚙️</button>
+    <button class="sfab" id="locbtn">◎</button>
+    <div class="zoomcol">
+      <button id="zin">+</button>
+      <button id="zout">−</button>
+    </div>
+  </div>
+
+  <div id="minicard"></div>
 </div>
-<div class="chips" id="chips"></div>
-<div class="fabs">
-  <button class="fab" id="trafbtn" title="traffic">🚦</button>
-  <button class="fab" id="locbtn" title="geo">📍</button>
+
+<!-- ═══════════ ЭКРАН: ИЗБРАННОЕ ═══════════ -->
+<div class="screen" id="screen-fav">
+  <div class="scr-head"><h1 id="fav-title"></h1><button class="act" id="fav-edit"></button></div>
+  <div id="fav-content"></div>
 </div>
-<div id="rp"></div>
-<div id="sheet">
-  <div class="grab" id="grab"><i></i></div>
-  <div class="shead" id="shead"><h2 id="stitle"></h2><span id="count"></span></div>
-  <div id="list"></div>
+
+<!-- ═══════════ ЭКРАН: ПРОФИЛЬ ═══════════ -->
+<div class="screen" id="screen-profile">
+  <div class="scr-head"><h1 id="prof-title"></h1><button class="act">⚙️</button></div>
+  <div id="prof-content"></div>
 </div>
-<div class="mask" id="mask"><div class="modal" id="modal"></div></div>
+
+<!-- ═══════════ НИЖНЯЯ НАВИГАЦИЯ ═══════════ -->
+<nav class="bottomnav" id="bottomnav"></nav>
+
+<!-- ═══════════ МОДАЛКИ ═══════════ -->
+<div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
-<div id="warn"><div class="b"><h3 id="warnt"></h3><p id="warnp"></p></div></div>
+
 <script>
-const YANDEX_API_KEY = 'be1856ef-50e1-40ed-abb7-80a23f99ddb3';
-const TYPES={
-  paid:   {color:'#1156D6', icon:'🅿️'},
-  free:   {color:'#2FA84F', icon:'🅿️'},
-  ev:     {color:'#7A5CFF', icon:'⚡'},
-  allowed:{color:'#F4A300', icon:'✅'},
-};
-const T={
+const YANDEX_API_KEY='be1856ef-50e1-40ed-abb7-80a23f99ddb3';
+
+/* ═══════════ СЛОВАРИ (i18n, тексты не зашиты в код — по ТЗ) ═══════════ */
+const I18N={
  ru:{
-  ph:'Поиск: адрес или объект…', near:'Парковки', of:'из',
-  all:'Все', free:'Бесплатные', paid:'Платные', ev:'⚡ Зарядка EV', allowed:'✅ Разрешённые',
-  spots:'мест', approx:'≈', freeP:'Бесплатно', sum:'сум/ч', mode:'режим работы',
-  capacity:'вместимость', type:'тип', nores:'Ничего не найдено.<br>Измените фильтр или запрос.',
-  tPaid:'Платная', tFree:'Бесплатная', tEv:'Зарядка EV', tAllowed:'Разрешена по ПДД',
-  route:'Проложить маршрут', byCar:'На машине', onFoot:'Пешком',
-  building:'строю…', min:'мин', rough:'примерно', openNav:'Открыть в Навигаторе →',
-  needGeo:'Сначала определите своё местоположение',
-  geoing:'Определяю местоположение…', geoOk:'Вы здесь · точность',
-  geoRetry:'GPS не отвечает, пробую по сети…', geoRough:'Примерное местоположение (по сети)',
-  geoDeny:'Доступ запрещён. Нажмите 🔒 в адресной строке → Разрешения → Геоданные',
-  geoBlocked:'Сайту запрещён доступ к геолокации в настройках браузера',
-  geoUnav:'Местоположение недоступно. Включите GPS',
-  geoTime:'Не удалось определить. Попробуйте на улице',
+  searchPh:'Найти улицу, объект или парковку',
+  qAll:'Все', qFree:'Бесплатные', qPaid:'Платные', qEv:'Зарядка',
+  navMap:'Карта', navFav:'Избранное', navAdd:'Добавить', navProfile:'Профиль',
+  showDetails:'Показать детали', goRoute:'Построить маршрут', go:'Поехать',
+  addFav:'Добавить в избранное', inFav:'В избранном', report:'Сообщить об ошибке',
+  free:'Бесплатно', capUnknown:'Не указано', approx:'Примерно', places:'мест',
+  cost:'Стоимость', capacity:'Вместимость', type:'Тип', height:'Высота въезда',
+  charging:'Зарядка для ЭМ', payment:'Способы оплаты', has:'Есть', no:'Нет',
+  perHour:'сум/час', perDay:'сум/сутки', open247:'Открыто 24/7', openNow:'Открыто сейчас', closed:'Закрыто',
+  tOfficial:'Официальная', tStreet:'Уличная', tPrivate:'Частная', tOpen:'Открытая', tCovered:'Крытая', tUnderground:'Подземная',
+  cashCard:'Наличные, Карта', legalStreet:'Информация справочная. Перед парковкой проверьте знаки, разметку и условия на месте.',
+  verified:'Проверено', source:'источник',
+  filters:'Фильтры', filtType:'Тип парковки', filtExtra:'Дополнительно', filtPrice:'Цена',
+  fAll:'Все', fPaid:'Платные', fFree:'Бесплатные', fEv:'Зарядка для ЭМ', fCovered:'Крытые', fUnder:'Подземные',
+  e247:'Круглосуточные', eCctv:'С видеонаблюдением', eDisabled:'Для инвалидов', eWash:'С мойкой',
+  apply:'Применить', reset:'Сбросить', anyPrice:'100 000+ сум',
+  favTitle:'Избранное', edit:'Править', done:'Готово',
+  favEmpty:'Пока пусто', favEmptyDesc:'Сохраняйте парковки, нажимая ★ в карточке — они появятся здесь.',
+  addTitle:'Добавить парковку', cancel:'Отмена',
+  fLoc:'Местоположение', fName:'Название', fCat:'Категория', fCost:'Стоимость', fRate:'Тариф',
+  fCap:'Количество мест', fType:'Тип', fHours:'График работы', fCharge:'Зарядка', fPhoto:'Фото',
+  fNote:'Примечание', addPhoto:'Добавить фото', upTo5:'до 5 фото',
+  phName:'например, Hilton Parking', phAddr:'Адрес или точка на карте', phRate:'например, 10 000 сум/час',
+  phCap:'Общее количество мест', phNote:'Дополнительная информация для модератора',
+  catOfficial:'Официальная', catStreet:'Уличная стоянка', catEv:'Зарядка',
+  costFree:'Бесплатно', costPaid:'Платно', costUnknown:'Неизвестно',
+  chgYes:'Есть', chgNo:'Нет', chgUnknown:'Неизвестно',
+  needName:'Укажите местоположение', addOk:'Спасибо. Парковка отправлена на проверку',
+  profTitle:'Профиль', myCars:'Мои автомобили', history:'История поездок', payments:'Способы оплаты',
+  notifs:'Уведомления', support:'Поддержка', about:'О приложении', logout:'Выйти из аккаунта',
+  guest:'Гость', signIn:'Войти', notSignedIn:'Вы не вошли в аккаунт',
+  reportTitle:'Сообщить об ошибке', rNoPark:'Парковки здесь нет', rForbidden:'Парковка запрещена',
+  rPrice:'Неверная цена', rCap:'Неверная вместимость', rHours:'Неверный график', rEv:'Неверные данные о зарядке', rOther:'Другое',
+  reportSent:'Спасибо! Сообщение отправлено модератору', send:'Отправить',
+  legend:'Обозначения на карте', lFree:'Бесплатные парковки', lPaid:'Платные парковки',
+  lFew:'Мало мест', lNone:'Нет мест', lEv:'Зарядка для ЭМ', lUnknown:'Неизвестно',
+  geoing:'Определяю местоположение…', geoOk:'Вы здесь', geoDeny:'Разрешите доступ к геолокации в настройках браузера',
+  geoRetry:'GPS не отвечает, пробую по сети…', geoRough:'Примерное местоположение',
+  geoUnav:'Включите GPS', geoTime:'Не удалось определить. Попробуйте на улице',
   geoNo:'Геолокация не поддерживается', geoHttp:'Геолокация работает только на HTTPS',
-  geoManual:'Точка установлена вручную', live:'Слежение включено', liveOff:'Слежение выключено',
-  trafOn:'Пробки включены', trafOff:'Пробки выключены', noPhoto:'Фото пока нет',
-  warnT:'Карта не загрузилась', warnP:'Проверьте интернет или домен в кабинете Яндекс API.'
- },
- uz:{
-  ph:'Qidiruv: manzil yoki obyekt…', near:'Parkovkalar', of:'/',
-  all:'Barchasi', free:'Bepul', paid:'Pullik', ev:'⚡ EV quvvat', allowed:'✅ Ruxsat etilgan',
-  spots:'joy', approx:'≈', freeP:'Bepul', sum:'so\u2018m/soat', mode:'ish vaqti',
-  capacity:'sig\u2018imi', type:'turi', nores:'Hech narsa topilmadi.<br>Filtrni o\u2018zgartiring.',
-  tPaid:'Pullik', tFree:'Bepul', tEv:'EV quvvatlash', tAllowed:'YHQ bo\u2018yicha ruxsat',
-  route:'Yo\u2018nalish qurish', byCar:'Mashinada', onFoot:'Piyoda',
-  building:'qurilmoqda…', min:'daq', rough:'taxminan', openNav:'Navigatorda ochish →',
-  needGeo:'Avval joylashuvingizni aniqlang',
-  geoing:'Joylashuv aniqlanmoqda…', geoOk:'Siz shu yerdasiz · aniqlik',
-  geoRetry:'GPS javob bermayapti, tarmoq orqali…', geoRough:'Taxminiy joylashuv (tarmoq bo\u2018yicha)',
-  geoDeny:'Ruxsat berilmagan. 🔒 → Ruxsatlar → Joylashuv',
-  geoBlocked:'Brauzer sozlamalarida joylashuvga ruxsat yo\u2018q',
-  geoUnav:'Joylashuv mavjud emas. GPS\u2019ni yoqing',
-  geoTime:'Aniqlanmadi. Ko\u2018chada urinib ko\u2018ring',
-  geoNo:'Geolokatsiya qo\u2018llab-quvvatlanmaydi', geoHttp:'Geolokatsiya faqat HTTPS\u2019da ishlaydi',
-  geoManual:'Nuqta qo\u2018lda belgilandi', live:'Kuzatuv yoqildi', liveOff:'Kuzatuv o\u2018chirildi',
-  trafOn:'Tirbandlik yoqildi', trafOff:'Tirbandlik o\u2018chirildi', noPhoto:'Foto hozircha yo\u2018q',
-  warnT:'Xarita yuklanmadi', warnP:'Internet yoki Yandex API domenini tekshiring.'
+  needGeoRoute:'Определяю ваше местоположение для маршрута…',
+  buildRoute:'строю…', min:'мин', roughR:'примерно', openNav:'Открыть в Навигаторе →', backToList:'✕ Закрыть маршрут',
+  byCar:'На машине', onFoot:'Пешком',
+  noParkArea:'В этой области парковки пока не добавлены',
+  mapErr:'Карта не загрузилась', mapErrP:'Проверьте интернет или домен в кабинете Яндекс API.',
+  trafOn:'Пробки включены', trafOff:'Пробки выключены', removed:'Удалено из избранного'
  }
 };
-let lang=localStorage.getItem('pl-lang')||'ru';
-const t=k=>T[lang][k];
-function typeName(tp){return t(tp==='paid'?'tPaid':tp==='free'?'tFree':tp==='ev'?'tEv':'tAllowed')}
-const SPOTS=[
- {id:'chorsu', name:'Чорсу / Chorsu',      addr:'Eski shahar, Navoiy ko\u2018chasi', lat:41.3266,lng:69.2345,type:'paid', cap:150,price:3000, hours:'06:00–20:00', photo:'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=600'},
- {id:'magic',  name:'Magic City Park',      addr:'Bobur ko\u2018chasi, 174',          lat:41.2846,lng:69.2274,type:'paid', cap:400,price:5000, hours:'24/7',        photo:'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?w=600'},
- {id:'mega',   name:'Mega Planet',          addr:'Kichik Halqa Yo\u2018li',           lat:41.3452,lng:69.2860,type:'free', cap:300,price:0,    hours:'10:00–22:00', photo:'https://images.unsplash.com/photo-1545179605-1296651e9d43?w=600'},
- {id:'samdar', name:'Samarqand Darvoza',    addr:'Qoratosh ko\u2018chasi, 5A',        lat:41.3163,lng:69.2312,type:'free', cap:250,price:0,    hours:'10:00–23:00', photo:''},
- {id:'tcity',  name:'Tashkent City Park',   addr:'Islom Karimov ko\u2018chasi',       lat:41.3138,lng:69.2481,type:'ev',   cap:500,price:6000, hours:'24/7',        photo:''},
- {id:'next',   name:'NEXT',                 addr:'Bobur ko\u2018chasi, 2',            lat:41.2953,lng:69.2670,type:'free', cap:350,price:0,    hours:'10:00–23:00', photo:''},
- {id:'timur',  name:'Amir Temur xiyoboni',  addr:'Amir Temur shoh ko\u2018chasi',     lat:41.3111,lng:69.2797,type:'allowed',cap:80,price:0,  hours:'24/7',        photo:''},
- {id:'alay',   name:'Oloy bozori',          addr:'Amir Temur, 42',               lat:41.3208,lng:69.2853,type:'paid', cap:100,price:3000, hours:'06:00–20:00', photo:''},
- {id:'rail',   name:'Toshkent vokzali',     addr:'Vokzal maydoni',               lat:41.2907,lng:69.2874,type:'paid', cap:200,price:4000, hours:'24/7',        photo:''},
- {id:'compass',name:'Compass',              addr:'Farg\u2018ona Yo\u2018li',               lat:41.2822,lng:69.3140,type:'ev',   cap:280,price:0,    hours:'10:00–22:00', photo:''},
- {id:'minor',  name:'Minor masjidi',        addr:'Kichik Halqa Yo\u2018li',           lat:41.3347,lng:69.2683,type:'free', cap:60, price:0,    hours:'05:00–22:00', photo:''},
- {id:'airport',name:'Aeroport T2',          addr:'Hamid Olimjon, 41',            lat:41.2612,lng:69.2823,type:'paid', cap:450,price:10000,hours:'24/7',        photo:''},
- {id:'yunus',  name:'Yunusobod (ko\u2018cha)', addr:'Yunusobod 4-mavze',            lat:41.3670,lng:69.2890,type:'allowed',cap:40,price:0,  hours:'24/7',        photo:''},
+let lang='ru';
+const t=k=>I18N[lang][k]||k;
+
+/* ═══════════ ДАННЫЕ ПАРКОВОК ТАШКЕНТА (модель по ТЗ разд.7.2) ═══════════ */
+const PARKINGS=[
+ {id:'hilton', name:'Hilton Tashkent Parking', addr:'ул. Ислама Каримова, 2', lat:41.3138,lng:69.2481,
+  category:'PRIVATE', price_type:'paid', price_text:'15 000 сум/час', price_day:'100 000 сум/сутки', price_val:15000,
+  cap:120, cap_est:false, hours:'24/7', is247:true, ptype:'underground', height:'2.1 м',
+  ev:true, ev_details:'Type 2, CCS', payment:'Наличные, Карта', rating:4.8,
+  photo:'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=700', verified:'2026-07-10', source:'Оператор'},
+ {id:'nextmall', name:'Next Mall Parking', addr:'ул. Бабура, 2', lat:41.2953,lng:69.2670,
+  category:'OFFICIAL', price_type:'paid', price_text:'10 000 сум/час', price_val:10000,
+  cap:300, cap_est:false, hours:'10:00–22:00', is247:false, ptype:'covered', height:'2.0 м',
+  ev:false, payment:'Наличные, Карта', rating:4.5,
+  photo:'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?w=700', verified:'2026-07-05', source:'Оператор'},
+ {id:'citypark', name:'Tashkent City Park', addr:'ул. Ислама Каримова', lat:41.3128,lng:69.2455,
+  category:'OFFICIAL', price_type:'free', price_val:0,
+  cap:500, cap_est:false, hours:'24/7', is247:true, ptype:'open', height:null,
+  ev:true, ev_details:'Type 2', payment:'—', rating:4.7,
+  photo:'', verified:'2026-06-28', source:'Команда Parkly'},
+ {id:'mega', name:'Mega Planet', addr:'ул. Кичик Халка Йули', lat:41.3452,lng:69.2860,
+  category:'OFFICIAL', price_type:'free', price_val:0,
+  cap:300, cap_est:false, hours:'10:00–22:00', is247:false, ptype:'covered', height:'2.2 м',
+  ev:false, payment:'—', rating:4.4, photo:'', verified:'2026-07-01', source:'Оператор'},
+ {id:'samdar', name:'Samarqand Darvoza', addr:'ул. Коратош, 5А', lat:41.3163,lng:69.2312,
+  category:'OFFICIAL', price_type:'free', price_val:0,
+  cap:250, cap_est:true, hours:'10:00–23:00', is247:false, ptype:'covered', height:'2.0 м',
+  ev:false, payment:'—', rating:4.3, photo:'', verified:'2026-06-20', source:'Команда Parkly'},
+ {id:'chorsu', name:'Базар Чорсу', addr:'Старый город, ул. Навои', lat:41.3266,lng:69.2345,
+  category:'OFFICIAL', price_type:'paid', price_text:'3 000 сум/час', price_val:3000,
+  cap:150, cap_est:true, hours:'06:00–20:00', is247:false, ptype:'open', height:null,
+  ev:false, payment:'Наличные', rating:4.0, photo:'', verified:'2026-06-15', source:'Команда Parkly'},
+ {id:'compass', name:'ТРЦ Compass', addr:'ул. Фаргона Йули', lat:41.2822,lng:69.3140,
+  category:'PRIVATE', price_type:'free', price_val:0,
+  cap:280, cap_est:false, hours:'10:00–22:00', is247:false, ptype:'covered', height:'2.1 м',
+  ev:true, ev_details:'CCS, GB/T', payment:'—', rating:4.6, photo:'', verified:'2026-07-08', source:'Оператор'},
+ {id:'amir', name:'Сквер Амира Темура', addr:'пр-т Амира Темура', lat:41.3111,lng:69.2797,
+  category:'STREET_ALLOWED', price_type:'paid', price_text:'5 000 сум/час', price_val:5000,
+  cap:80, cap_est:true, hours:'24/7', is247:true, ptype:'street', height:null,
+  ev:false, payment:'Карта', rating:3.9, photo:'', verified:'2026-06-30', source:'Команда Parkly', legal:true},
+ {id:'yunusabad', name:'Юнусабад (улица)', addr:'Юнусабад, 4-й квартал', lat:41.3670,lng:69.2890,
+  category:'STREET_ALLOWED', price_type:'free', price_val:0,
+  cap:null, cap_est:false, hours:'24/7', is247:true, ptype:'street', height:null,
+  ev:false, payment:'—', rating:null, photo:'', verified:'2026-06-25', source:'Команда Parkly', legal:true},
+ {id:'railway', name:'Ж/д вокзал Ташкент', addr:'пл. Привокзальная', lat:41.2907,lng:69.2874,
+  category:'OFFICIAL', price_type:'paid', price_text:'4 000 сум/час', price_val:4000,
+  cap:200, cap_est:false, hours:'24/7', is247:true, ptype:'open', height:null,
+  ev:false, payment:'Наличные, Карта', rating:4.1, photo:'', verified:'2026-07-03', source:'Оператор'},
+ {id:'airport', name:'Аэропорт, терминал 2', addr:'ул. Хамида Олимжона, 41', lat:41.2612,lng:69.2823,
+  category:'OFFICIAL', price_type:'paid', price_text:'10 000 сум/час', price_val:10000,
+  cap:450, cap_est:false, hours:'24/7', is247:true, ptype:'open', height:null,
+  ev:true, ev_details:'Type 2', payment:'Наличные, Карта', rating:4.2, photo:'', verified:'2026-07-12', source:'Оператор'},
+ {id:'minor', name:'Мечеть Минор', addr:'ул. Кичик Халка Йули', lat:41.3347,lng:69.2683,
+  category:'OFFICIAL', price_type:'free', price_val:0,
+  cap:60, cap_est:true, hours:'05:00–22:00', is247:false, ptype:'open', height:null,
+  ev:false, payment:'—', rating:4.5, photo:'', verified:'2026-06-18', source:'Команда Parkly'},
 ];
-let filter='all', query='';
-let ymap=null, pmarks={}, meMark=null, meCircle=null, traffic=null;
-let mePos=null, watchId=null;
-function loadYandex(){
-  const sc=document.createElement('script');
-  sc.src='https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey='+YANDEX_API_KEY;
-  sc.onload=()=>ymaps.ready(initMap);
-  sc.onerror=showWarn;
-  document.head.appendChild(sc);
-  setTimeout(()=>{if(!ymap)showWarn()},9000);
+
+/* цвет/иконка маркера по типу (ПДД разд.7.3: зелёный=бесплатно, синий=платно, серый=неизвестно) */
+function markerColor(p){
+  if(p.price_type==='free') return '#1FA84C';
+  if(p.price_type==='paid') return '#2563EB';
+  return '#9AA7B2';
 }
-function showWarn(){
-  document.getElementById('warnt').textContent=t('warnT');
-  document.getElementById('warnp').textContent=t('warnP');
-  document.getElementById('warn').style.display='flex';
+function catIcon(p){
+  if(p.category==='STREET_ALLOWED') return '🅿';
+  return 'P';
 }
-function initMap(){
-  ymap=new ymaps.Map('map',{center:[41.3111,69.2650],zoom:13,controls:[]},{suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
-  document.getElementById('warn').style.display='none';
-  draw(); enableManualPin();
-}
-function draw(){
-  if(!ymap)return;
-  Object.values(pmarks).forEach(p=>ymap.geoObjects.remove(p)); pmarks={};
-  visible().forEach(s=>{
-    const T0=TYPES[s.type];
-    const L=ymaps.templateLayoutFactory.createClass('<div class="pm" style="background:'+T0.color+'"><span>'+T0.icon+'</span></div>');
-    const pm=new ymaps.Placemark([s.lat,s.lng],{},{iconLayout:L,iconShape:{type:'Circle',coordinates:[0,0],radius:21},iconOffset:[-21,-38]});
-    pm.events.add('click',()=>openCard(s.id));
-    ymap.geoObjects.add(pm); pmarks[s.id]=pm;
-  });
-  if(meCircle)ymap.geoObjects.add(meCircle);
-  if(meMark)ymap.geoObjects.add(meMark);
-}
+
+/* ═══════════ СОСТОЯНИЕ ═══════════ */
+let ymap=null, markers={}, meMark=null, meCircle=null, traffic=null;
+let mePos=null, watchId=null, activeTab='map', selectedId=null;
+let quickFilter='all';
+let favorites=loadFav();
+let advFilters={price:'all', types:[], e247:false, cctv:false, disabled:false, wash:false, priceMax:100000};
+
+function loadFav(){try{return JSON.parse(localStorage.getItem('parkly-fav')||'[]')}catch(e){return[]}}
+function saveFav(){localStorage.setItem('parkly-fav',JSON.stringify(favorites))}
+
+/* ═══════════ РАССТОЯНИЕ ═══════════ */
 function dist(a,b,c,d){
   const R=6371,dl=(c-a)*Math.PI/180,dg=(d-b)*Math.PI/180;
   const h=Math.sin(dl/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dg/2)**2;
   return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
 }
-function visible(){
-  let v=SPOTS.filter(s=>(s.name+s.addr).toLowerCase().includes(query));
-  if(filter==='free')v=v.filter(s=>s.type==='free');
-  if(filter==='paid')v=v.filter(s=>s.type==='paid');
-  if(filter==='ev')v=v.filter(s=>s.type==='ev');
-  if(filter==='allowed')v=v.filter(s=>s.type==='allowed');
-  if(mePos)v.sort((a,b)=>dist(mePos.lat,mePos.lng,a.lat,a.lng)-dist(mePos.lat,mePos.lng,b.lat,b.lng));
-  else v.sort((a,b)=>b.cap-a.cap);
+function distText(p){
+  if(!mePos) return '';
+  const km=dist(mePos.lat,mePos.lng,p.lat,p.lng);
+  return km<1?Math.round(km*1000)+' м':km.toFixed(1)+' км';
+}
+function toast(x){const el=document.getElementById('toast');el.innerHTML=x;el.classList.add('show');
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2600)}
+
+/* ═══════════ КАРТА ═══════════ */
+function loadYandex(){
+  const sc=document.createElement('script');
+  sc.src='https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey='+YANDEX_API_KEY;
+  sc.onload=()=>ymaps.ready(initMap);
+  sc.onerror=showMapErr;
+  document.head.appendChild(sc);
+  setTimeout(()=>{if(!ymap)showMapErr()},9000);
+}
+function showMapErr(){
+  document.getElementById('maperr-t').textContent=t('mapErr');
+  document.getElementById('maperr-p').textContent=t('mapErrP');
+  document.getElementById('maperr').style.display='flex';
+}
+function initMap(){
+  ymap=new ymaps.Map('map',{center:[41.3111,69.2650],zoom:13,controls:[]},
+    {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
+  document.getElementById('maperr').style.display='none';
+  drawMarkers();
+  ymap.events.add('click',()=>{selectedId=null;document.getElementById('minicard').classList.remove('on');drawMarkers()});
+}
+function filteredParkings(){
+  let v=PARKINGS.slice();
+  if(quickFilter==='free')v=v.filter(p=>p.price_type==='free');
+  if(quickFilter==='paid')v=v.filter(p=>p.price_type==='paid');
+  if(quickFilter==='ev')v=v.filter(p=>p.ev);
+  // расширенные
+  if(advFilters.price==='free')v=v.filter(p=>p.price_type==='free');
+  if(advFilters.price==='paid')v=v.filter(p=>p.price_type==='paid');
+  if(advFilters.types.length)v=v.filter(p=>advFilters.types.includes(p.ptype));
+  if(advFilters.e247)v=v.filter(p=>p.is247);
+  if(advFilters.disabled)v=v.filter(p=>p.disabled);
+  if(advFilters.priceMax<100000)v=v.filter(p=>(p.price_val||0)<=advFilters.priceMax);
   return v;
 }
-const fmtP=(s)=>s.type==='ev'?'⚡ '+(s.price?s.price.toLocaleString('ru')+' '+t('sum'):t('freeP')):(s.price===0?t('freeP'):s.price.toLocaleString('ru')+' '+t('sum'));
-function render(){
-  const v=visible();
-  document.getElementById('count').textContent=v.length+' '+t('of')+' '+SPOTS.length;
-  document.getElementById('list').innerHTML = v.length? v.map(s=>{
-    const T0=TYPES[s.type];
-    return '<div class="row" onclick="openCard(\''+s.id+'\')">'
-      +'<div class="ic" style="background:'+T0.color+'">'+T0.icon+'</div>'
-      +'<div class="rt"><b>'+s.name+'</b>'
-      +'<span><span class="tag" style="background:'+T0.color+'">'+typeName(s.type)+'</span>'+fmtP(s)+'</span></div>'
-      +(mePos?'<div class="rd">'+dist(mePos.lat,mePos.lng,s.lat,s.lng).toFixed(1)+' km</div>'
-             :'<div class="rd">'+t('approx')+s.cap+'</div>')
-      +'</div>';
-  }).join('') : '<div class="empty">'+t('nores')+'</div>';
-  draw();
+function drawMarkers(){
+  if(!ymap)return;
+  Object.values(markers).forEach(m=>ymap.geoObjects.remove(m));markers={};
+  filteredParkings().forEach(p=>{
+    const big=p.id===selectedId, col=markerColor(p);
+    const bolt=p.ev?'<span class="bolt">⚡</span>':'';
+    const L=ymaps.templateLayoutFactory.createClass(
+      '<div class="marker'+(big?' big':'')+'"><div class="pin" style="background:'+col+'"><b>'+catIcon(p)+'</b></div>'+bolt+'</div>');
+    const m=new ymaps.Placemark([p.lat,p.lng],{},{iconLayout:L,iconShape:{type:'Circle',coordinates:[0,0],radius:20},iconOffset:[-17,-34]});
+    m.events.add('click',()=>selectParking(p.id));
+    ymap.geoObjects.add(m);markers[p.id]=m;
+  });
+  if(meCircle)ymap.geoObjects.add(meCircle);
+  if(meMark)ymap.geoObjects.add(meMark);
 }
-window.openCard=function(id){
-  const s=SPOTS.find(x=>x.id===id); if(!s)return;
-  const T0=TYPES[s.type];
-  const photo=s.photo
-    ? '<img class="photo" src="'+s.photo+'" alt="" onerror="this.style.display=\'none\'">'
-    : '<div class="photo" style="display:flex;align-items:center;justify-content:center;font:700 12px Manrope;color:var(--muted)">'+t('noPhoto')+'</div>';
-  document.getElementById('modal').innerHTML=
-    '<div style="position:relative">'+photo+'<div class="grabm" onclick="closeMask()"><i></i></div></div>'
-    +'<div class="mbody">'
-    +'<div class="ctop"><div class="ic" style="background:'+T0.color+'">'+T0.icon+'</div>'
-    +'<div><h3>'+s.name+'</h3><p>'+s.addr+'</p></div></div>'
-    +'<div class="badges"><span class="tag" style="background:'+T0.color+'">'+typeName(s.type)+'</span>'
-    +(s.type==='ev'?'<span class="tag" style="background:var(--violet)">⚡ EV</span>':'')+'</div>'
-    +'<div class="stats">'
-    +'<div class="stat"><b>'+(s.price?s.price.toLocaleString('ru'):t('freeP'))+'</b><span>'+(s.price?t('sum'):'—')+'</span></div>'
-    +'<div class="stat"><b>'+t('approx')+' '+s.cap+'</b><span>'+t('capacity')+'</span></div>'
-    +'<div class="stat"><b style="font-size:11px">'+s.hours+'</b><span>'+t('mode')+'</span></div>'
+function selectParking(id){
+  selectedId=id;drawMarkers();showMiniCard(id);
+  const p=PARKINGS.find(x=>x.id===id);
+  if(ymap&&p)ymap.panTo([p.lat,p.lng],{duration:300});
+}
+
+/* ═══════════ МИНИ-КАРТОЧКА ═══════════ */
+function priceLabel(p){return p.price_type==='free'?t('free'):(p.price_text||'—')}
+function statusLabel(p){
+  if(p.is247)return t('open247');
+  return p.hours;
+}
+function showMiniCard(id){
+  const p=PARKINGS.find(x=>x.id===id);if(!p)return;
+  const el=document.getElementById('minicard');
+  const d=distText(p);
+  el.innerHTML=
+    '<div class="mc-head">'
+    +'<div class="mc-ic" style="background:'+markerColor(p)+'">'+catIcon(p)+'</div>'
+    +'<div class="mc-body"><h3>'+p.name+'</h3>'
+    +'<div class="mc-sub">'+priceLabel(p)+' · '+(p.cap?(p.cap_est?t('approx').toLowerCase()+' ':'')+p.cap+' '+t('places'):t('capUnknown'))+'</div>'
+    +'<div class="mc-meta" style="color:'+(p.is247?'var(--green2)':'var(--ink2)')+'">'+(p.is247?'● '+t('open247'):'○ '+p.hours)+'</div>'
     +'</div>'
-    /* Занятость в реальном времени — не входит в MVP по ТЗ, включим позже */
-    +'<div class="acts">'
-    +'<button class="btn go" onclick="routeTo(\''+s.id+'\')">'+t('route')+'</button>'
-    +'<button class="btn gh" onclick="closeMask()">✕</button></div>'
-    +'</div>';
-  document.getElementById('mask').classList.add('open');
-  if(ymap)ymap.setCenter([s.lat,s.lng],15,{duration:400});
-};
-window.closeMask=()=>document.getElementById('mask').classList.remove('open');
-document.getElementById('mask').onclick=e=>{if(e.target.id==='mask')closeMask()};
-function toast(x){
-  const el=document.getElementById('toast');
-  el.innerHTML=x; el.classList.add('show');
-  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2600);
+    +(d?'<div class="mc-dist">➤ '+d+'</div>':'')
+    +'</div>'
+    +'<button class="mc-btn" onclick="openFullCard(\''+p.id+'\')">'+t('showDetails')+'</button>';
+  el.classList.add('on');
 }
+
+/* ═══════════ ПОЛНАЯ КАРТОЧКА ═══════════ */
+function typeLabel(pt){return t(pt==='street'?'tStreet':pt==='open'?'tOpen':pt==='covered'?'tCovered':pt==='underground'?'tUnderground':'tOfficial')}
+function openFullCard(id){
+  const p=PARKINGS.find(x=>x.id===id);if(!p)return;
+  const isFav=favorites.includes(id);
+  const photo=p.photo
+    ?'<div class="fc-photo" style="background-image:url('+p.photo+')">'
+    :'<div class="fc-photo" style="display:flex;align-items:center;justify-content:center;color:var(--ink2);font:700 13px Manrope">📷 '+t('capUnknown')+'</div>'.replace(t('capUnknown'),'Фото пока нет');
+  const cap = p.cap ? ((p.cap_est?t('approx')+' ':'')+p.cap+' '+t('places')) : t('capUnknown');
+  const html=
+    '<div class="grabber" onclick="closeSheet()"><i></i></div>'
+    +photo
+    +'<div class="navbtns">'
+      +'<button class="cbtn" onclick="closeSheet()">←</button>'
+      +'<div class="rbtns">'
+        +'<button class="cbtn fav'+(isFav?' on':'')+'" onclick="toggleFav(\''+p.id+'\',this)">'+(isFav?'♥':'♡')+'</button>'
+        +'<button class="cbtn" onclick="shareParking(\''+p.id+'\')">↗</button>'
+      +'</div>'
+    +'</div></div>'
+    +'<div class="fc-body">'
+    +'<div class="fc-title"><h2>'+p.name+'</h2>'
+      +(p.rating?'<div class="rating">★ '+p.rating.toFixed(1)+'</div>':'')+'</div>'
+    +'<div class="fc-addr">📍 '+p.addr+'</div>'
+    +'<div class="fc-status" style="color:'+(p.is247?'var(--green2)':'var(--ink)')+'">'
+      +'🕐 '+statusLabel(p)+(distText(p)?'<span class="dist">➤ '+distText(p)+'</span>':'')+'</div>'
+    +'<div class="fc-grid">'
+      +'<div class="fc-cell"><div class="lbl">'+t('cost')+'</div><div class="val'+(p.price_type==='free'?' free':'')+'">'
+        +(p.price_type==='free'?t('free'):(p.price_text||'—'))+'</div>'
+        +(p.price_day?'<div class="lbl" style="margin-top:3px;text-transform:none">'+p.price_day+'</div>':'')+'</div>'
+      +'<div class="fc-cell"><div class="lbl">'+t('capacity')+'</div><div class="val sm">'+cap+'</div></div>'
+      +'<div class="fc-cell"><div class="lbl">'+t('type')+'</div><div class="val sm">'+typeLabel(p.ptype)+'</div></div>'
+      +'<div class="fc-cell"><div class="lbl">'+t('height')+'</div><div class="val sm">'+(p.height||'—')+'</div></div>'
+      +'<div class="fc-cell"><div class="lbl">'+t('charging')+'</div><div class="val sm'+(p.ev?' ev':'')+'">'+(p.ev?t('has')+' ⚡':t('no'))+'</div>'
+        +(p.ev&&p.ev_details?'<div class="lbl" style="margin-top:3px;text-transform:none">'+p.ev_details+'</div>':'')+'</div>'
+      +'<div class="fc-cell"><div class="lbl">'+t('payment')+'</div><div class="val sm">'+(p.payment==='—'?'—':p.payment)+'</div></div>'
+    +'</div>'
+    +(p.legal?'<div class="legalnote">⚠️<span>'+t('legalStreet')+'</span></div>':'')
+    +'<div class="verify">✓ '+t('verified')+' · '+p.verified+' · '+p.source+'</div>'
+    +'<div class="fc-actions">'
+      +'<button class="btn-primary" onclick="closeSheet();routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button>'
+      +'<button class="btn-outline" onclick="toggleFav(\''+p.id+'\',null)">☆ '+(isFav?t('inFav'):t('addFav'))+'</button>'
+      +'<button class="btn-report" onclick="openReport(\''+p.id+'\')">⚑ '+t('report')+'</button>'
+    +'</div>'
+    +'</div>';
+  openSheet(html);
+}
+function toggleFav(id,btn){
+  const i=favorites.indexOf(id);
+  if(i>=0){favorites.splice(i,1);toast(t('removed'))}
+  else{favorites.push(id);toast('★ '+t('inFav'))}
+  saveFav();
+  if(btn){btn.classList.toggle('on');btn.textContent=favorites.includes(id)?'♥':'♡'}
+  if(activeTab==='fav')renderFav();
+}
+function shareParking(id){
+  const p=PARKINGS.find(x=>x.id===id);
+  const url='https://yandex.uz/maps/?pt='+p.lng+','+p.lat;
+  if(navigator.share){navigator.share({title:p.name,text:p.addr,url}).catch(()=>{})}
+  else{navigator.clipboard&&navigator.clipboard.writeText(url);toast('Ссылка скопирована')}
+}
+
+/* ═══════════ SHEET (модалка) ═══════════ */
+function openSheet(html){document.getElementById('sheet').innerHTML=html;document.getElementById('mask').classList.add('open')}
+function closeSheet(){document.getElementById('mask').classList.remove('open')}
+document.getElementById('mask').onclick=e=>{if(e.target.id==='mask')closeSheet()};
+
+/* ═══════════ ФИЛЬТРЫ (расширенные) ═══════════ */
+function openFilters(){
+  const typeOpts=[['open','tOpen'],['covered','tCovered'],['underground','tUnderground'],['street','tStreet']];
+  const priceOpts=[['all','fAll'],['free','fFree'],['paid','fPaid']];
+  let html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>'+t('filters')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="filt-body">'
+    +'<div class="filt-group"><h3>'+t('filtPrice')+'</h3>'
+    +priceOpts.map(([k,l])=>'<div class="radio-row'+(advFilters.price===k?' sel':'')+'" onclick="setFiltPrice(\''+k+'\')"><span class="rl">'+t(l)+'</span><span class="radio-mark"></span></div>').join('')
+    +'</div>'
+    +'<div class="filt-group"><h3>'+t('filtType')+'</h3>'
+    +typeOpts.map(([k,l])=>'<div class="check-row" onclick="toggleFiltType(\''+k+'\')"><span class="rl" style="flex:1;font:700 14.5px Manrope">'+t(l)+'</span><span class="toggle'+(advFilters.types.includes(k)?' on':'')+'"></span></div>').join('')
+    +'</div>'
+    +'<div class="filt-group"><h3>'+t('filtExtra')+'</h3>'
+    +[['e247','e247'],['cctv','eCctv'],['disabled','eDisabled'],['wash','eWash']].map(([k,l])=>'<div class="check-row" onclick="toggleFiltExtra(\''+k+'\')"><span class="rl" style="flex:1;font:700 14.5px Manrope">'+t(l)+'</span><span class="toggle'+(advFilters[k]?' on':'')+'"></span></div>').join('')
+    +'</div>'
+    +'<div class="filt-group"><h3>'+t('filtPrice')+'</h3>'
+    +'<div class="price-row"><span>0 сум</span><span id="priceVal">'+(advFilters.priceMax>=100000?t('anyPrice'):advFilters.priceMax.toLocaleString('ru')+' сум')+'</span></div>'
+    +'<input type="range" class="slider" min="0" max="100000" step="5000" value="'+advFilters.priceMax+'" oninput="document.getElementById(\'priceVal\').textContent=(+this.value>=100000?t(\'anyPrice\'):(+this.value).toLocaleString(\'ru\')+\' сум\');advFilters.priceMax=+this.value">'
+    +'</div>'
+    +'</div>'
+    +'<div class="filt-foot">'
+    +'<button class="btn-primary" onclick="applyFilters()">'+t('apply')+'</button>'
+    +'<button class="btn-ghost" onclick="resetFilters()">'+t('reset')+'</button>'
+    +'</div>';
+  openSheet(html);
+}
+function setFiltPrice(k){advFilters.price=k;openFilters()}
+function toggleFiltType(k){const i=advFilters.types.indexOf(k);if(i>=0)advFilters.types.splice(i,1);else advFilters.types.push(k);openFilters()}
+function toggleFiltExtra(k){advFilters[k]=!advFilters[k];openFilters()}
+function applyFilters(){closeSheet();drawMarkers();
+  const n=filteredParkings().length;toast(n?('Найдено: '+n):t('noParkArea'))}
+function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,priceMax:100000};openFilters()}
+
+/* ═══════════ ГЕОЛОКАЦИЯ ═══════════ */
 const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
-async function permState(){try{if(navigator.permissions){const p=await navigator.permissions.query({name:'geolocation'});return p.state}}catch(e){}return 'unknown'}
+async function permState(){try{if(navigator.permissions){const p=await navigator.permissions.query({name:'geolocation'});return p.state}}catch(e){}return'unknown'}
 function yandexGeo(){return new Promise((res,rej)=>{if(!window.ymaps||!ymaps.geolocation)return rej();ymaps.geolocation.get({provider:'auto'}).then(r=>{const c=r.geoObjects.get(0).geometry.getCoordinates();res({lat:c[0],lng:c[1],acc:3000})},rej)})}
 function putMe(lat,lng,acc){
-  mePos={lat,lng};
-  if(!ymap)return;
-  if(meMark)ymap.geoObjects.remove(meMark);
-  if(meCircle)ymap.geoObjects.remove(meCircle);
-  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc,20)],{},{fillColor:'#1156D622',strokeColor:'#1156D655',strokeWidth:1});
-  const L=ymaps.templateLayoutFactory.createClass('<div class="me"></div>');
-  meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-9,-9],zIndex:900});
-  ymap.geoObjects.add(meCircle); ymap.geoObjects.add(meMark);
+  mePos={lat,lng};if(!ymap)return;
+  if(meMark)ymap.geoObjects.remove(meMark);if(meCircle)ymap.geoObjects.remove(meCircle);
+  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc,20)],{},{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
+  const L=ymaps.templateLayoutFactory.createClass('<div class="me-marker"></div>');
+  meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-10,-10],zIndex:900});
+  ymap.geoObjects.add(meCircle);ymap.geoObjects.add(meMark);
 }
-function applyPos(lat,lng,acc,z){putMe(lat,lng,acc);if(ymap)ymap.setCenter([lat,lng],z,{duration:500});render()}
-document.getElementById('locbtn').onclick=async function(){
-  const b=this;
-  if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null;b.classList.remove('live');toast(t('liveOff'));return}
-  if(!navigator.geolocation){toast(t('geoNo'));return}
-  if(location.protocol!=='https:'&&location.hostname!=='localhost'){toast(t('geoHttp'));return}
-  if(await permState()==='denied'){toast(t('geoBlocked'));return}
-  toast(t('geoing'));
+async function locate(silent){
+  if(!navigator.geolocation){if(!silent)toast(t('geoNo'));return false}
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'){if(!silent)toast(t('geoHttp'));return false}
+  if(await permState()==='denied'){if(!silent)toast(t('geoDeny'));return false}
+  if(!silent)toast(t('geoing'));
   let p=null,e1=null;
   try{p=await getPos({enableHighAccuracy:true,timeout:12000,maximumAge:0})}catch(e){e1=e}
-  if(!p&&e1&&e1.code!==1){toast(t('geoRetry'));try{p=await getPos({enableHighAccuracy:false,timeout:20000,maximumAge:120000})}catch(e){e1=e}}
+  if(!p&&e1&&e1.code!==1){if(!silent)toast(t('geoRetry'));try{p=await getPos({enableHighAccuracy:false,timeout:20000,maximumAge:120000})}catch(e){e1=e}}
   if(p){
-    applyPos(p.coords.latitude,p.coords.longitude,p.coords.accuracy,16);
-    toast(t('geoOk')+' ±'+Math.round(p.coords.accuracy)+' m');
-    watchId=navigator.geolocation.watchPosition(q=>{putMe(q.coords.latitude,q.coords.longitude,q.coords.accuracy);render()},()=>{},{enableHighAccuracy:true,timeout:20000,maximumAge:5000});
-    b.classList.add('live'); return;
+    putMe(p.coords.latitude,p.coords.longitude,p.coords.accuracy);
+    if(ymap)ymap.setCenter([mePos.lat,mePos.lng],16,{duration:500});
+    drawMarkers();
+    if(!silent)toast(t('geoOk')+' · ±'+Math.round(p.coords.accuracy)+' м');
+    if(watchId==null)watchId=navigator.geolocation.watchPosition(q=>{putMe(q.coords.latitude,q.coords.longitude,q.coords.accuracy);drawMarkers()},()=>{},{enableHighAccuracy:true,timeout:20000,maximumAge:5000});
+    document.getElementById('locbtn').classList.add('live');
+    return true;
   }
-  if(e1&&e1.code===1){toast(t('geoDeny'));return}
-  try{const y=await yandexGeo();applyPos(y.lat,y.lng,y.acc,13);toast(t('geoRough'))}
-  catch(e){toast(e1&&e1.code===2?t('geoUnav'):t('geoTime'))}
-};
-function enableManualPin(){if(!ymap)return;ymap.events.add('contextmenu',e=>{const c=e.get('coords');applyPos(c[0],c[1],30,ymap.getZoom());toast(t('geoManual'))})}
-document.getElementById('trafbtn').onclick=function(){
-  if(!ymap)return;
-  if(!traffic){traffic=new ymaps.traffic.provider.Actual({},{infoLayerShown:true});traffic.setMap(ymap);this.classList.add('on');toast(t('trafOn'))}
-  else{traffic.setMap(null);traffic=null;this.classList.remove('on');toast(t('trafOff'))}
-};
+  if(e1&&e1.code===1){if(!silent)toast(t('geoDeny'));return false}
+  try{const y=await yandexGeo();putMe(y.lat,y.lng,y.acc);if(ymap)ymap.setCenter([y.lat,y.lng],13);drawMarkers();if(!silent)toast(t('geoRough'));return true}
+  catch(e){if(!silent)toast(e1&&e1.code===2?t('geoUnav'):t('geoTime'));return false}
+}
+document.getElementById('locbtn').onclick=()=>locate(false);
+document.getElementById('zin').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()+1,{duration:200});
+document.getElementById('zout').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()-1,{duration:200});
+document.getElementById('filtbtn').onclick=openFilters;
+
+/* ═══════════ МАРШРУТ ═══════════ */
 let route=null,routeTarget=null,routeMode='auto';
-window.routeTo=function(id,mode){
-  const s=SPOTS.find(x=>x.id===id); if(!s||!ymap)return;
-  if(!mePos){closeMask();toast(t('needGeo'));document.getElementById('locbtn').click();return}
-  routeTarget=s; routeMode=mode||routeMode;
-  closeMask(); setSnap(0); document.body.classList.add('routing');
-  drawRoutePanel(null); clearRoute();
-  route=new ymaps.multiRouter.MultiRoute({referencePoints:[[mePos.lat,mePos.lng],[s.lat,s.lng]],params:{routingMode:routeMode,results:1,avoidTrafficJams:true}},
-    {boundsAutoApply:true,zoomMargin:[90,40,190,40],wayPointVisible:false,pinVisible:false,routeActiveStrokeWidth:6,routeActiveStrokeColor:'1156D6',routeActivePedestrianSegmentStrokeColor:'17A398',routeStrokeWidth:4,routeStrokeColor:'8FA3AE88'});
-  route.model.events.add('requestsuccess',()=>{
-    const a=route.getActiveRoute(); if(!a){fallbackRoute(s);return}
+async function routeTo(id,mode){
+  const p=PARKINGS.find(x=>x.id===id);if(!p||!ymap)return;
+  if(!mePos){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok){toast(t('geoDeny'));return}}
+  routeTarget=p;routeMode=mode||routeMode;
+  document.getElementById('minicard').classList.remove('on');
+  clearRoute();drawRoutePanel(null);
+  route=new ymaps.multiRouter.MultiRoute({referencePoints:[[mePos.lat,mePos.lng],[p.lat,p.lng]],params:{routingMode:routeMode,results:1,avoidTrafficJams:true}},
+    {boundsAutoApply:true,zoomMargin:[120,40,220,40],wayPointVisible:false,pinVisible:false,routeActiveStrokeWidth:6,routeActiveStrokeColor:'2563EB',routeActivePedestrianSegmentStrokeColor:'1FA84C',routeStrokeWidth:4,routeStrokeColor:'8FA3AE88'});
+  route.model.events.add('requestsuccess',()=>{const a=route.getActiveRoute();if(!a){fallbackRoute(p);return}
     const d=a.properties.get('distance'),dur=a.properties.get('durationInTraffic')||a.properties.get('duration');
-    drawRoutePanel({dist:d&&d.text,time:dur&&dur.text});
-  });
-  route.model.events.add('requestfail',()=>fallbackRoute(s));
+    drawRoutePanel({dist:d&&d.text,time:dur&&dur.text})});
+  route.model.events.add('requestfail',()=>fallbackRoute(p));
   ymap.geoObjects.add(route);
-};
-function fallbackRoute(s){
+}
+function fallbackRoute(p){
   clearRoute();
-  route=new ymaps.Polyline([[mePos.lat,mePos.lng],[s.lat,s.lng]],{},{strokeColor:'#1156D6',strokeWidth:4,strokeStyle:'shortdash'});
+  route=new ymaps.Polyline([[mePos.lat,mePos.lng],[p.lat,p.lng]],{},{strokeColor:'#2563EB',strokeWidth:4,strokeStyle:'shortdash'});
   ymap.geoObjects.add(route);
-  ymap.setBounds([[Math.min(mePos.lat,s.lat),Math.min(mePos.lng,s.lng)],[Math.max(mePos.lat,s.lat),Math.max(mePos.lng,s.lng)]],{checkZoomRange:true,zoomMargin:[90,40,190,40]});
-  const km=dist(mePos.lat,mePos.lng,s.lat,s.lng),sp=routeMode==='pedestrian'?4.5:22;
-  drawRoutePanel({dist:km.toFixed(1)+' km',time:Math.max(1,Math.round(km/sp*60))+' '+t('min'),rough:true});
+  ymap.setBounds([[Math.min(mePos.lat,p.lat),Math.min(mePos.lng,p.lng)],[Math.max(mePos.lat,p.lat),Math.max(mePos.lng,p.lng)]],{checkZoomRange:true,zoomMargin:[120,40,220,40]});
+  const km=dist(mePos.lat,mePos.lng,p.lat,p.lng),sp=routeMode==='pedestrian'?4.5:22;
+  drawRoutePanel({dist:km.toFixed(1)+' км',time:Math.max(1,Math.round(km/sp*60))+' '+t('min'),rough:true});
 }
 function clearRoute(){if(route&&ymap){ymap.geoObjects.remove(route);route=null}}
-window.closeRoute=function(){clearRoute();routeTarget=null;document.body.classList.remove('routing');document.getElementById('rp').classList.remove('on')};
+function closeRoute(){clearRoute();routeTarget=null;document.getElementById('minicard').classList.remove('on');
+  const rp=document.getElementById('routepanel');if(rp)rp.remove()}
 function drawRoutePanel(info){
-  const s=routeTarget; if(!s)return;
-  const T0=TYPES[s.type], el=document.getElementById('rp');
-  el.classList.add('on');
-  el.innerHTML='<div class="rphead">'
-    +'<div class="ic" style="background:'+T0.color+';width:40px;height:40px;border-radius:11px;font-size:18px">'+T0.icon+'</div>'
-    +'<div class="rpname"><b>'+s.name+'</b><span>'+fmtP(s)+(info&&info.rough?' · '+t('rough'):'')+'</span></div>'
-    +'<div class="rpbig"><b>'+(info?info.time:'…')+'</b><span>'+(info?info.dist:t('building'))+'</span></div>'
-    +'<button class="rpx" onclick="closeRoute()">✕</button></div>'
-    +'<div class="rpmodes">'
-    +'<button class="rpm'+(routeMode==='auto'?' on':'')+'" onclick="routeTo(\''+s.id+'\',\'auto\')">🚗 '+t('byCar')+'</button>'
-    +'<button class="rpm'+(routeMode==='pedestrian'?' on':'')+'" onclick="routeTo(\''+s.id+'\',\'pedestrian\')">🚶 '+t('onFoot')+'</button></div>'
-    +'<a class="rpnav" target="_blank" href="https://yandex.uz/maps/?rtext='+mePos.lat+','+mePos.lng+'~'+s.lat+','+s.lng+'&rtt='+(routeMode==='pedestrian'?'pd':'auto')+'">'+t('openNav')+'</a>';
-  document.documentElement.style.setProperty('--rph',el.offsetHeight+'px');
+  const p=routeTarget;if(!p)return;
+  let rp=document.getElementById('routepanel');
+  if(!rp){rp=document.createElement('div');rp.id='routepanel';
+    rp.style.cssText='position:fixed;left:12px;right:12px;bottom:calc(var(--nav) + 10px + var(--bot));z-index:59;background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:14px 16px';
+    document.getElementById('screen-map').appendChild(rp)}
+  rp.innerHTML=
+    '<div style="display:flex;align-items:center;gap:11px">'
+    +'<div class="mc-ic" style="background:'+markerColor(p)+';width:40px;height:40px">'+catIcon(p)+'</div>'
+    +'<div style="flex:1;min-width:0"><b style="font:700 14px Manrope;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</b>'
+      +'<span style="font:600 12px Manrope;color:var(--ink2)">'+priceLabel(p)+(info&&info.rough?' · '+t('roughR'):'')+'</span></div>'
+    +'<div style="text-align:right"><b style="font:800 17px Manrope;color:var(--blue);display:block">'+(info?info.time:'…')+'</b>'
+      +'<span style="font:700 11px Manrope;color:var(--ink2)">'+(info?info.dist:t('buildRoute'))+'</span></div>'
+    +'<button onclick="closeRoute()" style="width:34px;height:34px;border-radius:11px;background:var(--bg);border:0;font-size:15px;cursor:pointer;margin-left:4px">✕</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:7px;margin-top:11px">'
+    +'<button onclick="routeTo(\''+p.id+'\',\'auto\')" style="flex:1;padding:9px;border-radius:11px;border:1.5px solid '+(routeMode==='auto'?'var(--ink)':'var(--line)')+';background:'+(routeMode==='auto'?'var(--ink)':'var(--card)')+';color:'+(routeMode==='auto'?'#fff':'var(--ink)')+';font:700 12px Manrope;cursor:pointer">🚗 '+t('byCar')+'</button>'
+    +'<button onclick="routeTo(\''+p.id+'\',\'pedestrian\')" style="flex:1;padding:9px;border-radius:11px;border:1.5px solid '+(routeMode==='pedestrian'?'var(--ink)':'var(--line)')+';background:'+(routeMode==='pedestrian'?'var(--ink)':'var(--card)')+';color:'+(routeMode==='pedestrian'?'#fff':'var(--ink)')+';font:700 12px Manrope;cursor:pointer">🚶 '+t('onFoot')+'</button>'
+    +'</div>'
+    +'<a href="https://yandex.uz/maps/?rtext='+mePos.lat+','+mePos.lng+'~'+p.lat+','+p.lng+'&rtt='+(routeMode==='pedestrian'?'pd':'auto')+'" target="_blank" style="display:block;text-align:center;margin-top:8px;padding:12px;border-radius:12px;background:var(--blue);color:#fff;font:800 12.5px Manrope;text-decoration:none">'+t('openNav')+'</a>';
 }
-const SNAP=[96,300,window.innerHeight*0.78]; let snapIdx=0;
-function setSnap(i){snapIdx=Math.max(0,Math.min(2,i));const h=SNAP[snapIdx];
-  document.getElementById('sheet').style.height=h+'px';
-  document.documentElement.style.setProperty('--peek',h+'px');
-  setTimeout(()=>{if(ymap)ymap.container.fitToViewport()},300)}
-document.getElementById('shead').onclick=()=>setSnap(snapIdx===2?0:snapIdx+1);
-(function(){const g=document.getElementById('grab');let y0=0,h0=0,drag=false;
-  const start=e=>{drag=true;y0=(e.touches?e.touches[0]:e).clientY;h0=document.getElementById('sheet').offsetHeight;document.getElementById('sheet').style.transition='none'};
-  const move=e=>{if(!drag)return;e.preventDefault();const y=(e.touches?e.touches[0]:e).clientY;
-    const h=Math.max(96,Math.min(window.innerHeight*0.85,h0+(y0-y)));
-    document.getElementById('sheet').style.height=h+'px';document.documentElement.style.setProperty('--peek',h+'px')};
-  const end=()=>{if(!drag)return;drag=false;document.getElementById('sheet').style.transition='';
-    const h=document.getElementById('sheet').offsetHeight;let best=0,bd=1e9;
-    SNAP.forEach((s,i)=>{if(Math.abs(s-h)<bd){bd=Math.abs(s-h);best=i}});setSnap(best)};
-  g.addEventListener('touchstart',start,{passive:true});g.addEventListener('touchmove',move,{passive:false});
-  g.addEventListener('touchend',end);g.addEventListener('mousedown',start);
-  window.addEventListener('mousemove',move);window.addEventListener('mouseup',end)})();
-function buildUI(){
-  document.getElementById('q').placeholder=t('ph');
-  document.getElementById('stitle').textContent=t('near');
-  document.getElementById('lang').textContent=lang==='ru'?'UZ':'RU';
-  document.documentElement.lang=lang;
-  const fs=['all','free','paid','ev','allowed'];
-  document.getElementById('chips').innerHTML=fs.map(k=>'<button class="chip'+(filter===k?' on':'')+'" data-f="'+k+'">'+t(k)+'</button>').join('');
-  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{filter=c.dataset.f;buildUI();render()});
+
+/* ═══════════ ПРОБКИ (в этом дизайне вызывается из легенды-меню — оставим на fab позже) ═══════════ */
+function toggleTraffic(){
+  if(!ymap)return;
+  if(!traffic){traffic=new ymaps.traffic.provider.Actual({},{infoLayerShown:true});traffic.setMap(ymap);toast(t('trafOn'))}
+  else{traffic.setMap(null);traffic=null;toast(t('trafOff'))}
 }
-document.getElementById('lang').onclick=()=>{lang=lang==='ru'?'uz':'ru';localStorage.setItem('pl-lang',lang);buildUI();render();closeMask()};
-document.getElementById('q').addEventListener('input',e=>{query=e.target.value.toLowerCase();render()});
-setSnap(0); buildUI(); render(); loadYandex();
-window.addEventListener('resize',()=>{SNAP[2]=window.innerHeight*0.78});
+
+/* ═══════════ ДОБАВИТЬ ПАРКОВКУ ═══════════ */
+function openAdd(){
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="form-head"><button class="fh-side" onclick="closeSheet()">'+t('cancel')+'</button><h2>'+t('addTitle')+'</h2><button class="fh-side right" onclick="submitAdd()">'+t('done')+'</button></div>'
+    +'<div class="form-body">'
+    +'<div class="field"><label>'+t('fName')+'</label><input id="a_name" placeholder="'+t('phName')+'"></div>'
+    +'<div class="field"><label>'+t('fLoc')+' <span class="req">*</span></label><input id="a_addr" placeholder="'+t('phAddr')+'"></div>'
+    +'<div class="field"><label>'+t('fCat')+' <span class="req">*</span></label><select id="a_cat"><option value="OFFICIAL">'+t('catOfficial')+'</option><option value="STREET_ALLOWED">'+t('catStreet')+'</option><option value="EV">'+t('catEv')+'</option></select></div>'
+    +'<div class="field"><label>'+t('fCost')+' <span class="req">*</span></label><select id="a_cost"><option value="free">'+t('costFree')+'</option><option value="paid">'+t('costPaid')+'</option><option value="unknown">'+t('costUnknown')+'</option></select></div>'
+    +'<div class="field"><label>'+t('fRate')+'</label><input id="a_rate" placeholder="'+t('phRate')+'"></div>'
+    +'<div class="field-row">'
+      +'<div class="field"><label>'+t('fCap')+'</label><input id="a_cap" type="number" inputmode="numeric" placeholder="'+t('phCap')+'"></div>'
+      +'<div class="field"><label>'+t('fType')+' <span class="req">*</span></label><select id="a_type"><option value="open">'+t('tOpen')+'</option><option value="covered">'+t('tCovered')+'</option><option value="underground">'+t('tUnderground')+'</option><option value="street">'+t('tStreet')+'</option></select></div>'
+    +'</div>'
+    +'<div class="field-row">'
+      +'<div class="field"><label>'+t('fHours')+'</label><input id="a_hours" placeholder="24/7"></div>'
+      +'<div class="field"><label>'+t('fCharge')+'</label><select id="a_ev"><option value="no">'+t('chgNo')+'</option><option value="yes">'+t('chgYes')+'</option><option value="unknown">'+t('chgUnknown')+'</option></select></div>'
+    +'</div>'
+    +'<div class="field"><label>'+t('fPhoto')+'</label><div class="photo-add">'
+      +'<div class="photo-slot" onclick="toast(\'Загрузка фото — на этапе сервера\')"><span style="font-size:18px">📷</span>'+t('addPhoto')+'<br>'+t('upTo5')+'</div>'
+    +'</div></div>'
+    +'<div class="field"><label>'+t('fNote')+'</label><textarea id="a_note" placeholder="'+t('phNote')+'"></textarea></div>'
+    +'</div>';
+  openSheet(html);
+}
+function submitAdd(){
+  const addr=document.getElementById('a_addr').value.trim();
+  if(!addr){toast(t('needName'));return}
+  // По ТЗ: заявка уходит в статус PENDING на модерацию (в MVP без сервера — сохраняем локально)
+  const subs=JSON.parse(localStorage.getItem('parkly-submissions')||'[]');
+  subs.push({name:document.getElementById('a_name').value,addr,cat:document.getElementById('a_cat').value,
+    status:'PENDING',date:new Date().toISOString()});
+  localStorage.setItem('parkly-submissions',JSON.stringify(subs));
+  closeSheet();toast(t('addOk'));
+}
+
+/* ═══════════ СООБЩИТЬ ОБ ОШИБКЕ ═══════════ */
+function openReport(id){
+  const reasons=[['noPark','rNoPark'],['forbidden','rForbidden'],['price','rPrice'],['cap','rCap'],['hours','rHours'],['ev','rEv'],['other','rOther']];
+  const html='<div class="grabber" onclick="closeSheet()"><i></i></div>'
+    +'<div class="filt-head"><h2>'+t('reportTitle')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="filt-body">'
+    +reasons.map(([k,l])=>'<div class="radio-row" onclick="sendReport()"><span class="rl">'+t(l)+'</span><span style="color:var(--grey)">›</span></div>').join('')
+    +'</div><div style="height:'+'20px"></div>';
+  openSheet(html);
+}
+function sendReport(){closeSheet();toast(t('reportSent'))}
+
+/* ═══════════ ИЗБРАННОЕ ═══════════ */
+function renderFav(){
+  document.getElementById('fav-title').textContent=t('favTitle');
+  document.getElementById('fav-edit').textContent=t('edit');
+  const cont=document.getElementById('fav-content');
+  const items=favorites.map(id=>PARKINGS.find(p=>p.id===id)).filter(Boolean);
+  if(!items.length){
+    cont.innerHTML='<div class="empty-state"><div class="ei">☆</div><b>'+t('favEmpty')+'</b><span>'+t('favEmptyDesc')+'</span></div>';
+    return;
+  }
+  cont.innerHTML='<div class="fav-list">'+items.map(p=>
+    '<div class="fav-item" onclick="switchTab(\'map\');selectParking(\''+p.id+'\')">'
+    +'<div class="fav-ic" style="background:'+markerColor(p)+'">'+catIcon(p)+'</div>'
+    +'<div class="fav-txt"><b>'+p.name+'</b><span>'+(p.is247?t('open247'):p.hours)+'</span></div>'
+    +'<div class="fav-right"><div class="fav-dist">'+(distText(p)||'')+'</div>'
+      +'<div style="font:700 12px Manrope;color:var(--ink2);margin-top:2px">'+priceLabel(p)+'</div></div>'
+    +'<span class="fav-more" onclick="event.stopPropagation();toggleFav(\''+p.id+'\',null);renderFav()">✕</span>'
+    +'</div>').join('')+'</div>';
+}
+
+/* ═══════════ ПРОФИЛЬ ═══════════ */
+function renderProfile(){
+  document.getElementById('prof-title').textContent=t('profTitle');
+  const subs=JSON.parse(localStorage.getItem('parkly-submissions')||'[]');
+  const cont=document.getElementById('prof-content');
+  cont.innerHTML=
+    '<div class="prof-card"><div class="prof-ava">Г</div>'
+    +'<div class="prof-info"><b>'+t('guest')+'</b><span>'+t('notSignedIn')+'</span></div></div>'
+    +'<div class="prof-list">'
+    +profRow('🚗',t('myCars'),'0')
+    +profRow('🕐',t('history'),'')
+    +profRow('📄','Мои заявки',subs.length?String(subs.length):'')
+    +profRow('💳',t('payments'),'')
+    +'<div class="prof-row"><span class="pri">🔔</span><span class="prl">'+t('notifs')+'</span><span class="toggle on" onclick="this.classList.toggle(\'on\')"></span></div>'
+    +profRow('💬',t('support'),'')
+    +profRow('ⓘ',t('about'),'v1.0')
+    +'</div>'
+    +'<button class="prof-logout">'+t('signIn')+'</button>';
+}
+function profRow(ic,label,val){
+  return '<div class="prof-row" onclick="toast(\'Раздел появится на этапе сервера\')"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
+}
+
+/* ═══════════ ЛЕГЕНДА ═══════════ */
+function openLegend(){
+  const pin=(c,b)=>'<div class="legend-mark"><div class="pin" style="width:30px;height:30px;border-radius:50% 50% 50% 3px;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;background:'+c+';border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.2)"><b style="transform:rotate(-45deg);color:#fff;font:800 12px Manrope">'+b+'</b></div></div>';
+  const html='<div class="grabber" onclick="closeSheet()"><i></i></div>'
+    +'<div class="filt-head"><h2>'+t('legend')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="legend-body">'
+    +'<div class="legend-item">'+pin('#1FA84C','P')+'<div><b>'+t('lFree')+'</b></div></div>'
+    +'<div class="legend-item">'+pin('#2563EB','P')+'<div><b>'+t('lPaid')+'</b></div></div>'
+    +'<div class="legend-item"><div class="legend-mark" style="font-size:22px">⚡</div><div><b>'+t('lEv')+'</b></div></div>'
+    +'<div class="legend-item">'+pin('#9AA7B2','P')+'<div><b>'+t('lUnknown')+'</b></div></div>'
+    +'<div class="legend-item"><div class="legend-mark">🚦</div><div><b>Пробки</b><span>Нажмите, чтобы включить слой пробок</span></div><button onclick="toggleTraffic()" style="margin-left:auto;padding:8px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font:700 12px Manrope;cursor:pointer">Слой</button></div>'
+    +'</div>'
+    +'<div style="padding:0 18px 4px"><div class="legalnote" style="background:#EFF4FF;border-color:#CFE0FF;color:#1D4ED8">ℹ️<span>Зелёный цвет означает <b>бесплатную</b> парковку, а не наличие свободных мест. Занятость в реальном времени появится в следующем обновлении.</span></div></div>';
+  openSheet(html);
+}
+document.getElementById('legendbtn').onclick=openLegend;
+
+/* ═══════════ НАВИГАЦИЯ ПО ЭКРАНАМ ═══════════ */
+function buildNav(){
+  const items=[['map','◉',t('navMap')],['fav','★',t('navFav')],['add','＋',t('navAdd')],['profile','◍',t('navProfile')]];
+  document.getElementById('bottomnav').innerHTML=items.map(([k,ic,l])=>
+    k==='add'
+    ?'<button class="navitem navadd" data-tab="add"><span class="ni">＋</span><span>'+l+'</span></button>'
+    :'<button class="navitem'+(activeTab===k?' on':'')+'" data-tab="'+k+'"><span class="ni">'+ic+'</span><span>'+l+'</span></button>'
+  ).join('');
+  document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>{
+    const tab=b.dataset.tab;
+    if(tab==='add'){openAdd();return}
+    switchTab(tab);
+  });
+}
+function switchTab(tab){
+  activeTab=tab;
+  document.getElementById('screen-fav').classList.toggle('on',tab==='fav');
+  document.getElementById('screen-profile').classList.toggle('on',tab==='profile');
+  if(tab==='fav')renderFav();
+  if(tab==='profile')renderProfile();
+  buildNav();
+}
+
+/* ═══════════ ПОИСК ═══════════ */
+document.getElementById('search').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase().trim();
+  if(!q)return;
+  const found=PARKINGS.find(p=>(p.name+p.addr).toLowerCase().includes(q));
+  if(found&&ymap)ymap.setCenter([found.lat,found.lng],15,{duration:400});
+});
+document.getElementById('search').addEventListener('change',e=>{
+  const q=e.target.value.toLowerCase().trim();
+  const found=PARKINGS.find(p=>(p.name+p.addr).toLowerCase().includes(q));
+  if(found)selectParking(found.id);
+  else if(q)toast(t('noParkArea'));
+});
+
+/* ═══════════ БЫСТРЫЕ ФИЛЬТРЫ (чипы) ═══════════ */
+function buildQchips(){
+  const chips=[['all','qAll'],['free','qFree'],['paid','qPaid'],['ev','qEv']];
+  document.getElementById('qchips').innerHTML=chips.map(([k,l])=>
+    '<button class="qchip'+(quickFilter===k?' on':'')+'" data-q="'+k+'">'+(k==='ev'?'⚡ ':'')+t(l)+'</button>').join('');
+  document.querySelectorAll('.qchip').forEach(c=>c.onclick=()=>{
+    quickFilter=c.dataset.q;buildQchips();drawMarkers();
+    selectedId=null;document.getElementById('minicard').classList.remove('on');
+  });
+}
+
+/* ═══════════ СТАРТ ═══════════ */
+document.getElementById('search').placeholder=t('searchPh');
+buildQchips();buildNav();loadYandex();
+// пробуем определить геопозицию тихо при старте (по ТЗ 6.1 — работает и без неё)
+setTimeout(()=>locate(true),1200);
 </script>
 </body>
 </html>
