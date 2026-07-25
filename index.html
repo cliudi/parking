@@ -459,7 +459,7 @@ function initMap(){
     {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
   document.getElementById('maperr').style.display='none';
   drawMarkers();
-  ymap.events.add('click',()=>{selectedId=null;document.getElementById('minicard').classList.remove('on');drawMarkers()});
+  ymap.events.add('click',()=>{selectedId=null;document.getElementById('minicard').classList.remove('on');updateSelection(null)});
 }
 function filteredParkings(){
   let v=PARKINGS.slice();
@@ -475,23 +475,51 @@ function filteredParkings(){
   if(advFilters.priceMax<100000)v=v.filter(p=>(p.price_val||0)<=advFilters.priceMax);
   return v;
 }
+let clusterer=null;
+const layoutCache={};
+function pinLayout(col,icon,big,bolt){
+  const key=col+icon+(big?'1':'0')+(bolt?'1':'0');
+  if(layoutCache[key])return layoutCache[key];
+  const L=ymaps.templateLayoutFactory.createClass(
+    '<div class="marker'+(big?' big':'')+'"><div class="pin" style="background:'+col+'"><b>'+icon+'</b></div>'+(bolt?'<span class="bolt">⚡</span>':'')+'</div>');
+  layoutCache[key]=L;return L;
+}
 function drawMarkers(){
   if(!ymap)return;
-  Object.values(markers).forEach(m=>ymap.geoObjects.remove(m));markers={};
-  filteredParkings().forEach(p=>{
-    const big=p.id===selectedId, col=markerColor(p);
-    const bolt=p.ev?'<span class="bolt">⚡</span>':'';
-    const L=ymaps.templateLayoutFactory.createClass(
-      '<div class="marker'+(big?' big':'')+'"><div class="pin" style="background:'+col+'"><b>'+catIcon(p)+'</b></div>'+bolt+'</div>');
-    const m=new ymaps.Placemark([p.lat,p.lng],{},{iconLayout:L,iconShape:{type:'Circle',coordinates:[0,0],radius:20},iconOffset:[-17,-34]});
+  // создаём кластеризатор один раз (ТЗ 7.4 — группировка близких меток)
+  if(!clusterer){
+    clusterer=new ymaps.Clusterer({
+      preset:'islands#invertedBlueClusterIcons', groupByCoordinates:false,
+      clusterDisableClickZoom:false, gridSize:64, minClusterSize:3
+    });
+    ymap.geoObjects.add(clusterer);
+  }
+  clusterer.removeAll();markers={};
+  const pms=filteredParkings().map(p=>{
+    const big=p.id===selectedId;
+    const m=new ymaps.Placemark([p.lat,p.lng],{parkingId:p.id},{
+      iconLayout:pinLayout(markerColor(p),catIcon(p),big,p.ev),
+      iconShape:{type:'Circle',coordinates:[0,0],radius:20},iconOffset:[-17,-34]});
     m.events.add('click',()=>selectParking(p.id));
-    ymap.geoObjects.add(m);markers[p.id]=m;
+    markers[p.id]=m;return m;
   });
+  clusterer.add(pms);
   if(meCircle)ymap.geoObjects.add(meCircle);
   if(meMark)ymap.geoObjects.add(meMark);
 }
+// лёгкое обновление выделения — меняем макет только двух маркеров, без пересборки всех
+let prevSelected=null;
+function updateSelection(id){
+  if(!clusterer)return drawMarkers();
+  [prevSelected,id].forEach(pid=>{
+    if(!pid||!markers[pid])return;
+    const p=PARKINGS.find(x=>x.id===pid);if(!p)return;
+    markers[pid].options.set('iconLayout',pinLayout(markerColor(p),catIcon(p),pid===id,p.ev));
+  });
+  prevSelected=id;
+}
 function selectParking(id){
-  selectedId=id;drawMarkers();showMiniCard(id);
+  selectedId=id;updateSelection(id);showMiniCard(id);
   const p=PARKINGS.find(x=>x.id===id);
   if(ymap&&p)ymap.panTo([p.lat,p.lng],{duration:300});
 }
@@ -620,9 +648,28 @@ function applyFilters(){closeSheet();drawMarkers();
 function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,priceMax:100000};openFilters()}
 
 /* ═══════════ ГЕОЛОКАЦИЯ ═══════════ */
+// Определяем, запущены ли внутри нативной обёртки Capacitor
+const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
 async function permState(){try{if(navigator.permissions){const p=await navigator.permissions.query({name:'geolocation'});return p.state}}catch(e){}return'unknown'}
 function yandexGeo(){return new Promise((res,rej)=>{if(!window.ymaps||!ymaps.geolocation)return rej();ymaps.geolocation.get({provider:'auto'}).then(r=>{const c=r.geoObjects.get(0).geometry.getCoordinates();res({lat:c[0],lng:c[1],acc:3000})},rej)})}
+
+// Нативная геолокация через плагин Capacitor (показывает системное окно "Разрешить")
+async function nativePos(){
+  const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
+  if(!Geo) throw new Error('no-plugin');
+  // сначала спрашиваем разрешение — именно это вызывает системный диалог
+  try{
+    const perm = await Geo.checkPermissions();
+    if(perm.location!=='granted'){
+      const req = await Geo.requestPermissions();
+      if(req.location!=='granted') throw {code:1};
+    }
+  }catch(e){ if(e&&e.code===1) throw e; }
+  const pos = await Geo.getCurrentPosition({enableHighAccuracy:true, timeout:15000, maximumAge:0});
+  return {lat:pos.coords.latitude, lng:pos.coords.longitude, acc:pos.coords.accuracy};
+}
+
 function putMe(lat,lng,acc){
   mePos={lat,lng};if(!ymap)return;
   if(meMark)ymap.geoObjects.remove(meMark);if(meCircle)ymap.geoObjects.remove(meCircle);
@@ -632,10 +679,27 @@ function putMe(lat,lng,acc){
   ymap.geoObjects.add(meCircle);ymap.geoObjects.add(meMark);
 }
 async function locate(silent){
-  if(!navigator.geolocation){if(!silent)toast(t('geoNo'));return false}
-  if(location.protocol!=='https:'&&location.hostname!=='localhost'){if(!silent)toast(t('geoHttp'));return false}
-  if(await permState()==='denied'){if(!silent)toast(t('geoDeny'));return false}
   if(!silent)toast(t('geoing'));
+  // 1) НАТИВНЫЙ путь (в APK) — самый надёжный, показывает системный диалог
+  if(isNative){
+    try{
+      const n=await nativePos();
+      putMe(n.lat,n.lng,n.acc);
+      if(ymap)ymap.setCenter([n.lat,n.lng],16,{duration:500});
+      drawMarkers();
+      if(!silent)toast(t('geoOk')+' · ±'+Math.round(n.acc)+' м');
+      startNativeWatch();
+      document.getElementById('locbtn').classList.add('live');
+      return true;
+    }catch(e){
+      if(e&&e.code===1){if(!silent)toast(t('geoDeny'));return false}
+      // если плагин не сработал — падаем в браузерный способ ниже
+    }
+  }
+  // 2) БРАУЗЕРНЫЙ путь (в вебе / PWA)
+  if(!navigator.geolocation){if(!silent)toast(t('geoNo'));return false}
+  if(!isNative && location.protocol!=='https:'&&location.hostname!=='localhost'){if(!silent)toast(t('geoHttp'));return false}
+  if(await permState()==='denied'){if(!silent)toast(t('geoDeny'));return false}
   let p=null,e1=null;
   try{p=await getPos({enableHighAccuracy:true,timeout:12000,maximumAge:0})}catch(e){e1=e}
   if(!p&&e1&&e1.code!==1){if(!silent)toast(t('geoRetry'));try{p=await getPos({enableHighAccuracy:false,timeout:20000,maximumAge:120000})}catch(e){e1=e}}
@@ -644,7 +708,7 @@ async function locate(silent){
     if(ymap)ymap.setCenter([mePos.lat,mePos.lng],16,{duration:500});
     drawMarkers();
     if(!silent)toast(t('geoOk')+' · ±'+Math.round(p.coords.accuracy)+' м');
-    if(watchId==null)watchId=navigator.geolocation.watchPosition(q=>{putMe(q.coords.latitude,q.coords.longitude,q.coords.accuracy);drawMarkers()},()=>{},{enableHighAccuracy:true,timeout:20000,maximumAge:5000});
+    if(watchId==null)watchId=navigator.geolocation.watchPosition(q=>{putMe(q.coords.latitude,q.coords.longitude,q.coords.accuracy);drawMeOnly()},()=>{},{enableHighAccuracy:true,timeout:20000,maximumAge:5000});
     document.getElementById('locbtn').classList.add('live');
     return true;
   }
@@ -652,6 +716,18 @@ async function locate(silent){
   try{const y=await yandexGeo();putMe(y.lat,y.lng,y.acc);if(ymap)ymap.setCenter([y.lat,y.lng],13);drawMarkers();if(!silent)toast(t('geoRough'));return true}
   catch(e){if(!silent)toast(e1&&e1.code===2?t('geoUnav'):t('geoTime'));return false}
 }
+async function startNativeWatch(){
+  const Geo = window.Capacitor.Plugins.Geolocation;
+  if(watchId!=null||!Geo)return;
+  try{
+    watchId = await Geo.watchPosition({enableHighAccuracy:true,timeout:20000},(pos)=>{
+      if(pos&&pos.coords){putMe(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy);drawMeOnly()}
+    });
+  }catch(e){}
+}
+// лёгкое обновление только своей точки, без перерисовки всех маркеров (против лагов)
+function drawMeOnly(){ /* putMe уже перерисовал точку; маркеры не трогаем */ }
+
 document.getElementById('locbtn').onclick=()=>locate(false);
 document.getElementById('zin').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()+1,{duration:200});
 document.getElementById('zout').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()-1,{duration:200});
