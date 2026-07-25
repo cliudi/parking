@@ -239,7 +239,19 @@
   .marker.big .pin{width:44px;height:44px}
   .marker .bolt{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:var(--violet);
     border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;z-index:2}
-  .me-marker{width:20px;height:20px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 8px rgba(37,99,235,.2),0 2px 8px rgba(0,0,0,.3)}
+  .me-wrap{position:relative;width:22px;height:22px}
+  .me-dot{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
+    background:var(--blue);border:3px solid #fff;box-sizing:border-box;
+    box-shadow:0 2px 8px rgba(0,0,0,.35);z-index:3}
+  .me-dot.rough{background:var(--amber)}
+  .me-pulse{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
+    background:rgba(37,99,235,.40);animation:mePulse 2.2s ease-out infinite;z-index:1}
+  .me-dot.rough ~ .me-pulse,.me-pulse.rough{background:rgba(245,166,35,.40)}
+  @keyframes mePulse{0%{transform:scale(1);opacity:.65}70%{transform:scale(3.4);opacity:0}100%{transform:scale(3.4);opacity:0}}
+  .me-cone{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;z-index:2;
+    clip-path:polygon(50% 50%, 26% 0%, 74% 0%);
+    background:linear-gradient(to top, rgba(37,99,235,0), rgba(37,99,235,.55));
+    transform-origin:50% 50%;transition:transform .18s linear}
 
   #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);z-index:400;
     bottom:calc(var(--nav) + 80px + var(--bot));background:var(--ink);color:#fff;font:700 13px 'Manrope';
@@ -473,6 +485,7 @@ function initMap(){
   document.getElementById('maperr').style.display='none';
   drawMarkers();
   trackPan();
+  initHeading();
   // позиция могла прийти раньше карты — показываем её сразу
   if(pendingCenter){
     const c=pendingCenter;pendingCenter=null;
@@ -709,8 +722,13 @@ function putMe(lat,lng,acc,rough){
   meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},
     isRough?{fillColor:'#F5A62322',strokeColor:'#F5A623aa',strokeWidth:1,strokeStyle:'shortdash'}
            :{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
-  const L=ymaps.templateLayoutFactory.createClass('<div class="me-marker"'+(isRough?' style="background:#F5A623"':'')+'></div>');
-  meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-10,-10],zIndex:900});
+  const cone = meHeading!=null
+    ? '<div class="me-cone" style="transform:rotate('+Math.round(meHeading)+'deg)"></div>' : '';
+  const L=ymaps.templateLayoutFactory.createClass(
+    '<div class="me-wrap">'+cone
+    +'<div class="me-pulse'+(isRough?' rough':'')+'"></div>'
+    +'<div class="me-dot'+(isRough?' rough':'')+'"></div></div>');
+  meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-11,-11],zIndex:900});
   ymap.geoObjects.add(meCircle);ymap.geoObjects.add(meMark);
 }
 
@@ -718,7 +736,10 @@ function putMe(lat,lng,acc,rough){
 let lastFixTs=0;
 const GPS_GOOD=60;      // настоящий спутниковый замер — до 60 м
 const ROUGH_OVER=100;   // всё, что хуже 100 м, показываем как приблизительное
+const JUNK_OVER=2500;    // хуже 2.5 км — это определение по IP, ему верить нельзя
 function applyFix(lat,lng,acc,label,precise){
+  // мусорный замер (IP-геолокация) не показываем вовсе, если уже есть что-то лучше
+  if(acc>JUNK_OVER&&mePos&&meAcc&&meAcc<acc)return false;
   const stale = Date.now()-lastFixTs>20000;   // старый замер устарел — берём любой новый
   const better = !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot) || stale;
   if(!better)return false;
@@ -747,9 +768,30 @@ function instantFix(){
 /* быстрый замер: сеть/вышки. Кэш системы разрешаем только совсем свежий (30 сек) */
 function fastFix(){
   const Geo=GeoPlugin();
-  const o={enableHighAccuracy:false,timeout:7000,maximumAge:30000};
+  // в браузере низкая точность = определение по IP (промах в километры),
+  // поэтому в вебе сразу просим высокую точность
+  const o={enableHighAccuracy:!GeoPlugin(),timeout:7000,maximumAge:30000};
   const wrap=p=>({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});
   return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
+}
+
+/* КОМПАС: конус направления поворачивается вслед за телефоном */
+let meHeading=null, headingInit=false;
+function initHeading(){
+  if(headingInit)return; headingInit=true;
+  const onOrient=e=>{
+    let deg=null;
+    if(e.webkitCompassHeading!=null)deg=e.webkitCompassHeading;          // iOS
+    else if(e.alpha!=null)deg=(e.absolute!==false)?(360-e.alpha):(360-e.alpha);
+    if(deg==null||isNaN(deg))return;
+    if(meHeading!=null&&Math.abs(deg-meHeading)<4)return;                // не дёргаем на мелочи
+    meHeading=deg;
+    const el=document.querySelector('.me-cone');
+    if(el)el.style.transform='rotate('+Math.round(deg)+'deg)';
+    else if(mePos)putMe(mePos.lat,mePos.lng,meAcc);                      // конуса ещё нет — перерисуем
+  };
+  window.addEventListener('deviceorientationabsolute',onOrient,true);
+  window.addEventListener('deviceorientation',onOrient,true);
 }
 
 /* живой показ точности — видно, как GPS сходится к нескольким метрам */
