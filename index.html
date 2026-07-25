@@ -336,6 +336,9 @@ const I18N={
   legend:'Обозначения на карте', lFree:'Бесплатные парковки', lPaid:'Платные парковки',
   lFew:'Мало мест', lNone:'Нет мест', lEv:'Зарядка для ЭМ', lUnknown:'Неизвестно',
   geoing:'Определяю местоположение…', geoOk:'Вы здесь', geoDeny:'Разрешите доступ к геолокации в настройках браузера',
+  geoCached:'Последнее известное место · уточняю…', geoSearching:'Ищу спутники…',
+  geoPrecise:'Точное место (GPS)', geoRoughWait:'Примерно · ищу GPS…',
+  geoStillRough:'GPS не поймал спутники. Выйдите на улицу для точного места',
   geoRetry:'GPS не отвечает, пробую по сети…', geoRough:'Примерное местоположение',
   geoUnav:'Включите GPS', geoTime:'Не удалось определить. Попробуйте на улице',
   geoNo:'Геолокация не поддерживается', geoHttp:'Геолокация работает только на HTTPS',
@@ -459,6 +462,7 @@ function initMap(){
     {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
   document.getElementById('maperr').style.display='none';
   drawMarkers();
+  trackPan();
   ymap.events.add('click',()=>{selectedId=null;document.getElementById('minicard').classList.remove('on');updateSelection(null)});
 }
 function filteredParkings(){
@@ -647,86 +651,131 @@ function applyFilters(){closeSheet();drawMarkers();
   const n=filteredParkings().length;toast(n?('Найдено: '+n):t('noParkArea'))}
 function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,priceMax:100000};openFilters()}
 
-/* ═══════════ ГЕОЛОКАЦИЯ ═══════════ */
-// Определяем, запущены ли внутри нативной обёртки Capacitor
+/* ═══════════ ГЕОЛОКАЦИЯ (параллельная: сеть + GPS одновременно) ═══════════ */
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
 async function permState(){try{if(navigator.permissions){const p=await navigator.permissions.query({name:'geolocation'});return p.state}}catch(e){}return'unknown'}
-function yandexGeo(){return new Promise((res,rej)=>{if(!window.ymaps||!ymaps.geolocation)return rej();ymaps.geolocation.get({provider:'auto'}).then(r=>{const c=r.geoObjects.get(0).geometry.getCoordinates();res({lat:c[0],lng:c[1],acc:3000})},rej)})}
+function yandexGeo(){return new Promise((res,rej)=>{if(!window.ymaps||!ymaps.geolocation)return rej();ymaps.geolocation.get({provider:'auto'}).then(r=>{const c=r.geoObjects.get(0).geometry.getCoordinates();res({lat:c[0],lng:c[1],acc:5000})},rej)})}
+const GeoPlugin=()=>(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Geolocation)||null;
 
-// Нативная геолокация через плагин Capacitor (показывает системное окно "Разрешить")
-async function nativePos(){
-  const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
-  if(!Geo) throw new Error('no-plugin');
-  // сначала спрашиваем разрешение — именно это вызывает системный диалог
-  try{
-    const perm = await Geo.checkPermissions();
-    if(perm.location!=='granted'){
-      const req = await Geo.requestPermissions();
-      if(req.location!=='granted') throw {code:1};
-    }
-  }catch(e){ if(e&&e.code===1) throw e; }
-  const pos = await Geo.getCurrentPosition({enableHighAccuracy:true, timeout:15000, maximumAge:0});
-  return {lat:pos.coords.latitude, lng:pos.coords.longitude, acc:pos.coords.accuracy};
+let meAcc=0, userPanned=false, precising=false, gpsGot=false;
+
+/* кэш последней позиции — только если она была точной */
+const LP_KEY='parkly-lastpos';
+function saveLastPos(lat,lng,acc){ if(acc&&acc>1000)return; try{localStorage.setItem(LP_KEY,JSON.stringify({lat,lng,acc,ts:Date.now()}))}catch(e){} }
+function loadLastPos(){try{const o=JSON.parse(localStorage.getItem(LP_KEY)||'null');if(o&&Date.now()-o.ts<12*3600*1000)return o}catch(e){}return null}
+
+/* зум под точность: нельзя показывать зум 16 при погрешности 5 км — это врёт пользователю */
+function zoomFor(acc){ if(!acc)return 15; if(acc<50)return 17; if(acc<200)return 16; if(acc<1000)return 14; if(acc<3000)return 12; return 11 }
+
+async function ensurePermission(){
+  const Geo=GeoPlugin();
+  if(Geo){
+    try{
+      let p=await Geo.checkPermissions();
+      if(p.location!=='granted'&&p.coarseLocation!=='granted'){
+        p=await Geo.requestPermissions();
+        if(p.location!=='granted'&&p.coarseLocation!=='granted')return false;
+      }
+      return true;
+    }catch(e){return true}
+  }
+  return (await permState())!=='denied';
 }
 
 function putMe(lat,lng,acc){
-  mePos={lat,lng};if(!ymap)return;
+  mePos={lat,lng};meAcc=acc||0;if(!ymap)return;
   if(meMark)ymap.geoObjects.remove(meMark);if(meCircle)ymap.geoObjects.remove(meCircle);
-  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc,20)],{},{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
+  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
   const L=ymaps.templateLayoutFactory.createClass('<div class="me-marker"></div>');
   meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-10,-10],zIndex:900});
   ymap.geoObjects.add(meCircle);ymap.geoObjects.add(meMark);
 }
-async function locate(silent){
-  if(!silent)toast(t('geoing'));
-  // 1) НАТИВНЫЙ путь (в APK) — самый надёжный, показывает системный диалог
-  if(isNative){
-    try{
-      const n=await nativePos();
-      putMe(n.lat,n.lng,n.acc);
-      if(ymap)ymap.setCenter([n.lat,n.lng],16,{duration:500});
-      drawMarkers();
-      if(!silent)toast(t('geoOk')+' · ±'+Math.round(n.acc)+' м');
-      startNativeWatch();
-      document.getElementById('locbtn').classList.add('live');
-      return true;
-    }catch(e){
-      if(e&&e.code===1){if(!silent)toast(t('geoDeny'));return false}
-      // если плагин не сработал — падаем в браузерный способ ниже
-    }
-  }
-  // 2) БРАУЗЕРНЫЙ путь (в вебе / PWA)
-  if(!navigator.geolocation){if(!silent)toast(t('geoNo'));return false}
-  if(!isNative && location.protocol!=='https:'&&location.hostname!=='localhost'){if(!silent)toast(t('geoHttp'));return false}
-  if(await permState()==='denied'){if(!silent)toast(t('geoDeny'));return false}
-  let p=null,e1=null;
-  try{p=await getPos({enableHighAccuracy:true,timeout:12000,maximumAge:0})}catch(e){e1=e}
-  if(!p&&e1&&e1.code!==1){if(!silent)toast(t('geoRetry'));try{p=await getPos({enableHighAccuracy:false,timeout:20000,maximumAge:120000})}catch(e){e1=e}}
-  if(p){
-    putMe(p.coords.latitude,p.coords.longitude,p.coords.accuracy);
-    if(ymap)ymap.setCenter([mePos.lat,mePos.lng],16,{duration:500});
-    drawMarkers();
-    if(!silent)toast(t('geoOk')+' · ±'+Math.round(p.coords.accuracy)+' м');
-    if(watchId==null)watchId=navigator.geolocation.watchPosition(q=>{putMe(q.coords.latitude,q.coords.longitude,q.coords.accuracy);drawMeOnly()},()=>{},{enableHighAccuracy:true,timeout:20000,maximumAge:5000});
-    document.getElementById('locbtn').classList.add('live');
-    return true;
-  }
-  if(e1&&e1.code===1){if(!silent)toast(t('geoDeny'));return false}
-  try{const y=await yandexGeo();putMe(y.lat,y.lng,y.acc);if(ymap)ymap.setCenter([y.lat,y.lng],13);drawMarkers();if(!silent)toast(t('geoRough'));return true}
-  catch(e){if(!silent)toast(e1&&e1.code===2?t('geoUnav'):t('geoTime'));return false}
+
+/* применяем координату, если она лучше текущей */
+function applyFix(lat,lng,acc,label,precise){
+  const better = !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot);
+  if(!better)return false;
+  const jumped = mePos ? dist(mePos.lat,mePos.lng,lat,lng)>0.2 : true;
+  putMe(lat,lng,acc);
+  if(acc<=1000)saveLastPos(lat,lng,acc);
+  if(precise)gpsGot=true;
+  drawMarkers();
+  // переезжаем, если пользователь сам карту не двигал
+  if(!userPanned&&(jumped||precise)) ymap&&ymap.setCenter([lat,lng],zoomFor(acc),{duration:450});
+  if(label)toast(label+' · ±'+Math.round(acc)+' м');
+  return true;
 }
-async function startNativeWatch(){
-  const Geo = window.Capacitor.Plugins.Geolocation;
-  if(watchId!=null||!Geo)return;
+
+/* быстрый замер: сеть/вышки. Кэш системы разрешаем только свежий (1 мин) */
+function fastFix(){
+  const Geo=GeoPlugin();
+  const o={enableHighAccuracy:false,timeout:7000,maximumAge:60000};
+  const wrap=p=>({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});
+  return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
+}
+
+/* точный GPS: постоянно слушаем, уточняем точку */
+async function startPreciseWatch(){
+  if(watchId!=null||precising)return;precising=true;
+  const Geo=GeoPlugin();
+  const o={enableHighAccuracy:true,timeout:45000,maximumAge:0};
+  const onFix=p=>{
+    if(!p||!p.coords)return;
+    const acc=p.coords.accuracy;
+    const first=!gpsGot&&acc<500;
+    applyFix(p.coords.latitude,p.coords.longitude,acc,first?t('geoPrecise'):null,acc<500);
+  };
   try{
-    watchId = await Geo.watchPosition({enableHighAccuracy:true,timeout:20000},(pos)=>{
-      if(pos&&pos.coords){putMe(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy);drawMeOnly()}
-    });
-  }catch(e){}
+    if(Geo) watchId=await Geo.watchPosition(o,onFix);
+    else watchId=navigator.geolocation.watchPosition(onFix,()=>{},o);
+    document.getElementById('locbtn').classList.add('live');
+  }catch(e){precising=false}
 }
-// лёгкое обновление только своей точки, без перерисовки всех маркеров (против лагов)
-function drawMeOnly(){ /* putMe уже перерисовал точку; маркеры не трогаем */ }
+
+/* главная: сеть и GPS запускаются ОДНОВРЕМЕННО, кто быстрее — тот и показан */
+async function locate(silent){
+  userPanned=false;
+  if(!GeoPlugin()&&!navigator.geolocation){if(!silent)toast(t('geoNo'));return false}
+  if(!isNative&&!GeoPlugin()&&location.protocol!=='https:'&&location.hostname!=='localhost'){if(!silent)toast(t('geoHttp'));return false}
+
+  // мгновенно: последняя точная точка из кэша
+  const cached=loadLastPos();
+  if(cached&&!mePos){putMe(cached.lat,cached.lng,cached.acc);drawMarkers();
+    if(ymap)ymap.setCenter([cached.lat,cached.lng],zoomFor(cached.acc));
+    if(!silent)toast(t('geoCached'))}
+  else if(!silent)toast(t('geoing'));
+
+  const ok=await ensurePermission();
+  if(!ok){if(!silent)toast(t('geoDeny'));return false}
+
+  gpsGot=false;
+  startPreciseWatch();                       // GPS стартует СРАЗУ, не ждёт сеть
+
+  // сеть — как быстрая заглушка, пока GPS ищет спутники
+  fastFix().then(f=>{
+    if(gpsGot)return;                        // GPS уже успел — грубую не показываем
+    applyFix(f.lat,f.lng,f.acc,silent?null:(f.acc>1000?t('geoRoughWait'):t('geoOk')),false);
+  }).catch(e=>{
+    if(e&&e.code===1&&!silent)toast(t('geoDeny'));
+  });
+
+  // если через 25 сек GPS так и не поймал — честно говорим
+  setTimeout(()=>{ if(!gpsGot&&!silent&&mePos&&meAcc>500)toast(t('geoStillRough')) },25000);
+
+  // совсем нет ничего — грубо по IP через Яндекс
+  setTimeout(async()=>{
+    if(mePos)return;
+    try{const y=await yandexGeo();applyFix(y.lat,y.lng,y.acc,silent?null:t('geoRough'),false)}catch(e){}
+  },8000);
+
+  return true;
+}
+
+/* если пользователь сам двигает карту — перестаём её перецентровывать */
+function trackPan(){ if(!ymap)return;
+  ymap.events.add('actionbegin',()=>{userPanned=true});
+}
 
 document.getElementById('locbtn').onclick=()=>locate(false);
 document.getElementById('zin').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()+1,{duration:200});
@@ -948,8 +997,22 @@ function buildQchips(){
 /* ═══════════ СТАРТ ═══════════ */
 document.getElementById('search').placeholder=t('searchPh');
 buildQchips();buildNav();loadYandex();
-// пробуем определить геопозицию тихо при старте (по ТЗ 6.1 — работает и без неё)
-setTimeout(()=>locate(true),1200);
+/* Прогрев при старте: мгновенно кэш, и если разрешение уже есть — сразу GPS.
+   К моменту нажатия кнопки спутники обычно уже пойманы. */
+(function warmUp(){
+  const cached=loadLastPos();
+  if(cached){
+    const apply=()=>{putMe(cached.lat,cached.lng,cached.acc);drawMarkers();if(ymap)ymap.setCenter([cached.lat,cached.lng],zoomFor(cached.acc))};
+    if(ymap)apply(); else setTimeout(()=>{if(ymap)apply()},1500);
+  }
+  setTimeout(async()=>{
+    const Geo=GeoPlugin();
+    try{
+      if(Geo){const p=await Geo.checkPermissions();if(p.location==='granted'||p.coarseLocation==='granted')startPreciseWatch()}
+      else if(await permState()==='granted')startPreciseWatch();
+    }catch(e){}
+  },600);
+})();
 </script>
 </body>
 </html>
