@@ -1025,39 +1025,50 @@ function buildQchips(){
 document.getElementById('search').placeholder=t('searchPh');
 loadYandex();buildQchips();buildNav();
 /* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
-   Запускается параллельно с загрузкой карты, ничего не ждёт. */
+   Кэш показываем сразу, а системный запрос разрешения откладываем,
+   пока окно приложения не окажется реально на экране — иначе Android
+   иногда "теряет" диалог, если его показать во время сплэша/анимации запуска. */
 (function bootLocate(){
   // 1) мгновенно: наш сохранённый кэш (0 мс) — точка есть до загрузки карты
   const cached=loadLastPos();
   if(cached)putMe(cached.lat,cached.lng,cached.acc);
 
-  // 2) сразу пробуем определиться автоматически
-  (async()=>{
+  async function tryGrantOnce(){
     const Geo=GeoPlugin();
-    let granted=false;
     try{
       if(Geo){
         const p=await Geo.checkPermissions();
-        granted=(p.location==='granted'||p.coarseLocation==='granted');
-        if(!granted){
-          // первый запуск — спрашиваем разрешение сразу, как Яндекс
-          const r=await Geo.requestPermissions();
-          granted=(r.location==='granted'||r.coarseLocation==='granted');
-        }
-      }else{
-        granted=(await permState())!=='denied';
+        if(p.location==='granted'||p.coarseLocation==='granted')return true;
+        const r=await Geo.requestPermissions();
+        return (r.location==='granted'||r.coarseLocation==='granted');
       }
-    }catch(e){granted=true}
-    if(!granted)return;                 // отказал — карта просто останется на Ташкенте
+      return (await permState())!=='denied';
+    }catch(e){return false}
+  }
 
+  async function afterGrant(){
     gpsGot=false;
-    startPreciseWatch();                // спутники ищем в фоне
-
-    // системная последняя позиция — появляется почти мгновенно
+    startPreciseWatch();
     instantFix().then(i=>{if(!gpsGot)applyFix(i.lat,i.lng,i.acc,null,false)}).catch(()=>{});
-    // и сетевой замер как подстраховка
     fastFix().then(f=>{if(!gpsGot)applyFix(f.lat,f.lng,f.acc,null,false)}).catch(()=>{});
-  })();
+  }
+
+  async function run(){
+    let granted=await tryGrantOnce();
+    if(!granted){
+      // окно приложения могло быть ещё не в фокусе — пробуем ещё раз чуть позже
+      await new Promise(r=>setTimeout(r,1200));
+      granted=await tryGrantOnce();
+    }
+    if(granted)afterGrant();
+    // если так и не дали доступ — молча остаёмся на Ташкенте, кнопка ◎ остаётся рабочей
+  }
+
+  // ждём, пока окно реально прогрузится (не просто DOM, а весь load),
+  // плюс небольшая пауза — Android должен успеть показать нативное окно поверх сплэша
+  const start=()=>setTimeout(run,900);
+  if(document.readyState==='complete')start();
+  else window.addEventListener('load',start);
 })();
 </script>
 </body>
