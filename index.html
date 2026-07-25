@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://api-maps.yandex.ru" crossorigin>
+<link rel="preconnect" href="https://core-renderer-tiles.maps.yandex.net" crossorigin>
+<link rel="dns-prefetch" href="https://api-maps.yandex.ru">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -463,6 +466,13 @@ function initMap(){
   document.getElementById('maperr').style.display='none';
   drawMarkers();
   trackPan();
+  // позиция могла прийти раньше карты — показываем её сразу
+  if(pendingCenter){
+    const c=pendingCenter;pendingCenter=null;
+    putMe(c.lat,c.lng,c.acc);
+    ymap.setCenter([c.lat,c.lng],zoomFor(c.acc));
+    drawMarkers();
+  }
   ymap.events.add('click',()=>{selectedId=null;document.getElementById('minicard').classList.remove('on');updateSelection(null)});
 }
 function filteredParkings(){
@@ -683,8 +693,10 @@ async function ensurePermission(){
   return (await permState())!=='denied';
 }
 
+let pendingCenter=null;
 function putMe(lat,lng,acc){
-  mePos={lat,lng};meAcc=acc||0;if(!ymap)return;
+  mePos={lat,lng};meAcc=acc||0;
+  if(!ymap){pendingCenter={lat,lng,acc};return}   // карта ещё грузится — применим позже
   if(meMark)ymap.geoObjects.remove(meMark);if(meCircle)ymap.geoObjects.remove(meCircle);
   meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
   const L=ymaps.templateLayoutFactory.createClass('<div class="me-marker"></div>');
@@ -705,6 +717,15 @@ function applyFix(lat,lng,acc,label,precise){
   if(!userPanned&&(jumped||precise)) ymap&&ymap.setCenter([lat,lng],zoomFor(acc),{duration:450});
   if(label)toast(label+' · ±'+Math.round(acc)+' м');
   return true;
+}
+
+/* МГНОВЕННО: последняя известная позиция от системы (от любого приложения).
+   maximumAge:Infinity отдаёт её сразу, за миллисекунды — это и есть трюк Яндекса. */
+function instantFix(){
+  const Geo=GeoPlugin();
+  const o={enableHighAccuracy:false,timeout:3000,maximumAge:Infinity};
+  const wrap=p=>({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});
+  return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
 }
 
 /* быстрый замер: сеть/вышки. Кэш системы разрешаем только свежий (1 мин) */
@@ -751,6 +772,12 @@ async function locate(silent){
 
   gpsGot=false;
   startPreciseWatch();                       // GPS стартует СРАЗУ, не ждёт сеть
+
+  // МГНОВЕННО: системная последняя позиция (обычно 0-100 мс)
+  instantFix().then(i=>{
+    if(gpsGot)return;
+    applyFix(i.lat,i.lng,i.acc,silent?null:(i.acc<500?t('geoOk'):t('geoRoughWait')),false);
+  }).catch(()=>{});
 
   // сеть — как быстрая заглушка, пока GPS ищет спутники
   fastFix().then(f=>{
@@ -996,22 +1023,41 @@ function buildQchips(){
 
 /* ═══════════ СТАРТ ═══════════ */
 document.getElementById('search').placeholder=t('searchPh');
-buildQchips();buildNav();loadYandex();
-/* Прогрев при старте: мгновенно кэш, и если разрешение уже есть — сразу GPS.
-   К моменту нажатия кнопки спутники обычно уже пойманы. */
-(function warmUp(){
+loadYandex();buildQchips();buildNav();
+/* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
+   Запускается параллельно с загрузкой карты, ничего не ждёт. */
+(function bootLocate(){
+  // 1) мгновенно: наш сохранённый кэш (0 мс) — точка есть до загрузки карты
   const cached=loadLastPos();
-  if(cached){
-    const apply=()=>{putMe(cached.lat,cached.lng,cached.acc);drawMarkers();if(ymap)ymap.setCenter([cached.lat,cached.lng],zoomFor(cached.acc))};
-    if(ymap)apply(); else setTimeout(()=>{if(ymap)apply()},1500);
-  }
-  setTimeout(async()=>{
+  if(cached)putMe(cached.lat,cached.lng,cached.acc);
+
+  // 2) сразу пробуем определиться автоматически
+  (async()=>{
     const Geo=GeoPlugin();
+    let granted=false;
     try{
-      if(Geo){const p=await Geo.checkPermissions();if(p.location==='granted'||p.coarseLocation==='granted')startPreciseWatch()}
-      else if(await permState()==='granted')startPreciseWatch();
-    }catch(e){}
-  },600);
+      if(Geo){
+        const p=await Geo.checkPermissions();
+        granted=(p.location==='granted'||p.coarseLocation==='granted');
+        if(!granted){
+          // первый запуск — спрашиваем разрешение сразу, как Яндекс
+          const r=await Geo.requestPermissions();
+          granted=(r.location==='granted'||r.coarseLocation==='granted');
+        }
+      }else{
+        granted=(await permState())!=='denied';
+      }
+    }catch(e){granted=true}
+    if(!granted)return;                 // отказал — карта просто останется на Ташкенте
+
+    gpsGot=false;
+    startPreciseWatch();                // спутники ищем в фоне
+
+    // системная последняя позиция — появляется почти мгновенно
+    instantFix().then(i=>{if(!gpsGot)applyFix(i.lat,i.lng,i.acc,null,false)}).catch(()=>{});
+    // и сетевой замер как подстраховка
+    fastFix().then(f=>{if(!gpsGot)applyFix(f.lat,f.lng,f.acc,null,false)}).catch(()=>{});
+  })();
 })();
 </script>
 </body>
