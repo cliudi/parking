@@ -45,6 +45,17 @@
   /* ─────────── КАРТА (экран) ─────────── */
   #screen-map{position:fixed;inset:0}
   #map{position:absolute;inset:0;z-index:1;background:#E8EDF0}
+  html[data-theme="dark"] #map{background:#0B1220}
+  html[data-theme="dark"] #map [class*="ground-pane"]{
+    filter:invert(91%) hue-rotate(180deg) brightness(.78) contrast(1.08) saturate(.72);
+  }
+  html[data-theme="dark"] #map [class*="copyright"],
+  html[data-theme="dark"] #map [class*="controls-pane"]{filter:none}
+
+  html[data-theme="dark"] .sfab:not(.live):not(.on),
+  html[data-theme="dark"] .zoomcol{background:#141C2E;border-color:#334155}
+  html[data-theme="dark"] .sfab:not(.live):not(.on){color:#E2E8F0}
+  html[data-theme="dark"] .compassneedle path:last-child{fill:#64748B}
 
   .topwrap{position:fixed;top:calc(10px + var(--top));left:12px;right:12px;z-index:60}
   .searchbar{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;
@@ -64,12 +75,12 @@
 
   .sidefabs{position:absolute;right:12px;z-index:55;display:flex;flex-direction:column;gap:10px;
     top:50%;transform:translateY(-60%)}
-  .sfab{width:46px;height:46px;border-radius:14px;background:rgba(15,23,42,.86);backdrop-filter:blur(6px);
-    border:1px solid rgba(255,255,255,.08);box-shadow:var(--sh);
-    font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff}
+  .sfab{width:46px;height:46px;border-radius:14px;background:var(--card);backdrop-filter:blur(8px);
+    border:1px solid var(--line);box-shadow:var(--sh);
+    font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
   .sfab:active{transform:scale(.93)}
-  .sfab.on{background:var(--blue)}
-  .sfab.live{background:var(--green)}
+  .sfab.on{background:var(--blue);color:#fff;border-color:transparent}
+  .sfab.live{background:var(--green);color:#fff;border-color:transparent}
   .navarrow{width:16px;height:16px;transition:transform .15s}
   .compassneedle{width:20px;height:20px;transition:transform .12s linear}
   .accbadge{background:var(--card);border-radius:10px;box-shadow:var(--sh);padding:5px 8px;
@@ -77,10 +88,10 @@
   .accbadge.on{display:block}
   .accbadge.good{color:var(--green)}
   .accbadge.bad{color:var(--amber)}
-  .zoomcol{display:flex;flex-direction:column;background:rgba(15,23,42,.86);backdrop-filter:blur(6px);
-    border-radius:14px;box-shadow:var(--sh);overflow:hidden;border:1px solid rgba(255,255,255,.08)}
-  .zoomcol button{width:46px;height:44px;border:0;background:none;font-size:20px;font-weight:700;cursor:pointer;color:#fff}
-  .zoomcol button:first-child{border-bottom:1px solid rgba(255,255,255,.12)}
+  .zoomcol{display:flex;flex-direction:column;background:var(--card);backdrop-filter:blur(8px);
+    border-radius:14px;box-shadow:var(--sh);overflow:hidden;border:1px solid var(--line)}
+  .zoomcol button{width:46px;height:44px;border:0;background:none;font-size:20px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .zoomcol button:first-child{border-bottom:1px solid var(--line)}
 
   .legendbtn{position:absolute;left:12px;z-index:55;top:50%;transform:translateY(120%);
     width:42px;height:42px;border-radius:12px;background:var(--card);border:0;box-shadow:var(--sh);
@@ -127,7 +138,7 @@
   /* ─────────── МОДАЛКИ (bottom sheet) ─────────── */
   .mask{position:fixed;inset:0;background:rgba(18,32,46,.5);z-index:200;display:none;align-items:flex-end}
   .mask.open{display:flex}
-  .sheet{background:var(--card);width:100%;border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;
+  .sheet{position:relative;background:var(--card);width:100%;border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;
     animation:up .28s cubic-bezier(.2,.8,.3,1);padding-bottom:calc(20px + var(--bot))}
   @keyframes up{from{transform:translateY(60px);opacity:0}to{transform:none;opacity:1}}
   .grabber{padding:10px 0 4px;display:flex;justify-content:center;position:sticky;top:0}
@@ -135,10 +146,14 @@
 
   /* полная карточка */
   .fc-photo{position:relative;height:210px;background:#DCE3E8 center/cover;margin:-4px -0 0}
-  .fc-photo .navbtns{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between}
+  .fc-photo .navbtns{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:flex-end;z-index:3}
   .fc-photo .rbtns{display:flex;gap:8px}
-  .cbtn{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.92);border:0;font-size:16px;
-    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-s)}
+  .cbtn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.94);border:1px solid rgba(15,23,42,.08);font-size:22px;line-height:1;color:#0F172A;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(15,23,42,.18);backdrop-filter:blur(8px)}
+  html[data-theme="dark"] .cbtn{background:rgba(15,23,42,.88);border-color:rgba(255,255,255,.12);color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.42)}
+  .sheet-close{position:absolute;top:12px;right:14px;z-index:20;width:40px;height:40px;border-radius:50%;border:1px solid rgba(15,23,42,.10);background:rgba(255,255,255,.96);color:#0F172A;font:500 25px/1 Manrope;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 18px rgba(15,23,42,.16);cursor:pointer}
+  .sheet-close:active{transform:scale(.94)}
+  html[data-theme="dark"] .sheet-close{background:rgba(15,23,42,.94);border-color:rgba(255,255,255,.14);color:#F8FAFC;box-shadow:0 6px 18px rgba(0,0,0,.48)}
   .cbtn.fav.on{color:var(--red)}
   .fc-body{padding:16px 18px 0}
   .fc-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -164,6 +179,8 @@
   .btn-primary:active{background:var(--blue-d)}
   .btn-outline{width:100%;padding:14px;border-radius:14px;background:var(--card);color:var(--blue);
     border:1.5px solid var(--line);font:800 14px 'Manrope';cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-outline.fav-active{background:#EFF6FF;border-color:#93C5FD;color:var(--blue-d)}
+  html[data-theme="dark"] .btn-outline.fav-active{background:rgba(37,99,235,.16);border-color:rgba(96,165,250,.55);color:#93C5FD}
   .btn-report{width:100%;padding:12px;border-radius:12px;background:none;color:var(--ink2);border:0;
     font:700 13px 'Manrope';cursor:pointer;margin-top:2px}
 
@@ -247,14 +264,16 @@
   .legend-item b{font:700 14px 'Manrope';display:block}
   .legend-item span{font:600 12px 'Manrope';color:var(--ink2)}
 
-  /* маркеры на карте */
-  .marker{position:relative;cursor:pointer}
-  .marker .pin{width:34px;height:34px;border-radius:50% 50% 50% 3px;transform:rotate(45deg);
-    display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(18,32,46,.35);border:2.5px solid #fff}
-  .marker .pin b{transform:rotate(-45deg);color:#fff;font:800 14px 'Manrope'}
-  .marker.big .pin{width:44px;height:44px}
-  .marker .bolt{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:var(--violet);
-    border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;z-index:2}
+  /* маркеры на карте — фирменные пины дизайн 3 */
+  .marker{position:relative;width:38px;height:46px;cursor:pointer;filter:drop-shadow(0 4px 7px rgba(15,23,42,.26))}
+  .marker .pin{position:absolute;left:2px;top:1px;width:34px;height:34px;border-radius:50% 50% 50% 7px;
+    transform:rotate(45deg);display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;
+    background:var(--pin-color,#9CA3AF);box-shadow:0 1px 2px rgba(15,23,42,.18)}
+  .marker .pin b{transform:rotate(-45deg);color:#fff;font:800 15px 'Manrope';line-height:1}
+  .marker.selected{transform:scale(1.14);transform-origin:50% 80%;z-index:20}
+  .marker .bolt{position:absolute;top:-2px;right:-1px;width:18px;height:18px;border-radius:50%;background:var(--amber);
+    color:#fff;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font:800 10px 'Manrope';z-index:3}
+  .marker.ev-only .pin b{font-size:17px}
   .me-wrap{position:relative;width:22px;height:22px}
   .me-dot{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
     background:var(--blue);border:3px solid #fff;box-sizing:border-box;
@@ -568,6 +587,7 @@ function initMap(){
   document.getElementById('maperr').style.display='none';
   drawMarkers();
   trackPan();
+  ymap.events.add('boundschange',scheduleMarkerDraw);
   initHeading();
   // позиция могла прийти раньше карты — показываем её сразу
   if(pendingCenter){
@@ -576,7 +596,13 @@ function initMap(){
     ymap.setCenter([c.lat,c.lng],zoomFor(c.acc));
     drawMarkers();
   }
-  ymap.events.add('click',()=>{selectedId=null;document.getElementById('minicard').classList.remove('on');updateSelection(null)});
+  ymap.events.add('click',e=>{
+    /* Если пользователь попал рядом с визуальным пином, выбираем ближайший.
+       Это страхует маленькие экраны и частично перекрывающиеся метки. */
+    const hit=findNearestVisibleParking(e.get('coords'),28);
+    if(hit){selectParking(hit.id);return}
+    selectedId=null;document.getElementById('minicard').classList.remove('on');updateSelection(null);
+  });
 }
 function filteredParkings(){
   let v=PARKINGS.slice();
@@ -592,51 +618,118 @@ function filteredParkings(){
   if(advFilters.priceMax<100000)v=v.filter(p=>(p.price_val||0)<=advFilters.priceMax);
   return v;
 }
-let clusterer=null;
-/* Нативные векторные иконки Яндекса (islands#circleIcon) вместо HTML-дивов.
-   Это ключевое изменение против лагов: раньше каждая из 390 меток была
-   полноценным HTML-элементом с CSS, что вызывало тяжёлую перерисовку при
-   любом движении карты. Пресеты рендерятся движком карты нативно, как в
-   самом приложении Яндекс.Карт — на порядок легче для телефона. */
-function markerOptions(p,big){
+let clusterer=null; // цифровые кластеры отключены: показываем только фирменные пины
+
+/* Быстрые SVG-пины вместо тяжёлых HTML-макетов.
+   По форме это аккуратная «капля», как в дизайн-референсе. */
+const PIN_CACHE=new Map();
+/* Современный фирменный пин: визуальная капля 38×46 находится внутри
+   прозрачного холста 54×60. Холст увеличивает область нажатия, не делая
+   саму иконку визуально тяжёлой. */
+function svgPinData(color,symbol,combo,selected){
+  const key=[color,symbol,combo?'1':'0',selected?'1':'0'].join('|');
+  if(PIN_CACHE.has(key))return PIN_CACHE.get(key);
+  const scale=selected?1.08:1;
+  const icon=symbol==='⚡'
+    ? '<path d="M28.2 16.2h-5.1l2.1-7.2-8.3 10.7h5.2l-1.5 8.4z" fill="#fff"/>'
+    : '<text x="27" y="27.3" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="17.5" font-weight="800" fill="#fff">P</text>';
+  const badge=combo
+    ? '<circle cx="39.5" cy="13.5" r="7.2" fill="#FBBF24" stroke="#fff" stroke-width="2.2"/><path d="M40.5 9.2l-4.2 5h3l-1 4.2 4.4-5.4h-3z" fill="#fff"/>'
+    : '';
+  const darkTheme=document.documentElement.getAttribute('data-theme')==='dark';
+  const pinStroke=darkTheme?'#CBD5E1':'#FFFFFF';
+  const shadowColor=darkTheme?'#000000':'#0F172A';
+  const shadowOpacity=darkTheme?'.58':'.24';
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="54" height="60" viewBox="0 0 54 60">
+    <defs><filter id="s" x="-35%" y="-30%" width="170%" height="180%"><feDropShadow dx="0" dy="2.2" stdDeviation="2.2" flood-color="${shadowColor}" flood-opacity="${shadowOpacity}"/></filter></defs>
+    <g transform="translate(27 28) scale(${scale}) translate(-27 -28)" filter="url(#s)">
+      <path d="M27 5C16.5 5 9 12.5 9 22.3c0 11.5 12.1 23.2 16.1 26.7a2.9 2.9 0 0 0 3.8 0C32.9 45.5 45 33.8 45 22.3 45 12.5 37.5 5 27 5Z" fill="${color}" stroke="${pinStroke}" stroke-width="2.6" stroke-linejoin="round"/>
+      <circle cx="27" cy="22" r="12.2" fill="${color}"/>
+      ${icon}${badge}
+    </g>
+  </svg>`;
+  const uri='data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+  PIN_CACHE.set(key,uri);return uri;
+}
+function markerOptions(p,selected){
+  const isEvOnly=p.category==='EV_STATION';
+  const symbol=isEvOnly?'⚡':'P';
+  const combo=p.ev&&!isEvOnly;
+  const size=selected?[58,64]:[54,60];
   return {
-    preset:'islands#circleIcon',
-    iconColor: markerColor(p),
+    iconLayout:'default#image',
+    iconImageHref:svgPinData(markerColor(p),symbol,combo,selected),
+    iconImageSize:size,
+    iconImageOffset:[-Math.round(size[0]/2),-Math.round(size[1]*.86)],
+    /* Вся прозрачная область иконки является кликабельной. */
+    iconShape:{type:'Rectangle',coordinates:[[0,0],[size[0],size[1]]]},
+    interactivityModel:'default#transparent',
+    cursor:'pointer',
+    zIndex:selected?1000:120,
+    hasBalloon:false,hasHint:false
   };
 }
-function markerProps(p){
-  return { iconContent: p.category==='EV_STATION' ? '⚡' : (p.category==='STREET_ALLOWED'?'🅿':'P') };
+
+/* Показываем только метки в видимой области карты + небольшой запас.
+   На дальнем масштабе дополнительно ограничиваем число меток, чтобы телефон не зависал. */
+function visibleParkings(){
+  const all=filteredParkings();
+  if(!ymap)return all.slice(0,80);
+  const b=ymap.getBounds();
+  if(!b)return all.slice(0,80);
+  const latPad=Math.abs(b[1][0]-b[0][0])*.22;
+  const lngPad=Math.abs(b[1][1]-b[0][1])*.22;
+  const minLat=Math.min(b[0][0],b[1][0])-latPad,maxLat=Math.max(b[0][0],b[1][0])+latPad;
+  const minLng=Math.min(b[0][1],b[1][1])-lngPad,maxLng=Math.max(b[0][1],b[1][1])+lngPad;
+  let list=all.filter(p=>p.lat>=minLat&&p.lat<=maxLat&&p.lng>=minLng&&p.lng<=maxLng);
+  const z=ymap.getZoom();
+  const limit=z<=10?45:z<=11?65:z<=12?90:z<=13?130:220;
+  if(list.length>limit){
+    const c=ymap.getCenter();
+    list.sort((a,b)=>dist(c[0],c[1],a.lat,a.lng)-dist(c[0],c[1],b.lat,b.lng));
+    list=list.slice(0,limit);
+  }
+  return list;
+}
+let markerDrawTimer=null;
+function scheduleMarkerDraw(){
+  clearTimeout(markerDrawTimer);
+  markerDrawTimer=setTimeout(drawMarkers,140);
+}
+function findNearestVisibleParking(coords,maxPx){
+  if(!ymap||!coords)return null;
+  const zoom=ymap.getZoom();
+  const projection=ymap.options.get('projection')||ymaps.projection.wgs84Mercator;
+  const target=projection.toGlobalPixels(coords,zoom);
+  let best=null,bestD=maxPx;
+  visibleParkings().forEach(p=>{
+    const px=projection.toGlobalPixels([p.lat,p.lng],zoom);
+    const d=Math.hypot(px[0]-target[0],px[1]-target[1]);
+    if(d<bestD){bestD=d;best=p}
+  });
+  return best;
 }
 function drawMarkers(){
   if(!ymap)return;
-  // создаём кластеризатор один раз (ТЗ 7.4 — группировка близких меток)
-  if(!clusterer){
-    clusterer=new ymaps.Clusterer({
-      preset:'islands#invertedBlueClusterIcons', groupByCoordinates:false,
-      clusterDisableClickZoom:false, gridSize:72, minClusterSize:4,
-      zoomMargin:0
-    });
-    ymap.geoObjects.add(clusterer);
-  }
-  clusterer.removeAll();markers={};
-  const pms=filteredParkings().map(p=>{
-    const m=new ymaps.Placemark([p.lat,p.lng], markerProps(p),
-      Object.assign({},markerOptions(p,p.id===selectedId),{hasBalloon:false,hasHint:false}));
-    m.events.add('click',()=>selectParking(p.id));
-    markers[p.id]=m;return m;
+  const wanted=visibleParkings();
+  const wantedIds=new Set(wanted.map(p=>String(p.id)));
+  Object.keys(markers).forEach(id=>{
+    if(!wantedIds.has(String(id))){ymap.geoObjects.remove(markers[id]);delete markers[id]}
   });
-  clusterer.add(pms);
-  if(meCircle)ymap.geoObjects.add(meCircle);
-  if(meMark)ymap.geoObjects.add(meMark);
+  wanted.forEach(p=>{
+    const id=String(p.id);
+    if(markers[id])return;
+    const m=new ymaps.Placemark([p.lat,p.lng],{},markerOptions(p,id===String(selectedId)));
+    m.events.add('click',e=>{if(e&&e.stopPropagation)e.stopPropagation();selectParking(p.id)});
+    markers[id]=m;ymap.geoObjects.add(m);
+  });
 }
-// лёгкое обновление выделения — трогаем только два маркера, без пересборки всех 390
 let prevSelected=null;
 function updateSelection(id){
-  if(!clusterer)return drawMarkers();
   [prevSelected,id].forEach(pid=>{
-    if(!pid||!markers[pid])return;
-    const p=PARKINGS.find(x=>x.id===pid);if(!p)return;
-    markers[pid].options.set(markerOptions(p,pid===id));
+    if(pid==null||!markers[String(pid)])return;
+    const p=PARKINGS.find(x=>String(x.id)===String(pid));if(!p)return;
+    markers[String(pid)].options.set(markerOptions(p,String(pid)===String(id)));
   });
   prevSelected=id;
 }
@@ -679,15 +772,9 @@ function openFullCard(id){
     :'<div class="fc-photo" style="display:flex;align-items:center;justify-content:center;color:var(--ink2);font:700 13px Manrope">📷 '+t('capUnknown')+'</div>'.replace(t('capUnknown'),'Фото пока нет');
   const cap = p.cap ? ((p.cap_est?t('approx')+' ':'')+p.cap+' '+t('places')) : t('capUnknown');
   const html=
-    '<div class="grabber" onclick="closeSheet()"><i></i></div>'
-    +photo
-    +'<div class="navbtns">'
-      +'<button class="cbtn" onclick="closeSheet()">←</button>'
-      +'<div class="rbtns">'
-        +'<button class="cbtn fav'+(isFav?' on':'')+'" onclick="toggleFav(\''+p.id+'\',this)">'+(isFav?'♥':'♡')+'</button>'
-        +'<button class="cbtn" onclick="shareParking(\''+p.id+'\')">↗</button>'
-      +'</div>'
-    +'</div></div>'
+    '<div class="grabber"><i></i></div>'
+    +'<button class="sheet-close" aria-label="Закрыть" title="Закрыть" onclick="closeSheet()">×</button>'
+    +photo+'</div>'
     +'<div class="fc-body">'
     +'<div class="fc-title"><h2>'+p.name+'</h2>'
       +(p.rating?'<div class="rating">★ '+p.rating.toFixed(1)+'</div>':'')+'</div>'
@@ -709,7 +796,7 @@ function openFullCard(id){
     +'<div class="verify">✓ '+t('verified')+' · '+p.verified+' · '+p.source+'</div>'
     +'<div class="fc-actions">'
       +'<button class="btn-primary" onclick="closeSheet();routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button>'
-      +'<button class="btn-outline" onclick="toggleFav(\''+p.id+'\',null)">☆ '+(isFav?t('inFav'):t('addFav'))+'</button>'
+      +'<button id="favActionBtn" class="btn-outline'+(isFav?' fav-active':'')+'" onclick="toggleFav(\''+p.id+'\',this)">'+(isFav?'★ '+t('inFav'):'☆ '+t('addFav'))+'</button>'
       +'<button class="btn-report" onclick="openReport(\''+p.id+'\')">⚑ '+t('report')+'</button>'
     +'</div>'
     +'</div>';
@@ -720,7 +807,14 @@ function toggleFav(id,btn){
   if(i>=0){favorites.splice(i,1);toast(t('removed'))}
   else{favorites.push(id);toast('★ '+t('inFav'))}
   saveFav();
-  if(btn){btn.classList.toggle('on');btn.textContent=favorites.includes(id)?'♥':'♡'}
+
+  // Кнопка в карточке сразу показывает актуальное состояние.
+  const added=favorites.includes(id);
+  const actionBtn=(btn&&btn.id==='favActionBtn')?btn:document.getElementById('favActionBtn');
+  if(actionBtn){
+    actionBtn.classList.toggle('fav-active',added);
+    actionBtn.innerHTML=added?'★ '+t('inFav'):'☆ '+t('addFav');
+  }
   if(activeTab==='fav')renderFav();
 }
 function shareParking(id){
@@ -887,16 +981,27 @@ function initHeading(){
 /* На iOS компас не заработает без явного разрешения, которое браузер
    выдаёт ТОЛЬКО в ответ на тап пользователя — поэтому кнопка компаса
    сама запрашивает его, а не пытается получить доступ автоматически. */
+let compassMode=false;
 document.getElementById('compassbtn').onclick=async()=>{
+  const btn=document.getElementById('compassbtn');
   const DOE=window.DeviceOrientationEvent;
   if(DOE && typeof DOE.requestPermission==='function'){
     try{
       const res=await DOE.requestPermission();
-      if(res!=='granted'){toast(t('geoDeny'));return}
+      if(res!=='granted'){toast('Нет доступа к компасу');return}
     }catch(e){}
   }
   initHeading();
-  toast('Компас включён');
+  compassMode=!compassMode;
+  btn.classList.toggle('on',compassMode);
+  if(compassMode){
+    if(mePos&&ymap)ymap.panTo([mePos.lat,mePos.lng],{duration:300});
+    toast(meHeading==null?'Компас включён. Поворачивайте телефон':'Компас включён');
+  }else{
+    const cs=document.getElementById('compassSvg');
+    if(cs)cs.style.transform='rotate(0deg)';
+    toast('Компас выключен');
+  }
 };
 
 /* живой показ точности — видно, как GPS сходится к нескольким метрам */
@@ -981,7 +1086,29 @@ function trackPan(){ if(!ymap)return;
   ymap.events.add('actionbegin',()=>{userPanned=true});
 }
 
-document.getElementById('locbtn').onclick=()=>locate(false);
+async function centerOnMyLocation(){
+  userPanned=false;
+  const btn=document.getElementById('locbtn');
+  btn.classList.add('on');
+  if(mePos&&ymap){
+    ymap.setCenter([mePos.lat,mePos.lng],zoomFor(meAcc||60),{duration:350});
+  }
+  await locate(true);
+  let tries=0;
+  const timer=setInterval(()=>{
+    tries++;
+    if(mePos&&ymap){
+      ymap.setCenter([mePos.lat,mePos.lng],zoomFor(meAcc||60),{duration:300});
+      clearInterval(timer);
+      toast(t('geoOk'));
+    }else if(tries>=12){
+      clearInterval(timer);
+      toast(t('geoTime'));
+    }
+  },500);
+  setTimeout(()=>btn.classList.remove('on'),900);
+}
+document.getElementById('locbtn').onclick=centerOnMyLocation;
 document.getElementById('zin').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()+1,{duration:200});
 document.getElementById('zout').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()-1,{duration:200});
 document.getElementById('filtbtn').onclick=openFilters;
@@ -1204,8 +1331,21 @@ document.getElementById('search').placeholder=t('searchPh');
 /* ═══════════ ТЕМА: светлая/тёмная ═══════════ */
 function applyTheme(dark){
   document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  PIN_CACHE.clear();
   document.getElementById('themebtn').textContent = dark?'☀️':'🌙';
+  document.querySelector('meta[name="theme-color"]').setAttribute('content',dark?'#0B1220':'#FFFFFF');
   try{localStorage.setItem('pl-theme', dark?'dark':'light')}catch(e){}
+  PIN_CACHE.clear();
+  if(ymap){
+    // Перерисовываем и карту, и фирменные пины под новую тему.
+    const z=ymap.getZoom();
+    ymap.container.fitToViewport();
+    ymap.setZoom(z,{duration:0});
+    Object.keys(markers).forEach(id=>{ymap.geoObjects.remove(markers[id])});
+    markers={};
+    drawMarkers();
+    if(mePos)putMe(mePos.lat,mePos.lng,meAcc,meAcc>ROUGH_OVER);
+  }
 }
 let isDark = (()=>{ try{return localStorage.getItem('pl-theme')==='dark'}catch(e){return false} })();
 applyTheme(isDark);
