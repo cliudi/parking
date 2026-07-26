@@ -618,16 +618,16 @@ function filteredParkings(){
   if(advFilters.priceMax<100000)v=v.filter(p=>(p.price_val||0)<=advFilters.priceMax);
   return v;
 }
-let clusterer=null; // цифровые кластеры отключены: показываем только фирменные пины
+let objectManager=null;
+let visibleParkingMap=new Map();
+let markerDrawTimer=null;
+let lastMarkerSignature='';
 
 /* Быстрые SVG-пины вместо тяжёлых HTML-макетов.
    По форме это аккуратная «капля», как в дизайн-референсе. */
 const PIN_CACHE=new Map();
-/* Современный фирменный пин: визуальная капля 38×46 находится внутри
-   прозрачного холста 54×60. Холст увеличивает область нажатия, не делая
-   саму иконку визуально тяжёлой. */
 function svgPinData(color,symbol,combo,selected){
-  const key=[color,symbol,combo?'1':'0',selected?'1':'0'].join('|');
+  const key=[color,symbol,combo?'1':'0',selected?'1':'0',document.documentElement.getAttribute('data-theme')||'light'].join('|');
   if(PIN_CACHE.has(key))return PIN_CACHE.get(key);
   const scale=selected?1.08:1;
   const icon=symbol==='⚡'
@@ -661,7 +661,6 @@ function markerOptions(p,selected){
     iconImageHref:svgPinData(markerColor(p),symbol,combo,selected),
     iconImageSize:size,
     iconImageOffset:[-Math.round(size[0]/2),-Math.round(size[1]*.86)],
-    /* Вся прозрачная область иконки является кликабельной. */
     iconShape:{type:'Rectangle',coordinates:[[0,0],[size[0],size[1]]]},
     interactivityModel:'default#transparent',
     cursor:'pointer',
@@ -670,31 +669,53 @@ function markerOptions(p,selected){
   };
 }
 
-/* Показываем только метки в видимой области карты + небольшой запас.
-   На дальнем масштабе дополнительно ограничиваем число меток, чтобы телефон не зависал. */
+function markerLimitByZoom(z){
+  if(z<=10)return 25;
+  if(z===11)return 40;
+  if(z===12)return 70;
+  if(z===13)return 110;
+  if(z===14)return 170;
+  if(z===15)return 260;
+  return 400;
+}
+
+/* Только видимая область + небольшой запас. На дальнем масштабе серые
+   точки почти не показываем: сначала зарядки и наиболее заполненные объекты. */
 function visibleParkings(){
   const all=filteredParkings();
-  if(!ymap)return all.slice(0,80);
+  if(!ymap)return all.slice(0,40);
   const b=ymap.getBounds();
-  if(!b)return all.slice(0,80);
-  const latPad=Math.abs(b[1][0]-b[0][0])*.22;
-  const lngPad=Math.abs(b[1][1]-b[0][1])*.22;
+  if(!b)return all.slice(0,40);
+  const latPad=Math.abs(b[1][0]-b[0][0])*.16;
+  const lngPad=Math.abs(b[1][1]-b[0][1])*.16;
   const minLat=Math.min(b[0][0],b[1][0])-latPad,maxLat=Math.max(b[0][0],b[1][0])+latPad;
   const minLng=Math.min(b[0][1],b[1][1])-lngPad,maxLng=Math.max(b[0][1],b[1][1])+lngPad;
-  let list=all.filter(p=>p.lat>=minLat&&p.lat<=maxLat&&p.lng>=minLng&&p.lng<=maxLng);
   const z=ymap.getZoom();
-  const limit=z<=10?45:z<=11?65:z<=12?90:z<=13?130:220;
-  if(list.length>limit){
-    const c=ymap.getCenter();
-    list.sort((a,b)=>dist(c[0],c[1],a.lat,a.lng)-dist(c[0],c[1],b.lat,b.lng));
-    list=list.slice(0,limit);
-  }
-  return list;
+  const c=ymap.getCenter();
+  let list=all.filter(p=>p.lat>=minLat&&p.lat<=maxLat&&p.lng>=minLng&&p.lng<=maxLng);
+
+  list.sort((a,b)=>{
+    const score=p=>{
+      let s=0;
+      if(String(p.id)===String(selectedId))s+=100000;
+      if(p.ev||p.category==='EV_STATION')s+=5000;
+      if(p.closed)s+=2500;
+      if(p.price_type==='paid'||p.price_type==='free')s+=700;
+      if(p.cap)s+=250;
+      if(p.name&&p.name!=='Парковка')s+=180;
+      if(p.source&&p.source!=='OpenStreetMap')s+=120;
+      if(z<=12&&p.price_type==='unknown')s-=900;
+      s-=dist(c[0],c[1],p.lat,p.lng)*8;
+      return s;
+    };
+    return score(b)-score(a);
+  });
+  return list.slice(0,markerLimitByZoom(z));
 }
-let markerDrawTimer=null;
+
 function scheduleMarkerDraw(){
   clearTimeout(markerDrawTimer);
-  markerDrawTimer=setTimeout(drawMarkers,140);
+  markerDrawTimer=setTimeout(()=>drawMarkers(false),350);
 }
 function findNearestVisibleParking(coords,maxPx){
   if(!ymap||!coords)return null;
@@ -702,41 +723,62 @@ function findNearestVisibleParking(coords,maxPx){
   const projection=ymap.options.get('projection')||ymaps.projection.wgs84Mercator;
   const target=projection.toGlobalPixels(coords,zoom);
   let best=null,bestD=maxPx;
-  visibleParkings().forEach(p=>{
+  visibleParkingMap.forEach(p=>{
     const px=projection.toGlobalPixels([p.lat,p.lng],zoom);
     const d=Math.hypot(px[0]-target[0],px[1]-target[1]);
     if(d<bestD){bestD=d;best=p}
   });
   return best;
 }
-function drawMarkers(){
+function ensureObjectManager(){
+  if(objectManager||!ymap)return;
+  objectManager=new ymaps.ObjectManager({
+    clusterize:false,
+    geoObjectOpenBalloonOnClick:false,
+    geoObjectOpenHintOnHover:false
+  });
+  objectManager.objects.events.add('click',e=>{
+    const id=e.get('objectId');
+    if(id!=null)selectParking(String(id));
+  });
+  ymap.geoObjects.add(objectManager);
+}
+function drawMarkers(force){
   if(!ymap)return;
+  ensureObjectManager();
   const wanted=visibleParkings();
-  const wantedIds=new Set(wanted.map(p=>String(p.id)));
-  Object.keys(markers).forEach(id=>{
-    if(!wantedIds.has(String(id))){ymap.geoObjects.remove(markers[id]);delete markers[id]}
-  });
-  wanted.forEach(p=>{
-    const id=String(p.id);
-    if(markers[id])return;
-    const m=new ymaps.Placemark([p.lat,p.lng],{},markerOptions(p,id===String(selectedId)));
-    m.events.add('click',e=>{if(e&&e.stopPropagation)e.stopPropagation();selectParking(p.id)});
-    markers[id]=m;ymap.geoObjects.add(m);
-  });
+  visibleParkingMap=new Map(wanted.map(p=>[String(p.id),p]));
+  const theme=document.documentElement.getAttribute('data-theme')||'light';
+  const signature=theme+'|'+String(selectedId||'')+'|'+wanted.map(p=>String(p.id)).join(',');
+  if(!force&&signature===lastMarkerSignature)return;
+  lastMarkerSignature=signature;
+
+  const features=wanted.map(p=>({
+    type:'Feature',
+    id:String(p.id),
+    geometry:{type:'Point',coordinates:[p.lat,p.lng]},
+    properties:{parkingId:String(p.id)},
+    options:markerOptions(p,String(p.id)===String(selectedId))
+  }));
+  objectManager.removeAll();
+  objectManager.add({type:'FeatureCollection',features});
 }
 let prevSelected=null;
 function updateSelection(id){
+  if(!objectManager){prevSelected=id;return}
   [prevSelected,id].forEach(pid=>{
-    if(pid==null||!markers[String(pid)])return;
-    const p=PARKINGS.find(x=>String(x.id)===String(pid));if(!p)return;
-    markers[String(pid)].options.set(markerOptions(p,String(pid)===String(id)));
+    if(pid==null)return;
+    const p=visibleParkingMap.get(String(pid))||PARKINGS.find(x=>String(x.id)===String(pid));
+    if(!p)return;
+    try{objectManager.objects.setObjectOptions(String(pid),markerOptions(p,String(pid)===String(id)))}catch(e){}
   });
   prevSelected=id;
+  lastMarkerSignature='';
 }
 function selectParking(id){
-  selectedId=id;updateSelection(id);showMiniCard(id);
-  const p=PARKINGS.find(x=>x.id===id);
-  if(ymap&&p)ymap.panTo([p.lat,p.lng],{duration:300});
+  const p=PARKINGS.find(x=>String(x.id)===String(id));if(!p)return;
+  selectedId=p.id;updateSelection(p.id);showMiniCard(p.id);
+  if(ymap)ymap.panTo([p.lat,p.lng],{duration:300});
 }
 
 /* ═══════════ МИНИ-КАРТОЧКА ═══════════ */
@@ -1341,9 +1383,9 @@ function applyTheme(dark){
     const z=ymap.getZoom();
     ymap.container.fitToViewport();
     ymap.setZoom(z,{duration:0});
-    Object.keys(markers).forEach(id=>{ymap.geoObjects.remove(markers[id])});
-    markers={};
-    drawMarkers();
+    lastMarkerSignature='';
+    if(objectManager)objectManager.removeAll();
+    drawMarkers(true);
     if(mePos)putMe(mePos.lat,mePos.lng,meAcc,meAcc>ROUGH_OVER);
   }
 }
