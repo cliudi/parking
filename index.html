@@ -149,7 +149,7 @@
   .fc-photo .navbtns{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:flex-end;z-index:3}
   .fc-photo .rbtns{display:flex;gap:8px}
   .cbtn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.94);border:1px solid rgba(15,23,42,.08);font-size:22px;line-height:1;color:#0F172A;
-    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(15,23,42,.14);backdrop-filter:none}
+    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(15,23,42,.18);backdrop-filter:blur(8px)}
   html[data-theme="dark"] .cbtn{background:rgba(15,23,42,.88);border-color:rgba(255,255,255,.12);color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.42)}
   .sheet-close{position:absolute;top:12px;right:14px;z-index:20;width:40px;height:40px;border-radius:50%;border:1px solid rgba(15,23,42,.10);background:rgba(255,255,255,.96);color:#0F172A;font:500 25px/1 Manrope;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 18px rgba(15,23,42,.16);cursor:pointer}
   .sheet-close:active{transform:scale(.94)}
@@ -623,18 +623,38 @@ let visibleParkingMap=new Map();
 let markerDrawTimer=null;
 let lastMarkerSignature='';
 
-/* Лёгкие статические SVG-пины.
-   Файлы лежат в www/icons и кэшируются Android WebView один раз. */
-function markerIconFile(p){
-  const dark=document.documentElement.getAttribute('data-theme')==='dark';
-  const suffix=dark?'-dark.svg':'.svg';
-  if(p.closed)return 'icons/marker-closed'+suffix;
-  if(p.category==='EV_STATION')return 'icons/marker-ev'+suffix;
-  if(p.ev&&p.price_type==='free')return 'icons/marker-free-ev'+suffix;
-  if(p.ev)return 'icons/marker-ev'+suffix;
-  if(p.price_type==='free')return 'icons/marker-free'+suffix;
-  if(p.price_type==='paid')return 'icons/marker-paid'+suffix;
-  return 'icons/marker-unknown'+suffix;
+/* Быстрые SVG-пины вместо тяжёлых HTML-макетов.
+   По форме это аккуратная «капля», как в дизайн-референсе. */
+const PIN_CACHE=new Map();
+function buildSvgPinData(color,symbol,combo,selected){
+  const key=[color,symbol,combo?'1':'0',selected?'1':'0',document.documentElement.getAttribute('data-theme')||'light'].join('|');
+  if(PIN_CACHE.has(key))return PIN_CACHE.get(key);
+  const scale=selected?1.08:1;
+  const icon=symbol==='⚡'
+    ? '<path d="M28.2 16.2h-5.1l2.1-7.2-8.3 10.7h5.2l-1.5 8.4z" fill="#fff"/>'
+    : '<text x="27" y="27.3" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="17.5" font-weight="800" fill="#fff">P</text>';
+  const badge=combo
+    ? '<circle cx="39.5" cy="13.5" r="7.2" fill="#FBBF24" stroke="#fff" stroke-width="2.2"/><path d="M40.5 9.2l-4.2 5h3l-1 4.2 4.4-5.4h-3z" fill="#fff"/>'
+    : '';
+  const darkTheme=document.documentElement.getAttribute('data-theme')==='dark';
+  const pinStroke=darkTheme?'#CBD5E1':'#FFFFFF';
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="54" height="60" viewBox="0 0 54 60">
+    <g transform="translate(27 28) scale(${scale}) translate(-27 -28)">
+      <path d="M27 5C16.5 5 9 12.5 9 22.3c0 11.5 12.1 23.2 16.1 26.7a2.9 2.9 0 0 0 3.8 0C32.9 45.5 45 33.8 45 22.3 45 12.5 37.5 5 27 5Z" fill="${color}" stroke="${pinStroke}" stroke-width="2.6" stroke-linejoin="round"/>
+      <circle cx="27" cy="22" r="12.2" fill="${color}"/>
+      ${icon}${badge}
+    </g>
+  </svg>`;
+  const uri='data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+  PIN_CACHE.set(key,uri);return uri;
+}
+
+const pinIconCache=new Map();
+function svgPinData(color,symbol,combo,selected){
+  const theme=document.documentElement.getAttribute('data-theme')||'light';
+  const key=[theme,color,symbol,combo?1:0,selected?1:0].join('|');
+  if(!pinIconCache.has(key))pinIconCache.set(key,buildSvgPinData(color,symbol,combo,selected));
+  return pinIconCache.get(key);
 }
 function markerSizeByZoom(selected){
   const z=ymap?ymap.getZoom():13;
@@ -648,10 +668,13 @@ function markerSizeByZoom(selected){
   return size;
 }
 function markerOptions(p,selected){
+  const isEvOnly=p.category==='EV_STATION';
+  const symbol=isEvOnly?'⚡':'P';
+  const combo=p.ev&&!isEvOnly;
   const size=markerSizeByZoom(selected);
   return {
     iconLayout:'default#image',
-    iconImageHref:markerIconFile(p),
+    iconImageHref:svgPinData(markerColor(p),symbol,combo,selected),
     iconImageSize:size,
     iconImageOffset:[-Math.round(size[0]/2),-Math.round(size[1]*.88)],
     iconShape:{type:'Rectangle',coordinates:[[0,0],[size[0],size[1]]]},
@@ -976,7 +999,7 @@ function applyFix(lat,lng,acc,label,precise){
   putMe(lat,lng,acc,acc>ROUGH_OVER);
   if(acc<=1000)saveLastPos(lat,lng,acc);
   if(precise)gpsGot=true;
-  // Точку пользователя двигаем отдельно. Парковки обновляем только при заметном перемещении.
+  // Парковочные метки обновляем только при заметном перемещении пользователя.
   if(jumped)scheduleMarkerDraw();
   // переезжаем, если пользователь сам карту не двигал
   if(!userPanned&&(jumped||precise)) ymap&&ymap.setCenter([lat,lng],zoomFor(acc),{duration:450});
