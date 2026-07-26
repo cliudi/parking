@@ -75,7 +75,7 @@
 
   .sidefabs{position:absolute;right:12px;z-index:55;display:flex;flex-direction:column;gap:10px;
     top:50%;transform:translateY(-60%)}
-  .sfab{width:46px;height:46px;border-radius:14px;background:var(--card);backdrop-filter:blur(8px);
+  .sfab{width:46px;height:46px;border-radius:14px;background:var(--card);backdrop-filter:none;
     border:1px solid var(--line);box-shadow:var(--sh);
     font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
   .sfab:active{transform:scale(.93)}
@@ -88,7 +88,7 @@
   .accbadge.on{display:block}
   .accbadge.good{color:var(--green)}
   .accbadge.bad{color:var(--amber)}
-  .zoomcol{display:flex;flex-direction:column;background:var(--card);backdrop-filter:blur(8px);
+  .zoomcol{display:flex;flex-direction:column;background:var(--card);backdrop-filter:none;
     border-radius:14px;box-shadow:var(--sh);overflow:hidden;border:1px solid var(--line)}
   .zoomcol button{width:46px;height:44px;border:0;background:none;font-size:20px;font-weight:700;cursor:pointer;color:var(--ink)}
   .zoomcol button:first-child{border-bottom:1px solid var(--line)}
@@ -149,7 +149,7 @@
   .fc-photo .navbtns{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:flex-end;z-index:3}
   .fc-photo .rbtns{display:flex;gap:8px}
   .cbtn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.94);border:1px solid rgba(15,23,42,.08);font-size:22px;line-height:1;color:#0F172A;
-    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(15,23,42,.18);backdrop-filter:blur(8px)}
+    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(15,23,42,.14);backdrop-filter:none}
   html[data-theme="dark"] .cbtn{background:rgba(15,23,42,.88);border-color:rgba(255,255,255,.12);color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.42)}
   .sheet-close{position:absolute;top:12px;right:14px;z-index:20;width:40px;height:40px;border-radius:50%;border:1px solid rgba(15,23,42,.10);background:rgba(255,255,255,.96);color:#0F172A;font:500 25px/1 Manrope;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 18px rgba(15,23,42,.16);cursor:pointer}
   .sheet-close:active{transform:scale(.94)}
@@ -623,30 +623,18 @@ let visibleParkingMap=new Map();
 let markerDrawTimer=null;
 let lastMarkerSignature='';
 
-/* Быстрые SVG-пины вместо тяжёлых HTML-макетов.
-   По форме это аккуратная «капля», как в дизайн-референсе. */
-const PIN_CACHE=new Map();
-function svgPinData(color,symbol,combo,selected){
-  const key=[color,symbol,combo?'1':'0',selected?'1':'0',document.documentElement.getAttribute('data-theme')||'light'].join('|');
-  if(PIN_CACHE.has(key))return PIN_CACHE.get(key);
-  const scale=selected?1.08:1;
-  const icon=symbol==='⚡'
-    ? '<path d="M28.2 16.2h-5.1l2.1-7.2-8.3 10.7h5.2l-1.5 8.4z" fill="#fff"/>'
-    : '<text x="27" y="27.3" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="17.5" font-weight="800" fill="#fff">P</text>';
-  const badge=combo
-    ? '<circle cx="39.5" cy="13.5" r="7.2" fill="#FBBF24" stroke="#fff" stroke-width="2.2"/><path d="M40.5 9.2l-4.2 5h3l-1 4.2 4.4-5.4h-3z" fill="#fff"/>'
-    : '';
-  const darkTheme=document.documentElement.getAttribute('data-theme')==='dark';
-  const pinStroke=darkTheme?'#CBD5E1':'#FFFFFF';
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="54" height="60" viewBox="0 0 54 60">
-    <g transform="translate(27 28) scale(${scale}) translate(-27 -28)">
-      <path d="M27 5C16.5 5 9 12.5 9 22.3c0 11.5 12.1 23.2 16.1 26.7a2.9 2.9 0 0 0 3.8 0C32.9 45.5 45 33.8 45 22.3 45 12.5 37.5 5 27 5Z" fill="${color}" stroke="${pinStroke}" stroke-width="2.6" stroke-linejoin="round"/>
-      <circle cx="27" cy="22" r="12.2" fill="${color}"/>
-      ${icon}${badge}
-    </g>
-  </svg>`;
-  const uri='data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
-  PIN_CACHE.set(key,uri);return uri;
+/* Лёгкие статические SVG-пины.
+   Файлы лежат в www/icons и кэшируются Android WebView один раз. */
+function markerIconFile(p){
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  const suffix=dark?'-dark.svg':'.svg';
+  if(p.closed)return 'icons/marker-closed'+suffix;
+  if(p.category==='EV_STATION')return 'icons/marker-ev'+suffix;
+  if(p.ev&&p.price_type==='free')return 'icons/marker-free-ev'+suffix;
+  if(p.ev)return 'icons/marker-ev'+suffix;
+  if(p.price_type==='free')return 'icons/marker-free'+suffix;
+  if(p.price_type==='paid')return 'icons/marker-paid'+suffix;
+  return 'icons/marker-unknown'+suffix;
 }
 function markerSizeByZoom(selected){
   const z=ymap?ymap.getZoom():13;
@@ -660,13 +648,10 @@ function markerSizeByZoom(selected){
   return size;
 }
 function markerOptions(p,selected){
-  const isEvOnly=p.category==='EV_STATION';
-  const symbol=isEvOnly?'⚡':'P';
-  const combo=p.ev&&!isEvOnly;
   const size=markerSizeByZoom(selected);
   return {
     iconLayout:'default#image',
-    iconImageHref:svgPinData(markerColor(p),symbol,combo,selected),
+    iconImageHref:markerIconFile(p),
     iconImageSize:size,
     iconImageOffset:[-Math.round(size[0]/2),-Math.round(size[1]*.88)],
     iconShape:{type:'Rectangle',coordinates:[[0,0],[size[0],size[1]]]},
@@ -678,14 +663,13 @@ function markerOptions(p,selected){
 }
 
 function markerLimitByZoom(z){
-  // Zoom может быть дробным (например 11.6), поэтому используем диапазоны.
-  if(z<11)return 18;
-  if(z<12)return 28;
-  if(z<13)return 42;
-  if(z<14)return 65;
-  if(z<15)return 100;
-  if(z<16)return 160;
-  return 240;
+  if(z<11)return 12;
+  if(z<12)return 20;
+  if(z<13)return 35;
+  if(z<14)return 55;
+  if(z<15)return 85;
+  if(z<16)return 140;
+  return 220;
 }
 
 /* Только видимая область + небольшой запас. На дальнем масштабе серые
@@ -702,8 +686,16 @@ function visibleParkings(){
   const z=ymap.getZoom();
   const c=ymap.getCenter();
   let list=all.filter(p=>p.lat>=minLat&&p.lat<=maxLat&&p.lng>=minLng&&p.lng<=maxLng);
-  // На дальнем масштабе скрываем серые точки без данных.
-  if(z<12) list=list.filter(p=>p.price_type!=='unknown'||p.ev||p.category==='EV_STATION'||p.closed);
+  // Серые точки без данных сильнее всего перегружают карту.
+  if(z<13) list=list.filter(p=>p.price_type!=='unknown'||p.ev||p.category==='EV_STATION'||p.closed);
+  else if(z<15){
+    let greyCount=0;
+    list=list.filter(p=>{
+      if(p.price_type!=='unknown')return true;
+      if(p.ev||p.category==='EV_STATION'||p.closed)return true;
+      return greyCount++<18;
+    });
+  }
 
   list.sort((a,b)=>{
     const score=p=>{
@@ -726,7 +718,7 @@ function visibleParkings(){
 
 function scheduleMarkerDraw(){
   clearTimeout(markerDrawTimer);
-  markerDrawTimer=setTimeout(()=>drawMarkers(false),500);
+  markerDrawTimer=setTimeout(()=>drawMarkers(false),600);
 }
 function findNearestVisibleParking(coords,maxPx){
   if(!ymap||!coords)return null;
@@ -984,7 +976,8 @@ function applyFix(lat,lng,acc,label,precise){
   putMe(lat,lng,acc,acc>ROUGH_OVER);
   if(acc<=1000)saveLastPos(lat,lng,acc);
   if(precise)gpsGot=true;
-  drawMarkers();
+  // Точку пользователя двигаем отдельно. Парковки обновляем только при заметном перемещении.
+  if(jumped)scheduleMarkerDraw();
   // переезжаем, если пользователь сам карту не двигал
   if(!userPanned&&(jumped||precise)) ymap&&ymap.setCenter([lat,lng],zoomFor(acc),{duration:450});
   if(label)toast(label+(acc>ROUGH_OVER?' · '+t('approxTilde'):'')+' · ±'+(acc>1000?Math.round(acc/1000)+' км':Math.round(acc)+' м'));
