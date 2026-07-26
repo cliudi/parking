@@ -17,13 +17,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#12202E; --ink2:#5A6B7A; --bg:#F4F6F8; --card:#FFF; --line:#E6EBEF;
-    --blue:#2563EB; --blue-d:#1D4ED8; --green:#22A24C; --green2:#1FA84C;
-    --amber:#F5A623; --red:#E5484D; --violet:#7A5CFF; --grey:#9AA7B2;
-    --sh-s:0 2px 8px rgba(18,32,46,.08); --sh:0 6px 20px rgba(18,32,46,.12); --sh-l:0 -6px 24px rgba(18,32,46,.10);
+    /* ── фирменная палитра (дизайн 3) ── */
+    --blue:#2563EB;   --blue-d:#1D4ED8;   /* платная */
+    --green:#16A34A;  --green-d:#128A3E;  /* бесплатная */
+    --amber:#FBBF24;  --amber-d:#E8AC0F;  /* зарядка EV */
+    --red:#EF4444;    --red-d:#DC2626;    /* недоступно/закрыто */
+    --grey:#9CA3AF;                       /* неизвестно */
+    --violet:#7A5CFF;
+
+    /* ── тема: светлая (по умолчанию) ── */
+    --ink:#0F172A; --ink2:#6B7688; --bg:#F8FAFC; --card:#FFFFFF; --line:#E2E8F0;
+    --sh-s:0 2px 8px rgba(15,23,42,.08); --sh:0 6px 20px rgba(15,23,42,.12); --sh-l:0 -6px 24px rgba(15,23,42,.10);
     --top:env(safe-area-inset-top,0px); --bot:env(safe-area-inset-bottom,0px);
     --nav:60px;
   }
+  html[data-theme="dark"]{
+    --ink:#F1F5F9; --ink2:#94A3B8; --bg:#0B1220; --card:#141C2E; --line:#22304A;
+    --sh-s:0 2px 10px rgba(0,0,0,.35); --sh:0 8px 26px rgba(0,0,0,.5); --sh-l:0 -8px 26px rgba(0,0,0,.4);
+  }
+
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
   html,body{height:100%;overflow:hidden;overscroll-behavior:none}
   body{font-family:'Manrope',sans-serif;color:var(--ink);background:var(--bg)}
@@ -52,19 +64,23 @@
 
   .sidefabs{position:absolute;right:12px;z-index:55;display:flex;flex-direction:column;gap:10px;
     top:50%;transform:translateY(-60%)}
-  .sfab{width:46px;height:46px;border-radius:13px;background:var(--card);border:0;box-shadow:var(--sh);
-    font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
+  .sfab{width:46px;height:46px;border-radius:14px;background:rgba(15,23,42,.86);backdrop-filter:blur(6px);
+    border:1px solid rgba(255,255,255,.08);box-shadow:var(--sh);
+    font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff}
   .sfab:active{transform:scale(.93)}
-  .sfab.on{background:var(--blue);color:#fff}
-  .sfab.live{background:var(--green2);color:#fff}
+  .sfab.on{background:var(--blue)}
+  .sfab.live{background:var(--green)}
+  .navarrow{width:16px;height:16px;transition:transform .15s}
+  .compassneedle{width:20px;height:20px;transition:transform .12s linear}
   .accbadge{background:var(--card);border-radius:10px;box-shadow:var(--sh);padding:5px 8px;
     font:800 10px 'Manrope';color:var(--ink2);text-align:center;display:none;white-space:nowrap}
   .accbadge.on{display:block}
-  .accbadge.good{color:var(--green2)}
+  .accbadge.good{color:var(--green)}
   .accbadge.bad{color:var(--amber)}
-  .zoomcol{display:flex;flex-direction:column;background:var(--card);border-radius:13px;box-shadow:var(--sh);overflow:hidden}
-  .zoomcol button{width:46px;height:44px;border:0;background:var(--card);font-size:20px;font-weight:700;cursor:pointer;color:var(--ink)}
-  .zoomcol button:first-child{border-bottom:1px solid var(--line)}
+  .zoomcol{display:flex;flex-direction:column;background:rgba(15,23,42,.86);backdrop-filter:blur(6px);
+    border-radius:14px;box-shadow:var(--sh);overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+  .zoomcol button{width:46px;height:44px;border:0;background:none;font-size:20px;font-weight:700;cursor:pointer;color:#fff}
+  .zoomcol button:first-child{border-bottom:1px solid rgba(255,255,255,.12)}
 
   .legendbtn{position:absolute;left:12px;z-index:55;top:50%;transform:translateY(120%);
     width:42px;height:42px;border-radius:12px;background:var(--card);border:0;box-shadow:var(--sh);
@@ -127,7 +143,7 @@
   .fc-body{padding:16px 18px 0}
   .fc-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .fc-title h2{font:800 20px 'Manrope';line-height:1.2}
-  .rating{display:flex;align-items:center;gap:3px;background:#E9F7EE;color:var(--green2);
+  .rating{display:flex;align-items:center;gap:3px;background:#E9F7EE;color:var(--green);
     padding:4px 8px;border-radius:8px;font:800 12px 'Manrope';flex-shrink:0}
   .fc-addr{display:flex;align-items:center;gap:6px;font:600 13px 'Manrope';color:var(--ink2);margin-top:8px}
   .fc-status{display:flex;align-items:center;gap:6px;font:700 13px 'Manrope';margin-top:6px}
@@ -137,7 +153,7 @@
   .fc-cell .lbl{font:700 10.5px 'Manrope';color:var(--ink2);text-transform:uppercase;letter-spacing:.03em}
   .fc-cell .val{font:800 16px 'Manrope';margin-top:4px}
   .fc-cell .val.sm{font-size:13.5px}
-  .fc-cell .val.free{color:var(--green2)}
+  .fc-cell .val.free{color:var(--green)}
   .fc-cell .val.ev{color:var(--violet)}
   .legalnote{background:#FEF6E7;border:1px solid #F6E2B8;border-radius:12px;padding:11px 13px;
     font:600 12px 'Manrope';color:#8A6D1F;line-height:1.5;margin-bottom:14px;display:flex;gap:8px}
@@ -275,6 +291,7 @@
     <div class="searchbar">
       <span class="si">🔍</span>
       <input id="search" >
+      <button class="bell" id="themebtn" style="font-size:15px">🌙</button>
       <button class="bell"><span class="dot"></span>🔔</button>
     </div>
     <div class="qchips" id="qchips"></div>
@@ -284,7 +301,15 @@
 
   <div class="sidefabs">
     <button class="sfab" id="filtbtn">⚙️</button>
-    <button class="sfab" id="locbtn">◎</button>
+    <button class="sfab" id="compassbtn" title="Компас">
+      <svg class="compassneedle" id="compassSvg" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2 L15 12 L12 10 L9 12 Z" fill="#EF4444"/>
+        <path d="M12 22 L9 12 L12 14 L15 12 Z" fill="#CBD5E1"/>
+      </svg>
+    </button>
+    <button class="sfab" id="locbtn" title="Моё местоположение">
+      <svg class="navarrow" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L20 20 L12 16 L4 20 Z"/></svg>
+    </button>
     <div class="accbadge" id="accbadge"></div>
     <div class="zoomcol">
       <button id="zin">+</button>
@@ -484,10 +509,15 @@ async function loadParkingsFromDB(lat, lng, radius){
 }
 
 /* цвет/иконка маркера по типу (ПДД разд.7.3: зелёный=бесплатно, синий=платно, серый=неизвестно) */
+/* Цвет по фирменной палитре (дизайн 3):
+   синий=платная, зелёный=бесплатная, жёлтый=зарядка EV, красный=недоступно, серый=неизвестно */
 function markerColor(p){
-  if(p.price_type==='free') return '#1FA84C';
+  if(p.closed) return '#EF4444';
+  if(p.ev && p.price_type==='free') return '#16A34A';   // зелёный+жёлтый комбо рисуем отдельно
+  if(p.ev) return '#FBBF24';
+  if(p.price_type==='free') return '#16A34A';
   if(p.price_type==='paid') return '#2563EB';
-  return '#9AA7B2';
+  return '#9CA3AF';
 }
 function catIcon(p){
   if(p.category==='STREET_ALLOWED') return '🅿';
@@ -563,13 +593,19 @@ function filteredParkings(){
   return v;
 }
 let clusterer=null;
-const layoutCache={};
-function pinLayout(col,icon,big,bolt){
-  const key=col+icon+(big?'1':'0')+(bolt?'1':'0');
-  if(layoutCache[key])return layoutCache[key];
-  const L=ymaps.templateLayoutFactory.createClass(
-    '<div class="marker'+(big?' big':'')+'"><div class="pin" style="background:'+col+'"><b>'+icon+'</b></div>'+(bolt?'<span class="bolt">⚡</span>':'')+'</div>');
-  layoutCache[key]=L;return L;
+/* Нативные векторные иконки Яндекса (islands#circleIcon) вместо HTML-дивов.
+   Это ключевое изменение против лагов: раньше каждая из 390 меток была
+   полноценным HTML-элементом с CSS, что вызывало тяжёлую перерисовку при
+   любом движении карты. Пресеты рендерятся движком карты нативно, как в
+   самом приложении Яндекс.Карт — на порядок легче для телефона. */
+function markerOptions(p,big){
+  return {
+    preset:'islands#circleIcon',
+    iconColor: markerColor(p),
+  };
+}
+function markerProps(p){
+  return { iconContent: p.category==='EV_STATION' ? '⚡' : (p.category==='STREET_ALLOWED'?'🅿':'P') };
 }
 function drawMarkers(){
   if(!ymap)return;
@@ -577,16 +613,15 @@ function drawMarkers(){
   if(!clusterer){
     clusterer=new ymaps.Clusterer({
       preset:'islands#invertedBlueClusterIcons', groupByCoordinates:false,
-      clusterDisableClickZoom:false, gridSize:64, minClusterSize:3
+      clusterDisableClickZoom:false, gridSize:72, minClusterSize:4,
+      zoomMargin:0
     });
     ymap.geoObjects.add(clusterer);
   }
   clusterer.removeAll();markers={};
   const pms=filteredParkings().map(p=>{
-    const big=p.id===selectedId;
-    const m=new ymaps.Placemark([p.lat,p.lng],{parkingId:p.id},{
-      iconLayout:pinLayout(markerColor(p),catIcon(p),big,p.ev),
-      iconShape:{type:'Circle',coordinates:[0,0],radius:20},iconOffset:[-17,-34]});
+    const m=new ymaps.Placemark([p.lat,p.lng], markerProps(p),
+      Object.assign({},markerOptions(p,p.id===selectedId),{hasBalloon:false,hasHint:false}));
     m.events.add('click',()=>selectParking(p.id));
     markers[p.id]=m;return m;
   });
@@ -594,14 +629,14 @@ function drawMarkers(){
   if(meCircle)ymap.geoObjects.add(meCircle);
   if(meMark)ymap.geoObjects.add(meMark);
 }
-// лёгкое обновление выделения — меняем макет только двух маркеров, без пересборки всех
+// лёгкое обновление выделения — трогаем только два маркера, без пересборки всех 390
 let prevSelected=null;
 function updateSelection(id){
   if(!clusterer)return drawMarkers();
   [prevSelected,id].forEach(pid=>{
     if(!pid||!markers[pid])return;
     const p=PARKINGS.find(x=>x.id===pid);if(!p)return;
-    markers[pid].options.set('iconLayout',pinLayout(markerColor(p),catIcon(p),pid===id,p.ev));
+    markers[pid].options.set(markerOptions(p,pid===id));
   });
   prevSelected=id;
 }
@@ -626,7 +661,7 @@ function showMiniCard(id){
     +'<div class="mc-ic" style="background:'+markerColor(p)+'">'+catIcon(p)+'</div>'
     +'<div class="mc-body"><h3>'+p.name+'</h3>'
     +'<div class="mc-sub">'+priceLabel(p)+' · '+(p.cap?(p.cap_est?t('approx').toLowerCase()+' ':'')+p.cap+' '+t('places'):t('capUnknown'))+'</div>'
-    +'<div class="mc-meta" style="color:'+(p.is247?'var(--green2)':'var(--ink2)')+'">'+(p.is247?'● '+t('open247'):'○ '+p.hours)+'</div>'
+    +'<div class="mc-meta" style="color:'+(p.is247?'var(--green)':'var(--ink2)')+'">'+(p.is247?'● '+t('open247'):'○ '+p.hours)+'</div>'
     +'</div>'
     +(d?'<div class="mc-dist">➤ '+d+'</div>':'')
     +'</div>'
@@ -657,7 +692,7 @@ function openFullCard(id){
     +'<div class="fc-title"><h2>'+p.name+'</h2>'
       +(p.rating?'<div class="rating">★ '+p.rating.toFixed(1)+'</div>':'')+'</div>'
     +'<div class="fc-addr">📍 '+p.addr+'</div>'
-    +'<div class="fc-status" style="color:'+(p.is247?'var(--green2)':'var(--ink)')+'">'
+    +'<div class="fc-status" style="color:'+(p.is247?'var(--green)':'var(--ink)')+'">'
       +'🕐 '+statusLabel(p)+(distText(p)?'<span class="dist">➤ '+distText(p)+'</span>':'')+'</div>'
     +'<div class="fc-grid">'
       +'<div class="fc-cell"><div class="lbl">'+t('cost')+'</div><div class="val'+(p.price_type==='free'?' free':'')+'">'
@@ -843,10 +878,26 @@ function initHeading(){
     const el=document.querySelector('.me-cone');
     if(el)el.style.transform='rotate('+Math.round(deg)+'deg)';
     else if(mePos)putMe(mePos.lat,mePos.lng,meAcc);                      // конуса ещё нет — перерисуем
+    const cs=document.getElementById('compassSvg');
+    if(cs)cs.style.transform='rotate('+Math.round(deg)+'deg)';
   };
   window.addEventListener('deviceorientationabsolute',onOrient,true);
   window.addEventListener('deviceorientation',onOrient,true);
 }
+/* На iOS компас не заработает без явного разрешения, которое браузер
+   выдаёт ТОЛЬКО в ответ на тап пользователя — поэтому кнопка компаса
+   сама запрашивает его, а не пытается получить доступ автоматически. */
+document.getElementById('compassbtn').onclick=async()=>{
+  const DOE=window.DeviceOrientationEvent;
+  if(DOE && typeof DOE.requestPermission==='function'){
+    try{
+      const res=await DOE.requestPermission();
+      if(res!=='granted'){toast(t('geoDeny'));return}
+    }catch(e){}
+  }
+  initHeading();
+  toast('Компас включён');
+};
 
 /* живой показ точности — видно, как GPS сходится к нескольким метрам */
 let accHintShown=false, accStart=0;
@@ -1088,10 +1139,11 @@ function openLegend(){
   const html='<div class="grabber" onclick="closeSheet()"><i></i></div>'
     +'<div class="filt-head"><h2>'+t('legend')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="legend-body">'
-    +'<div class="legend-item">'+pin('#1FA84C','P')+'<div><b>'+t('lFree')+'</b></div></div>'
     +'<div class="legend-item">'+pin('#2563EB','P')+'<div><b>'+t('lPaid')+'</b></div></div>'
-    +'<div class="legend-item"><div class="legend-mark" style="font-size:22px">⚡</div><div><b>'+t('lEv')+'</b></div></div>'
-    +'<div class="legend-item">'+pin('#9AA7B2','P')+'<div><b>'+t('lUnknown')+'</b></div></div>'
+    +'<div class="legend-item">'+pin('#16A34A','P')+'<div><b>'+t('lFree')+'</b></div></div>'
+    +'<div class="legend-item">'+pin('#FBBF24','⚡')+'<div><b>'+t('lEv')+'</b></div></div>'
+    +'<div class="legend-item">'+pin('#EF4444','P')+'<div><b>Недоступно / закрыто</b></div></div>'
+    +'<div class="legend-item">'+pin('#9CA3AF','P')+'<div><b>'+t('lUnknown')+'</b></div></div>'
     +'<div class="legend-item"><div class="legend-mark">🚦</div><div><b>Пробки</b><span>Нажмите, чтобы включить слой пробок</span></div><button onclick="toggleTraffic()" style="margin-left:auto;padding:8px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font:700 12px Manrope;cursor:pointer">Слой</button></div>'
     +'</div>'
     +'<div style="padding:0 18px 4px"><div class="legalnote" style="background:#EFF4FF;border-color:#CFE0FF;color:#1D4ED8">ℹ️<span>Зелёный цвет означает <b>бесплатную</b> парковку, а не наличие свободных мест. Занятость в реальном времени появится в следующем обновлении.</span></div></div>';
@@ -1149,6 +1201,16 @@ function buildQchips(){
 
 /* ═══════════ СТАРТ ═══════════ */
 document.getElementById('search').placeholder=t('searchPh');
+/* ═══════════ ТЕМА: светлая/тёмная ═══════════ */
+function applyTheme(dark){
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  document.getElementById('themebtn').textContent = dark?'☀️':'🌙';
+  try{localStorage.setItem('pl-theme', dark?'dark':'light')}catch(e){}
+}
+let isDark = (()=>{ try{return localStorage.getItem('pl-theme')==='dark'}catch(e){return false} })();
+applyTheme(isDark);
+document.getElementById('themebtn').onclick=()=>{isDark=!isDark;applyTheme(isDark)};
+
 loadYandex();buildQchips();buildNav();loadParkingsFromDB();
 /* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
    Кэш показываем сразу, а системный запрос разрешения откладываем,
