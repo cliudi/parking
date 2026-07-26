@@ -375,8 +375,8 @@ const I18N={
 let lang='ru';
 const t=k=>I18N[lang][k]||k;
 
-/* ═══════════ ДАННЫЕ ПАРКОВОК ТАШКЕНТА (модель по ТЗ разд.7.2) ═══════════ */
-const PARKINGS=[
+/* ═══════════ ЗАПАСНЫЕ ДАННЫЕ (используются, только если база недоступна) ═══════════ */
+let PARKINGS=[
  {id:'hilton', name:'Hilton Tashkent Parking', addr:'ул. Ислама Каримова, 2', lat:41.3138,lng:69.2481,
   category:'PRIVATE', price_type:'paid', price_text:'15 000 сум/час', price_day:'100 000 сум/сутки', price_val:15000,
   cap:120, cap_est:false, hours:'24/7', is247:true, ptype:'underground', height:'2.1 м',
@@ -429,6 +429,59 @@ const PARKINGS=[
   cap:60, cap_est:true, hours:'05:00–22:00', is247:false, ptype:'open', height:null,
   ev:false, payment:'—', rating:4.5, photo:'', verified:'2026-06-18', source:'Команда Parkly'},
 ];
+
+/* ═══════════ ПОДКЛЮЧЕНИЕ К БАЗЕ (Supabase) ═══════════
+   Ключ ниже — публичный (anon), это нормально: доступ на запись
+   и просмотр неодобренных данных защищён правилами в самой базе (RLS). */
+const SUPABASE_URL = 'https://xgzddkkrlsvtvcriokdk.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
+
+// Преобразуем строку из базы в формат, который уже понимает приложение
+function fromDbRow(r){
+  return {
+    id: r.id, name: r.name, addr: r.address||'',
+    lat: r.lat_out, lng: r.lng_out,
+    category: r.category,
+    price_type: r.price_type,
+    price_val: r.price_hour||0,
+    price_text: r.price_hour ? r.price_hour.toLocaleString('ru')+' сум/час' : null,
+    cap: r.capacity, cap_est: !!r.capacity_est,
+    hours: r.hours||'—', is247: !!r.is_247,
+    ptype: r.kind||'open', height: r.height_limit ? r.height_limit+' м' : null,
+    ev: !!r.has_ev, ev_details: (r.ev_connectors||[]).join(', ')||null,
+    payment: '—', rating: null,
+    photo: (r.photos&&r.photos[0])||'',
+    verified: r.verified_at||'', source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parkly':'Оператор'),
+    legal: r.category==='STREET_ALLOWED'
+  };
+}
+
+// Грузим парковки рядом с точкой (или центр Ташкента, если позиция ещё не известна)
+async function loadParkingsFromDB(lat, lng, radius){
+  try{
+    const body = {
+      lat: lat||41.3111, lng: lng||69.2650,
+      radius_m: radius||30000,       // с запасом на весь город на старте
+      only_free:false, only_ev:false, max_price:null, lim:500
+    };
+    const res = await fetch(SUPABASE_URL+'/rest/v1/rpc/parkings_nearby',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
+      body: JSON.stringify(body)
+    });
+    if(!res.ok) throw new Error('db http '+res.status);
+    const rows = await res.json();
+    if(Array.isArray(rows) && rows.length){
+      PARKINGS = rows.map(fromDbRow);
+      render(); draw();
+      return true;
+    }
+    return false;
+  }catch(e){
+    console.warn('Supabase недоступен, используются запасные данные:', e);
+    return false;
+  }
+}
 
 /* цвет/иконка маркера по типу (ПДД разд.7.3: зелёный=бесплатно, синий=платно, серый=неизвестно) */
 function markerColor(p){
@@ -688,7 +741,7 @@ async function permState(){try{if(navigator.permissions){const p=await navigator
 function yandexGeo(){return new Promise((res,rej)=>{if(!window.ymaps||!ymaps.geolocation)return rej();ymaps.geolocation.get({provider:'auto'}).then(r=>{const c=r.geoObjects.get(0).geometry.getCoordinates();res({lat:c[0],lng:c[1],acc:5000})},rej)})}
 const GeoPlugin=()=>(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Geolocation)||null;
 
-let meAcc=0, userPanned=false, precising=false, gpsGot=false;
+let meAcc=0, userPanned=false, precising=false, gpsGot=false, dbReloadedForUser=false;
 
 /* кэш последней позиции — только если она была точной */
 const LP_KEY='parkly-lastpos';
@@ -744,6 +797,7 @@ function applyFix(lat,lng,acc,label,precise){
   const better = !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot) || stale;
   if(!better)return false;
   lastFixTs=Date.now();
+  if(!dbReloadedForUser && acc<3000){ dbReloadedForUser=true; loadParkingsFromDB(lat,lng,15000); }
   const jumped = mePos ? dist(mePos.lat,mePos.lng,lat,lng)>0.2 : true;
   putMe(lat,lng,acc,acc>ROUGH_OVER);
   if(acc<=1000)saveLastPos(lat,lng,acc);
@@ -1095,7 +1149,7 @@ function buildQchips(){
 
 /* ═══════════ СТАРТ ═══════════ */
 document.getElementById('search').placeholder=t('searchPh');
-loadYandex();buildQchips();buildNav();
+loadYandex();buildQchips();buildNav();loadParkingsFromDB();
 /* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
    Кэш показываем сразу, а системный запрос разрешения откладываем,
    пока окно приложения не окажется реально на экране — иначе Android
