@@ -888,8 +888,8 @@ function svgPinData(color,symbol,combo,selected){
 function markerSizeByZoom(selected){
   const z=ymap?ymap.getZoom():13;
   let size;
-  if(z<12) size=[32,36];
-  else if(z<13) size=[36,41];
+  if(z<12) size=[52,59];
+  else if(z<13) size=[46,52];
   else if(z<14) size=[40,46];
   else if(z<15) size=[44,50];
   else size=[48,55];
@@ -915,13 +915,12 @@ function markerOptions(p,selected){
 }
 
 function markerLimitByZoom(z){
-  if(z<11)return 12;
-  if(z<12)return 20;
-  if(z<13)return 35;
-  if(z<14)return 55;
-  if(z<15)return 85;
-  if(z<16)return 140;
-  return 220;
+  if(z<12)return 2;
+  if(z<13)return 6;
+  if(z<14)return 18;
+  if(z<15)return 45;
+  if(z<16)return 90;
+  return 160;
 }
 
 /* Только видимая область + небольшой запас. На дальнем масштабе серые
@@ -988,9 +987,7 @@ function findNearestVisibleParking(coords,maxPx){
 function ensureObjectManager(){
   if(objectManager||!ymap)return;
   objectManager=new ymaps.ObjectManager({
-    clusterize:true,
-    gridSize:64,
-    clusterDisableClickZoom:false,
+    clusterize:false,
     geoObjectOpenBalloonOnClick:false,
     geoObjectOpenHintOnHover:false
   });
