@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Parkly Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#172033;background:#f4f7fb}*{box-sizing:border-box}body{margin:0}.hidden{display:none!important}.wrap{max-width:1280px;margin:auto;padding:20px}.card{background:#fff;border:1px solid #e5eaf2;border-radius:18px;box-shadow:0 8px 28px rgba(21,38,70,.08)}.login{max-width:430px;margin:10vh auto;padding:28px}.brand{font-size:25px;font-weight:800;color:#2563eb}.muted{color:#718096}.field{display:flex;flex-direction:column;gap:7px}.field label{font-size:13px;font-weight:700}.field input,.field select,.field textarea{width:100%;border:1px solid #d6deea;border-radius:11px;padding:11px 12px;background:#fff;font:inherit}.field textarea{min-height:82px;resize:vertical}.btn{border:0;border-radius:11px;padding:11px 15px;font-weight:750;cursor:pointer}.primary{background:#2563eb;color:#fff}.secondary{background:#edf3ff;color:#1d4ed8}.danger{background:#feecec;color:#c53030}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:16px;margin-bottom:16px}.toolbar input,.toolbar select{border:1px solid #d6deea;border-radius:10px;padding:10px}.toolbar input{min-width:280px;flex:1}.spacer{flex:1}.table-card{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:980px}.table th,.table td{padding:12px 14px;border-bottom:1px solid #edf0f5;text-align:left;font-size:14px}.table th{position:sticky;top:0;background:#f8fafc;z-index:1}.badge{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:12px;font-weight:800}.APPROVED{background:#dcfce7;color:#166534}.PENDING{background:#fef3c7;color:#92400e}.REJECTED{background:#fee2e2;color:#991b1b}.DRAFT,.NEEDS_INFO{background:#e2e8f0;color:#334155}.actions{display:flex;gap:7px}.actions .btn{padding:7px 9px;font-size:12px}.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto;z-index:100}.dialog{width:min(900px,100%);padding:22px;margin:auto}.dialog-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.full{grid-column:1/-1}.checks{display:flex;gap:18px;flex-wrap:wrap}.check{display:flex;gap:7px;align-items:center}.msg{padding:11px 12px;border-radius:10px;margin-top:12px}.error{background:#fee2e2;color:#991b1b}.ok{background:#dcfce7;color:#166534}.empty{text-align:center;padding:45px;color:#718096}@media(max-width:700px){.wrap{padding:10px}.grid{grid-template-columns:1fr}.full{grid-column:auto}.toolbar input{min-width:100%}.login{margin:5vh 12px}.dialog{padding:15px}.modal{padding:8px}}
+</style>
+</head>
+<body>
+<div id="loginView" class="wrap">
+  <section class="card login">
+    <div class="brand">Parkly Admin</div>
+    <p class="muted">Вход для администратора</p>
+    <form id="loginForm" style="display:grid;gap:14px">
+      <div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div>
+      <div class="field"><label>Пароль</label><input id="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary" type="submit">Войти</button>
+    </form>
+    <div id="loginMsg"></div>
+  </section>
+</div>
+
+<div id="adminView" class="hidden">
+  <main class="wrap">
+    <section class="card toolbar">
+      <div><div class="brand">Parkly Admin</div><div id="who" class="muted" style="font-size:13px"></div></div>
+      <input id="search" placeholder="Поиск по названию, адресу или району">
+      <select id="statusFilter"><option value="">Все статусы</option><option>APPROVED</option><option>PENDING</option><option>NEEDS_INFO</option><option>REJECTED</option><option>DRAFT</option></select>
+      <button id="refreshBtn" class="btn secondary">Обновить</button>
+      <button id="addBtn" class="btn primary">+ Добавить</button>
+      <button id="logoutBtn" class="btn danger">Выйти</button>
+    </section>
+    <section class="card table-card">
+      <table class="table"><thead><tr><th>Название</th><th>Адрес</th><th>Категория</th><th>Цена</th><th>Места</th><th>Статус</th><th>Обновлено</th><th>Действия</th></tr></thead><tbody id="rows"></tbody></table>
+      <div id="empty" class="empty hidden">Парковки не найдены</div>
+    </section>
+    <div id="mainMsg"></div>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden">
+  <section class="card dialog">
+    <div class="dialog-head"><div><div id="formTitle" class="brand">Парковка</div><div class="muted">Поля со звёздочкой обязательны</div></div><button id="closeBtn" class="btn secondary">✕</button></div>
+    <form id="parkingForm" class="grid">
+      <input id="id" type="hidden">
+      <div class="field"><label>Название *</label><input id="name" required></div>
+      <div class="field"><label>Адрес</label><input id="address"></div>
+      <div class="field"><label>Район</label><input id="district" value="Yunusabad"></div>
+      <div class="field"><label>Город</label><input id="city" value="Tashkent"></div>
+      <div class="field"><label>Широта *</label><input id="lat" type="number" step="any" required placeholder="41.3667"></div>
+      <div class="field"><label>Долгота *</label><input id="lng" type="number" step="any" required placeholder="69.2888"></div>
+      <div class="field"><label>Категория *</label><select id="category"><option>OFFICIAL</option><option>STREET_ALLOWED</option><option>PRIVATE</option><option>EV_STATION</option></select></div>
+      <div class="field"><label>Вид</label><select id="kind"><option value="">Не указан</option><option>open</option><option>covered</option><option>underground</option><option>multilevel</option><option>street</option></select></div>
+      <div class="field"><label>Тип цены</label><select id="price_type"><option>unknown</option><option>free</option><option>paid</option></select></div>
+      <div class="field"><label>Цена в час, сум</label><input id="price_hour" type="number" min="0"></div>
+      <div class="field"><label>Цена в день, сум</label><input id="price_day" type="number" min="0"></div>
+      <div class="field"><label>Количество мест</label><input id="capacity" type="number" min="0"></div>
+      <div class="field full"><label>Примечание к цене</label><input id="price_note"></div>
+      <div class="field"><label>Режим работы</label><input id="hours" placeholder="08:00–22:00"></div>
+      <div class="field"><label>Ограничение высоты, м</label><input id="height_limit" type="number" step="0.1" min="0"></div>
+      <div class="field"><label>Статус</label><select id="status"><option>APPROVED</option><option>PENDING</option><option>NEEDS_INFO</option><option>REJECTED</option><option>DRAFT</option></select></div>
+      <div class="field"><label>Источник</label><select id="source"><option>ADMIN</option><option>OSM</option><option>USER</option><option>PARTNER</option><option>OPERATOR</option></select></div>
+      <div class="field"><label>Оператор зарядки</label><input id="ev_operator"></div>
+      <div class="field"><label>Количество EV-портов</label><input id="ev_ports" type="number" min="0"></div>
+      <div class="field full"><label>Разъёмы EV — через запятую</label><input id="ev_connectors" placeholder="CCS2, Type 2"></div>
+      <div class="field full"><label>Способы оплаты — через запятую</label><input id="payment_methods" placeholder="cash, card, click"></div>
+      <div class="field full"><label>Ссылки на фото — по одной в строке</label><textarea id="photos"></textarea></div>
+      <div class="field"><label>Дата проверки</label><input id="verified_at" type="date"></div>
+      <div class="field"><label>Ссылка/ID источника</label><input id="source_ref"></div>
+      <div class="field full"><label>Комментарий модератора</label><textarea id="moderator_note"></textarea></div>
+      <div class="checks full">
+        <label class="check"><input id="is_247" type="checkbox"> 24/7</label>
+        <label class="check"><input id="capacity_est" type="checkbox"> Вместимость примерная</label>
+        <label class="check"><input id="has_ev" type="checkbox"> Есть зарядка</label>
+        <label class="check"><input id="has_cctv" type="checkbox"> Камеры</label>
+        <label class="check"><input id="has_disabled" type="checkbox"> Места для людей с инвалидностью</label>
+      </div>
+      <div class="full" style="display:flex;justify-content:flex-end;gap:10px"><button id="cancelBtn" class="btn secondary" type="button">Отмена</button><button class="btn primary" type="submit">Сохранить</button></div>
+    </form>
+    <div id="formMsg"></div>
+  </section>
+</div>
+
+<script>
+const SUPABASE_URL='https://xgzddkkrlsvtvcriokdk.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let records=[];
+const $=id=>document.getElementById(id);
+function msg(el,text,type='error'){el.innerHTML=text?`<div class="msg ${type}">${text}</div>`:''}
+function arr(v){return String(v||'').split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}
+function val(id){return $(id).value.trim()}
+function nullableNumber(id){return val(id)===''?null:Number(val(id))}
+function escapeHtml(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+async function checkSession(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){showLogin();return}
+  const {data:admin,error}=await sb.from('admins').select('role').eq('user_id',session.user.id).maybeSingle();
+  if(error||!admin){await sb.auth.signOut();showLogin();msg($('loginMsg'),'У этого аккаунта нет прав администратора');return}
+  $('who').textContent=`${session.user.email} · ${admin.role}`;
+  $('loginView').classList.add('hidden');$('adminView').classList.remove('hidden');
+  await loadParkings();
+}
+function showLogin(){$('adminView').classList.add('hidden');$('loginView').classList.remove('hidden')}
+
+$('loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();msg($('loginMsg'),'');
+  const {error}=await sb.auth.signInWithPassword({email:val('email'),password:$('password').value});
+  if(error){msg($('loginMsg'),error.message);return} await checkSession();
+});
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();showLogin()};
+
+let searchTimer;
+$('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(loadParkings,350)});
+$('statusFilter').onchange=loadParkings;$('refreshBtn').onclick=loadParkings;
+
+async function loadParkings(){
+  $('rows').innerHTML='<tr><td colspan="8">Загрузка…</td></tr>';
+  const params={p_search:val('search')||null,p_status:val('statusFilter')||null,p_limit:500,p_offset:0};
+  const {data,error}=await sb.rpc('admin_list_parkings',params);
+  if(error){$('rows').innerHTML='';msg($('mainMsg'),error.message);return}
+  msg($('mainMsg'),'');records=data||[];renderRows();
+}
+function renderRows(){
+  $('empty').classList.toggle('hidden',records.length>0);
+  $('rows').innerHTML=records.map(p=>`<tr>
+    <td><strong>${escapeHtml(p.name)}</strong><div class="muted">${escapeHtml(p.district||'')}</div></td>
+    <td>${escapeHtml(p.address||'—')}</td><td>${escapeHtml(p.category)}</td>
+    <td>${p.price_type==='free'?'Бесплатно':p.price_hour?Number(p.price_hour).toLocaleString('ru-RU')+' сум/ч':escapeHtml(p.price_type)}</td>
+    <td>${p.capacity??'—'}</td><td><span class="badge ${p.status}">${p.status}</span></td>
+    <td>${p.updated_at?new Date(p.updated_at).toLocaleDateString('ru-RU'):'—'}</td>
+    <td><div class="actions"><button class="btn secondary" onclick="editParking('${p.id}')">Изменить</button><button class="btn danger" onclick="deleteParking('${p.id}')">Удалить</button></div></td>
+  </tr>`).join('');
+}
+
+$('addBtn').onclick=()=>openForm();$('closeBtn').onclick=closeForm;$('cancelBtn').onclick=closeForm;
+function openForm(p=null){
+  $('parkingForm').reset();$('formMsg').innerHTML='';$('id').value=p?.id||'';$('formTitle').textContent=p?'Редактирование парковки':'Новая парковка';
+  const defaults={district:'Yunusabad',city:'Tashkent',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
+  const data={...defaults,...(p||{})};
+  ['name','address','district','city','lat','lng','category','kind','price_type','price_hour','price_day','capacity','price_note','hours','height_limit','status','source','ev_operator','ev_ports','verified_at','source_ref','moderator_note'].forEach(k=>$(k).value=data[k]??'');
+  $('ev_connectors').value=(data.ev_connectors||[]).join(', ');$('payment_methods').value=(data.payment_methods||[]).join(', ');$('photos').value=(data.photos||[]).join('\n');
+  ['is_247','capacity_est','has_ev','has_cctv','has_disabled'].forEach(k=>$(k).checked=Boolean(data[k]));
+  $('modal').classList.remove('hidden');
+}
+function closeForm(){$('modal').classList.add('hidden')}
+window.editParking=id=>openForm(records.find(x=>x.id===id));
+window.deleteParking=async id=>{
+  const p=records.find(x=>x.id===id);if(!confirm(`Удалить парковку «${p?.name||''}»?`))return;
+  const {error}=await sb.rpc('admin_delete_parking',{p_id:id});if(error){alert(error.message);return}await loadParkings();
+};
+
+$('parkingForm').addEventListener('submit',async e=>{
+  e.preventDefault();msg($('formMsg'),'');
+  const data={id:val('id')||null,name:val('name'),address:val('address'),district:val('district'),city:val('city'),lat:nullableNumber('lat'),lng:nullableNumber('lng'),category:val('category'),kind:val('kind'),price_type:val('price_type'),price_hour:nullableNumber('price_hour'),price_day:nullableNumber('price_day'),price_note:val('price_note'),capacity:nullableNumber('capacity'),capacity_est:$('capacity_est').checked,hours:val('hours'),is_247:$('is_247').checked,height_limit:nullableNumber('height_limit'),has_cctv:$('has_cctv').checked,has_disabled:$('has_disabled').checked,payment_methods:arr(val('payment_methods')),has_ev:$('has_ev').checked,ev_operator:val('ev_operator'),ev_ports:nullableNumber('ev_ports'),ev_connectors:arr(val('ev_connectors')),photos:arr(val('photos')),source:val('source'),source_ref:val('source_ref'),verified_at:val('verified_at')||null,status:val('status'),moderator_note:val('moderator_note')};
+  const {error}=await sb.rpc('admin_save_parking',{p_data:data});
+  if(error){msg($('formMsg'),error.message);return}
+  msg($('formMsg'),'Сохранено','ok');setTimeout(async()=>{closeForm();await loadParkings()},500);
+});
+
+sb.auth.onAuthStateChange(()=>{});checkSession();
+</script>
+</body></html>
