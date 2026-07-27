@@ -652,66 +652,24 @@ const I18N={
   byCar:'На машине', onFoot:'Пешком',
   noParkArea:'В этой области парковки пока не добавлены',
   mapErr:'Карта не загрузилась', mapErrP:'Проверьте интернет или домен в кабинете Яндекс API.',
+  networkErr:'Не удалось загрузить парковки. Проверьте интернет и повторите.',
+  sending:'Отправляю…', sendFailed:'Не удалось отправить. Проверьте интернет и повторите.',
   trafOn:'Пробки включены', trafOff:'Пробки выключены', removed:'Удалено из избранного'
  }
 };
 let lang='ru';
 const t=k=>I18N[lang][k]||k;
 
-/* ═══════════ ЗАПАСНЫЕ ДАННЫЕ (используются, только если база недоступна) ═══════════ */
-let PARKINGS=[
- {id:'hilton', name:'Hilton Tashkent Parking', addr:'ул. Ислама Каримова, 2', lat:41.3138,lng:69.2481,
-  category:'PRIVATE', price_type:'paid', price_text:'15 000 сум/час', price_day:'100 000 сум/сутки', price_val:15000,
-  cap:120, cap_est:false, hours:'24/7', is247:true, ptype:'underground', height:'2.1 м',
-  ev:true, ev_details:'Type 2, CCS', payment:'Наличные, Карта', rating:4.8,
-  photo:'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=700', verified:'2026-07-10', source:'Оператор'},
- {id:'nextmall', name:'Next Mall Parking', addr:'ул. Бабура, 2', lat:41.2953,lng:69.2670,
-  category:'OFFICIAL', price_type:'paid', price_text:'10 000 сум/час', price_val:10000,
-  cap:300, cap_est:false, hours:'10:00–22:00', is247:false, ptype:'covered', height:'2.0 м',
-  ev:false, payment:'Наличные, Карта', rating:4.5,
-  photo:'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?w=700', verified:'2026-07-05', source:'Оператор'},
- {id:'citypark', name:'Tashkent City Park', addr:'ул. Ислама Каримова', lat:41.3128,lng:69.2455,
-  category:'OFFICIAL', price_type:'free', price_val:0,
-  cap:500, cap_est:false, hours:'24/7', is247:true, ptype:'open', height:null,
-  ev:true, ev_details:'Type 2', payment:'—', rating:4.7,
-  photo:'', verified:'2026-06-28', source:'Команда Parkly'},
- {id:'mega', name:'Mega Planet', addr:'ул. Кичик Халка Йули', lat:41.3452,lng:69.2860,
-  category:'OFFICIAL', price_type:'free', price_val:0,
-  cap:300, cap_est:false, hours:'10:00–22:00', is247:false, ptype:'covered', height:'2.2 м',
-  ev:false, payment:'—', rating:4.4, photo:'', verified:'2026-07-01', source:'Оператор'},
- {id:'samdar', name:'Samarqand Darvoza', addr:'ул. Коратош, 5А', lat:41.3163,lng:69.2312,
-  category:'OFFICIAL', price_type:'free', price_val:0,
-  cap:250, cap_est:true, hours:'10:00–23:00', is247:false, ptype:'covered', height:'2.0 м',
-  ev:false, payment:'—', rating:4.3, photo:'', verified:'2026-06-20', source:'Команда Parkly'},
- {id:'chorsu', name:'Базар Чорсу', addr:'Старый город, ул. Навои', lat:41.3266,lng:69.2345,
-  category:'OFFICIAL', price_type:'paid', price_text:'3 000 сум/час', price_val:3000,
-  cap:150, cap_est:true, hours:'06:00–20:00', is247:false, ptype:'open', height:null,
-  ev:false, payment:'Наличные', rating:4.0, photo:'', verified:'2026-06-15', source:'Команда Parkly'},
- {id:'compass', name:'ТРЦ Compass', addr:'ул. Фаргона Йули', lat:41.2822,lng:69.3140,
-  category:'PRIVATE', price_type:'free', price_val:0,
-  cap:280, cap_est:false, hours:'10:00–22:00', is247:false, ptype:'covered', height:'2.1 м',
-  ev:true, ev_details:'CCS, GB/T', payment:'—', rating:4.6, photo:'', verified:'2026-07-08', source:'Оператор'},
- {id:'amir', name:'Сквер Амира Темура', addr:'пр-т Амира Темура', lat:41.3111,lng:69.2797,
-  category:'STREET_ALLOWED', price_type:'paid', price_text:'5 000 сум/час', price_val:5000,
-  cap:80, cap_est:true, hours:'24/7', is247:true, ptype:'street', height:null,
-  ev:false, payment:'Карта', rating:3.9, photo:'', verified:'2026-06-30', source:'Команда Parkly', legal:true},
- {id:'yunusabad', name:'Юнусабад (улица)', addr:'Юнусабад, 4-й квартал', lat:41.3670,lng:69.2890,
-  category:'STREET_ALLOWED', price_type:'free', price_val:0,
-  cap:null, cap_est:false, hours:'24/7', is247:true, ptype:'street', height:null,
-  ev:false, payment:'—', rating:null, photo:'', verified:'2026-06-25', source:'Команда Parkly', legal:true},
- {id:'railway', name:'Ж/д вокзал Ташкент', addr:'пл. Привокзальная', lat:41.2907,lng:69.2874,
-  category:'OFFICIAL', price_type:'paid', price_text:'4 000 сум/час', price_val:4000,
-  cap:200, cap_est:false, hours:'24/7', is247:true, ptype:'open', height:null,
-  ev:false, payment:'Наличные, Карта', rating:4.1, photo:'', verified:'2026-07-03', source:'Оператор'},
- {id:'airport', name:'Аэропорт, терминал 2', addr:'ул. Хамида Олимжона, 41', lat:41.2612,lng:69.2823,
-  category:'OFFICIAL', price_type:'paid', price_text:'10 000 сум/час', price_val:10000,
-  cap:450, cap_est:false, hours:'24/7', is247:true, ptype:'open', height:null,
-  ev:true, ev_details:'Type 2', payment:'Наличные, Карта', rating:4.2, photo:'', verified:'2026-07-12', source:'Оператор'},
- {id:'minor', name:'Мечеть Минор', addr:'ул. Кичик Халка Йули', lat:41.3347,lng:69.2683,
-  category:'OFFICIAL', price_type:'free', price_val:0,
-  cap:60, cap_est:true, hours:'05:00–22:00', is247:false, ptype:'open', height:null,
-  ev:false, payment:'—', rating:4.5, photo:'', verified:'2026-06-18', source:'Команда Parkly'},
-];
+/* В production показываем только данные из Supabase. Вымышленные точки
+   нельзя выдавать за реальные парковки при ошибке сети. */
+let PARKINGS=[];
+const cleanText=value=>String(value??'').replace(/[<>]/g,'').trim();
+function safePhotoUrl(value){
+  try{
+    const url=new URL(String(value||''));
+    return url.protocol==='https:'?url.href:'';
+  }catch(e){return ''}
+}
 
 /* ═══════════ ПОДКЛЮЧЕНИЕ К БАЗЕ (Supabase) ═══════════
    Ключ ниже — публичный (anon), это нормально: доступ на запись
@@ -719,22 +677,51 @@ let PARKINGS=[
 const SUPABASE_URL = 'https://xgzddkkrlsvtvcriokdk.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
 
+function clientId(){
+  const key='parkly-client-id';
+  let id='';
+  try{id=localStorage.getItem(key)||''}catch(e){}
+  if(!/^[0-9a-f-]{36}$/i.test(id)){
+    id=(crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+      const r=Math.random()*16|0;
+      return(c==='x'?r:(r&3|8)).toString(16)
+    }));
+    try{localStorage.setItem(key,id)}catch(e){}
+  }
+  return id;
+}
+async function supabaseRpc(name,payload){
+  const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
+    body:JSON.stringify(payload)
+  });
+  if(!res.ok){
+    const detail=await res.text().catch(()=>'');
+    throw new Error('rpc '+name+' '+res.status+' '+detail);
+  }
+  const text=await res.text();
+  return text?JSON.parse(text):null;
+}
+
 // Преобразуем строку из базы в формат, который уже понимает приложение
 function fromDbRow(r){
   return {
-    id: r.id, name: r.name, addr: r.address||'',
-    lat: r.lat_out, lng: r.lng_out,
+    id: String(r.id), name: cleanText(r.name)||'Парковка', addr: cleanText(r.address),
+    lat: Number(r.lat_out), lng: Number(r.lng_out),
     category: r.category,
     price_type: r.price_type,
     price_val: r.price_hour||0,
     price_text: r.price_hour ? r.price_hour.toLocaleString('ru')+' сум/час' : null,
+    price_day: r.price_day ? Number(r.price_day).toLocaleString('ru')+' сум/сутки' : null,
     cap: r.capacity, cap_est: !!r.capacity_est,
-    hours: r.hours||'—', is247: !!r.is_247,
-    ptype: r.kind||'open', height: r.height_limit ? r.height_limit+' м' : null,
-    ev: !!r.has_ev, ev_details: (r.ev_connectors||[]).join(', ')||null,
-    payment: '—', rating: null,
-    photo: (r.photos&&r.photos[0])||'',
-    verified: r.verified_at||'', source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parkly':'Оператор'),
+    hours: cleanText(r.hours)||'—', is247: !!r.is_247,
+    ptype: r.kind||'open', height: r.height_limit ? Number(r.height_limit)+' м' : null,
+    ev: !!r.has_ev, ev_details: (r.ev_connectors||[]).map(cleanText).join(', ')||null,
+    cctv: !!r.has_cctv, disabled: !!r.has_disabled, wash: !!r.has_wash,
+    payment: (r.payment_methods||[]).map(cleanText).join(', ')||'—', rating: null,
+    photo: safePhotoUrl(r.photos&&r.photos[0]),
+    verified: cleanText(r.verified_at), source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parkly':cleanText(r.source)||'Источник не указан'),
     legal: r.category==='STREET_ALLOWED'
   };
 }
@@ -754,14 +741,15 @@ async function loadParkingsFromDB(lat, lng, radius){
     });
     if(!res.ok) throw new Error('db http '+res.status);
     const rows = await res.json();
-    if(Array.isArray(rows) && rows.length){
-      PARKINGS = rows.map(fromDbRow);
-      render(); draw();
-      return true;
-    }
-    return false;
+    if(!Array.isArray(rows))throw new Error('db response');
+    PARKINGS = rows.map(fromDbRow).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+    lastMarkerSignature='';
+    drawMarkers(true);
+    if(activeTab==='fav')renderFav();
+    return true;
   }catch(e){
-    console.warn('Supabase недоступен, используются запасные данные:', e);
+    console.warn('Supabase недоступен:', e);
+    toast(t('networkErr'));
     return false;
   }
 }
@@ -853,7 +841,9 @@ function filteredParkings(){
   if(advFilters.price==='paid')v=v.filter(p=>p.price_type==='paid');
   if(advFilters.types.length)v=v.filter(p=>advFilters.types.includes(p.ptype));
   if(advFilters.e247)v=v.filter(p=>p.is247);
+  if(advFilters.cctv)v=v.filter(p=>p.cctv);
   if(advFilters.disabled)v=v.filter(p=>p.disabled);
+  if(advFilters.wash)v=v.filter(p=>p.wash);
   if(advFilters.priceMax<100000)v=v.filter(p=>(p.price_val||0)<=advFilters.priceMax);
   return v;
 }
@@ -998,7 +988,9 @@ function findNearestVisibleParking(coords,maxPx){
 function ensureObjectManager(){
   if(objectManager||!ymap)return;
   objectManager=new ymaps.ObjectManager({
-    clusterize:false,
+    clusterize:true,
+    gridSize:64,
+    clusterDisableClickZoom:false,
     geoObjectOpenBalloonOnClick:false,
     geoObjectOpenHintOnHover:false
   });
@@ -1479,11 +1471,16 @@ function toggleTraffic(){
 
 /* ═══════════ ДОБАВИТЬ ПАРКОВКУ ═══════════ */
 function openAdd(){
+  const center=ymap?ymap.getCenter():(mePos?[mePos.lat,mePos.lng]:[41.3111,69.2650]);
+  const lat=Number(center[0]).toFixed(6),lng=Number(center[1]).toFixed(6);
   const html='<div class="grabber"><i></i></div>'
-    +'<div class="form-head"><button class="fh-side" onclick="closeSheet()">'+t('cancel')+'</button><h2>'+t('addTitle')+'</h2><button class="fh-side right" onclick="submitAdd()">'+t('done')+'</button></div>'
+    +'<div class="form-head"><button class="fh-side" onclick="closeSheet()">'+t('cancel')+'</button><h2>'+t('addTitle')+'</h2><button id="addSubmitBtn" class="fh-side right" onclick="submitAdd()">'+t('done')+'</button></div>'
     +'<div class="form-body">'
     +'<div class="field"><label>'+t('fName')+'</label><input id="a_name" placeholder="'+t('phName')+'"></div>'
     +'<div class="field"><label>'+t('fLoc')+' <span class="req">*</span></label><input id="a_addr" placeholder="'+t('phAddr')+'"></div>'
+    +'<div class="field"><label>Координаты точки на карте</label><input value="'+lat+', '+lng+'" readonly>'
+      +'<input id="a_lat" type="hidden" value="'+lat+'"><input id="a_lng" type="hidden" value="'+lng+'">'
+      +'<small>Используется центр карты в момент открытия формы.</small></div>'
     +'<div class="field"><label>'+t('fCat')+' <span class="req">*</span></label><select id="a_cat"><option value="OFFICIAL">'+t('catOfficial')+'</option><option value="STREET_ALLOWED">'+t('catStreet')+'</option><option value="EV">'+t('catEv')+'</option></select></div>'
     +'<div class="field"><label>'+t('fCost')+' <span class="req">*</span></label><select id="a_cost"><option value="free">'+t('costFree')+'</option><option value="paid">'+t('costPaid')+'</option><option value="unknown">'+t('costUnknown')+'</option></select></div>'
     +'<div class="field"><label>'+t('fRate')+'</label><input id="a_rate" placeholder="'+t('phRate')+'"></div>'
@@ -1502,15 +1499,37 @@ function openAdd(){
     +'</div>';
   openSheet(html);
 }
-function submitAdd(){
+async function submitAdd(){
   const addr=document.getElementById('a_addr').value.trim();
   if(!addr){toast(t('needName'));return}
-  // По ТЗ: заявка уходит в статус PENDING на модерацию (в MVP без сервера — сохраняем локально)
-  const subs=JSON.parse(localStorage.getItem('parkly-submissions')||'[]');
-  subs.push({name:document.getElementById('a_name').value,addr,cat:document.getElementById('a_cat').value,
-    status:'PENDING',date:new Date().toISOString()});
-  localStorage.setItem('parkly-submissions',JSON.stringify(subs));
-  closeSheet();toast(t('addOk'));
+  const btn=document.getElementById('addSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent=t('sending')}
+  const category=document.getElementById('a_cat').value;
+  const capacity=Number(document.getElementById('a_cap').value);
+  const payload={
+    client_id:clientId(),
+    name:cleanText(document.getElementById('a_name').value)||'Парковка',
+    address:cleanText(addr),
+    lat:Number(document.getElementById('a_lat').value),
+    lng:Number(document.getElementById('a_lng').value),
+    category:category==='EV'?'EV_STATION':category,
+    price_type:document.getElementById('a_cost').value,
+    price_note:cleanText(document.getElementById('a_rate').value),
+    capacity:Number.isFinite(capacity)&&capacity>=0?capacity:null,
+    kind:document.getElementById('a_type').value,
+    hours:cleanText(document.getElementById('a_hours').value),
+    has_ev:document.getElementById('a_ev').value==='yes',
+    moderator_note:cleanText(document.getElementById('a_note').value)
+  };
+  try{
+    await supabaseRpc('submit_parking',{p_data:payload});
+    const count=Number(localStorage.getItem('parkly-submission-count')||0)+1;
+    localStorage.setItem('parkly-submission-count',String(count));
+    closeSheet();toast(t('addOk'));
+  }catch(e){
+    console.warn(e);toast(t('sendFailed'));
+    if(btn){btn.disabled=false;btn.textContent=t('done')}
+  }
 }
 
 /* ═══════════ СООБЩИТЬ ОБ ОШИБКЕ ═══════════ */
@@ -1519,11 +1538,18 @@ function openReport(id){
   const html='<div class="grabber" onclick="closeSheet()"><i></i></div>'
     +'<div class="filt-head"><h2>'+t('reportTitle')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="filt-body">'
-    +reasons.map(([k,l])=>'<div class="radio-row" onclick="sendReport()"><span class="rl">'+t(l)+'</span><span style="color:var(--grey)">›</span></div>').join('')
+    +reasons.map(([k,l])=>'<div class="radio-row" onclick="sendReport(\''+id+'\',\''+k+'\')"><span class="rl">'+t(l)+'</span><span style="color:var(--grey)">›</span></div>').join('')
+    +'<div class="field" style="margin-top:14px"><label>Комментарий (необязательно)</label><textarea id="report_comment" placeholder="Что именно нужно исправить?"></textarea></div>'
     +'</div><div style="height:'+'20px"></div>';
   openSheet(html);
 }
-function sendReport(){closeSheet();toast(t('reportSent'))}
+async function sendReport(id,reason){
+  const comment=cleanText(document.getElementById('report_comment')?.value);
+  try{
+    await supabaseRpc('submit_parking_report',{p_parking_id:id,p_reason:reason,p_comment:comment||null,p_client_id:clientId()});
+    closeSheet();toast(t('reportSent'));
+  }catch(e){console.warn(e);toast(t('sendFailed'))}
+}
 
 /* ═══════════ ИЗБРАННОЕ ═══════════ */
 function renderFav(){
@@ -1548,7 +1574,7 @@ function renderFav(){
 /* ═══════════ ПРОФИЛЬ ═══════════ */
 function renderProfile(){
   document.getElementById('prof-title').textContent=t('profTitle');
-  const subs=JSON.parse(localStorage.getItem('parkly-submissions')||'[]');
+  const submissionCount=Number(localStorage.getItem('parkly-submission-count')||0);
   const cont=document.getElementById('prof-content');
   cont.innerHTML=
     '<div class="prof-card"><div class="prof-ava">Г</div>'
@@ -1556,7 +1582,7 @@ function renderProfile(){
     +'<div class="prof-list">'
     +profRow('🚗',t('myCars'),'0')
     +profRow('🕐',t('history'),'')
-    +profRow('📄','Мои заявки',subs.length?String(subs.length):'')
+    +profRow('📄','Мои заявки',submissionCount?String(submissionCount):'')
     +profRow('💳',t('payments'),'')
     +'<div class="prof-row"><span class="pri">🔔</span><span class="prl">'+t('notifs')+'</span><span class="toggle on" onclick="this.classList.toggle(\'on\')"></span></div>'
     +profRow('💬',t('support'),'')
@@ -1616,11 +1642,22 @@ document.getElementById('search').addEventListener('input',e=>{
   const found=PARKINGS.find(p=>(p.name+p.addr).toLowerCase().includes(q));
   if(found&&ymap)ymap.setCenter([found.lat,found.lng],15,{duration:400});
 });
-document.getElementById('search').addEventListener('change',e=>{
+document.getElementById('search').addEventListener('change',async e=>{
   const q=e.target.value.toLowerCase().trim();
   const found=PARKINGS.find(p=>(p.name+p.addr).toLowerCase().includes(q));
   if(found)selectParking(found.id);
-  else if(q)toast(t('noParkArea'));
+  else if(q&&ymap&&window.ymaps){
+    try{
+      const result=await ymaps.geocode(q,{results:1});
+      const object=result.geoObjects.get(0);
+      if(!object){toast(t('noParkArea'));return}
+      const coords=object.geometry.getCoordinates();
+      ymap.setCenter(coords,16,{duration:400});
+      selectedId=null;
+      document.getElementById('minicard').classList.remove('on');
+      drawMarkers(true);
+    }catch(err){console.warn(err);toast(t('noParkArea'))}
+  }
 });
 
 /* ═══════════ БЫСТРЫЕ ФИЛЬТРЫ (чипы) ═══════════ */

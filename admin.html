@@ -6,6 +6,7 @@
 <title>Parkly — панель управления</title>
 <meta name="theme-color" content="#0f172a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=be1856ef-50e1-40ed-abb7-80a23f99ddb3"></script>
 <style>
 :root{
   --bg:#f5f7fb;--surface:#fff;--surface-2:#f8fafc;--text:#172033;--muted:#667085;
@@ -127,9 +128,11 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   <aside id="sidebar" class="sidebar">
     <div class="logo"><div class="logo-mark">P</div><div><strong>Parkly</strong><small>Панель управления</small></div></div>
     <nav class="nav">
-      <button class="nav-item active">▦ Все парковки</button>
-      <button class="nav-item" id="pendingNav">◷ На модерации</button>
+      <button class="nav-item active" id="parkingsNav">▦ Все парковки</button>
+      <button class="nav-item" id="pendingNav">◷ Парковки на модерации</button>
       <button class="nav-item" id="approvedNav">✓ Опубликованные</button>
+      <button class="nav-item" id="submissionsNav">＋ Заявки пользователей</button>
+      <button class="nav-item" id="reportsNav">⚑ Сообщения об ошибках</button>
     </nav>
     <div class="sidebar-user">
       <strong id="who"></strong>
@@ -141,7 +144,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   <main class="main">
     <header class="topbar">
       <button id="menuBtn" class="btn btn-secondary icon-btn mobile-only" aria-label="Открыть меню">☰</button>
-      <div><h1>Парковки</h1><p>Управление данными, статусами и публикацией парковок</p></div>
+      <div><h1 id="pageTitle">Парковки</h1><p id="pageSubtitle">Управление данными, статусами и публикацией парковок</p></div>
       <div class="topbar-actions">
         <button id="refreshBtn" class="btn btn-secondary hide-mobile">↻ Обновить</button>
         <button id="addBtn" class="btn btn-primary">＋ Добавить парковку</button>
@@ -155,7 +158,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <article class="stat"><div class="stat-top"><span>С зарядкой</span><span class="stat-icon">⚡</span></div><div id="statEv" class="stat-value">0</div><div class="stat-note">EV-парковки и станции</div></article>
     </section>
 
-    <section class="panel">
+    <section id="parkingsPanel" class="panel">
       <div class="filters">
         <div class="search-wrap"><span>⌕</span><input id="search" class="control" placeholder="Поиск по названию, адресу или району"></div>
         <select id="statusFilter" class="control">
@@ -175,6 +178,45 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         </table>
       </div>
       <div id="empty" class="empty hidden"><strong>Ничего не найдено</strong>Измените параметры поиска или добавьте новую парковку.</div>
+    </section>
+
+    <section id="submissionsPanel" class="panel hidden">
+      <div class="filters" style="grid-template-columns:220px auto">
+        <select id="submissionStatusFilter" class="control">
+          <option value="">Все статусы</option>
+          <option value="PENDING">На модерации</option>
+          <option value="NEEDS_INFO">Нужны сведения</option>
+          <option value="APPROVED">Одобрено</option>
+          <option value="REJECTED">Отклонено</option>
+        </select>
+        <button id="refreshSubmissions" class="btn btn-secondary">Обновить заявки</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Парковка</th><th>Координаты</th><th>Категория</th><th>Статус</th><th>Дата</th><th>Действия</th></tr></thead>
+          <tbody id="submissionRows"></tbody>
+        </table>
+      </div>
+      <div id="submissionEmpty" class="empty hidden"><strong>Заявок нет</strong>Новые предложения пользователей появятся здесь.</div>
+    </section>
+
+    <section id="reportsPanel" class="panel hidden">
+      <div class="filters" style="grid-template-columns:220px auto">
+        <select id="reportStatusFilter" class="control">
+          <option value="">Все статусы</option>
+          <option value="PENDING">На проверке</option>
+          <option value="RESOLVED">Исправлено</option>
+          <option value="REJECTED">Отклонено</option>
+        </select>
+        <button id="refreshReports" class="btn btn-secondary">Обновить сообщения</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Парковка</th><th>Причина</th><th>Комментарий</th><th>Статус</th><th>Дата</th><th>Действия</th></tr></thead>
+          <tbody id="reportRows"></tbody>
+        </table>
+      </div>
+      <div id="reportEmpty" class="empty hidden"><strong>Сообщений нет</strong>Жалобы и исправления пользователей появятся здесь.</div>
     </section>
   </main>
 </div>
@@ -197,6 +239,12 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
             <div class="field"><label>Город</label><input id="city" class="control" value="Tashkent"></div>
             <div class="field"><label>Широта *</label><input id="lat" class="control" type="number" step="any" required placeholder="41.3667"></div>
             <div class="field"><label>Долгота *</label><input id="lng" class="control" type="number" step="any" required placeholder="69.2888"></div>
+            <div class="field full">
+              <label>Точка на карте</label>
+              <button id="centerCoordMap" class="btn btn-secondary" type="button" style="margin-bottom:10px">Показать координаты на карте</button>
+              <div id="coordMap" style="height:300px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#eef2f7"></div>
+              <small>Нажмите на карту или перетащите метку — широта и долгота заполнятся автоматически.</small>
+            </div>
           </div>
         </section>
 
@@ -241,7 +289,12 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
             <div class="field"><label>Источник данных</label><select id="source" class="control"><option value="ADMIN">Администратор</option><option value="OSM">OpenStreetMap</option><option value="USER">Пользователь</option><option value="PARTNER">Партнёр</option><option value="OPERATOR">Оператор</option></select></div>
             <div class="field"><label>Дата проверки</label><input id="verified_at" class="control" type="date"></div>
             <div class="field"><label>Ссылка или ID источника</label><input id="source_ref" class="control"></div>
-            <div class="field full"><label>Ссылки на фотографии</label><textarea id="photos" class="control" placeholder="По одной ссылке в каждой строке"></textarea><small>Загрузку файлов добавим на отдельном этапе.</small></div>
+            <div class="field full"><label>Фотографии</label>
+              <input id="photoFiles" class="control" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+              <button id="uploadPhotosBtn" class="btn btn-secondary" type="button" style="margin-top:8px">Загрузить выбранные фото</button>
+              <textarea id="photos" class="control" style="margin-top:8px" placeholder="Ссылки появятся здесь после загрузки — по одной в строке"></textarea>
+              <small>До 5 изображений, JPEG/PNG/WebP, не более 5 МБ каждое.</small>
+            </div>
             <div class="field full"><label>Комментарий модератора</label><textarea id="moderator_note" class="control"></textarea></div>
           </div>
         </section>
@@ -263,6 +316,11 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=id=>document.getElementById(id);
 let records=[];
+let submissions=[];
+let reports=[];
+let editingSubmissionId=null;
+let coordMap=null;
+let coordPlacemark=null;
 
 const labels={
   status:{APPROVED:'Опубликовано',PENDING:'На модерации',REJECTED:'Отклонено',DRAFT:'Черновик',NEEDS_INFO:'Нужны сведения'},
@@ -303,9 +361,34 @@ $('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=
 $('statusFilter').onchange=renderRows;$('categoryFilter').onchange=renderRows;
 $('resetFilters').onclick=()=>{$('search').value='';$('statusFilter').value='';$('categoryFilter').value='';renderRows()};
 $('refreshBtn').onclick=loadParkings;
-$('pendingNav').onclick=()=>{$('statusFilter').value='PENDING';renderRows()};
-$('approvedNav').onclick=()=>{$('statusFilter').value='APPROVED';renderRows()};
+$('parkingsNav').onclick=()=>showSection('parkings');
+$('pendingNav').onclick=()=>{showSection('parkings');$('statusFilter').value='PENDING';renderRows()};
+$('approvedNav').onclick=()=>{showSection('parkings');$('statusFilter').value='APPROVED';renderRows()};
+$('submissionsNav').onclick=()=>showSection('submissions');
+$('reportsNav').onclick=()=>showSection('reports');
+$('refreshSubmissions').onclick=loadSubmissions;
+$('refreshReports').onclick=loadReports;
+$('submissionStatusFilter').onchange=renderSubmissions;
+$('reportStatusFilter').onchange=renderReports;
 $('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
+
+function showSection(section){
+  const info={
+    parkings:['Парковки','Управление данными, статусами и публикацией парковок'],
+    submissions:['Заявки пользователей','Проверка и публикация предложенных парковок'],
+    reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей']
+  }[section];
+  $('pageTitle').textContent=info[0];$('pageSubtitle').textContent=info[1];
+  $('parkingsPanel').classList.toggle('hidden',section!=='parkings');
+  $('submissionsPanel').classList.toggle('hidden',section!=='submissions');
+  $('reportsPanel').classList.toggle('hidden',section!=='reports');
+  $('addBtn').classList.toggle('hidden',section!=='parkings');
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  $(({parkings:'parkingsNav',submissions:'submissionsNav',reports:'reportsNav'})[section]).classList.add('active');
+  $('sidebar').classList.remove('open');
+  if(section==='submissions')loadSubmissions();
+  if(section==='reports')loadReports();
+}
 
 async function loadParkings(){
   $('rows').innerHTML='<tr><td colspan="7">Загрузка данных…</td></tr>';
@@ -342,8 +425,150 @@ function renderRows(){
   </tr>`).join('');
 }
 
+async function loadSubmissions(){
+  $('submissionRows').innerHTML='<tr><td colspan="6">Загрузка заявок…</td></tr>';
+  const {data,error}=await sb.rpc('admin_list_submissions',{p_status:null,p_limit:500,p_offset:0});
+  if(error){$('submissionRows').innerHTML='';toast(error.message,'error');return}
+  submissions=data||[];renderSubmissions();
+}
+function renderSubmissions(){
+  const status=val('submissionStatusFilter');
+  const list=submissions.filter(x=>!status||x.status===status);
+  $('submissionEmpty').classList.toggle('hidden',list.length>0);
+  $('submissionRows').innerHTML=list.map(s=>`<tr>
+    <td><div class="parking-title">${escapeHtml(s.name)}</div><div class="parking-sub">${escapeHtml(s.address)}</div></td>
+    <td>${Number(s.lat).toFixed(5)}, ${Number(s.lng).toFixed(5)}</td>
+    <td><span class="category">${escapeHtml(labels.category[s.category]||s.category)}</span></td>
+    <td><span class="badge ${statusClass(s.status)}">${escapeHtml(labels.status[s.status]||s.status)}</span></td>
+    <td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td>
+    <td><div class="actions">
+      ${s.status==='PENDING'||s.status==='NEEDS_INFO'?`<button class="btn btn-primary table-btn" onclick="publishSubmission('${s.id}')">Проверить и опубликовать</button>
+      <button class="btn btn-secondary table-btn" onclick="reviewSubmission('${s.id}','NEEDS_INFO')">Уточнить</button>
+      <button class="btn btn-danger table-btn" onclick="reviewSubmission('${s.id}','REJECTED')">Отклонить</button>`:''}
+    </div></td>
+  </tr>`).join('');
+}
+
+window.publishSubmission=id=>{
+  const s=submissions.find(x=>x.id===id);if(!s)return;
+  openForm({
+    name:s.name,address:s.address,district:'Юнусабадский',city:'Tashkent',
+    lat:s.lat,lng:s.lng,category:s.category,kind:s.kind,price_type:s.price_type,
+    price_note:s.price_note,capacity:s.capacity,hours:s.hours,has_ev:s.has_ev,
+    photos:s.photos||[],status:'APPROVED',source:'USER',source_ref:'submission:'+s.id,
+    moderator_note:s.user_note||''
+  },id);
+  $('formTitle').textContent='Проверка заявки пользователя';
+};
+window.reviewSubmission=async(id,status)=>{
+  const note=prompt(status==='NEEDS_INFO'?'Что нужно уточнить?':'Причина отклонения:')||'';
+  const {error}=await sb.rpc('admin_review_submission',{p_id:id,p_status:status,p_admin_note:note,p_published_parking_id:null});
+  if(error){toast(error.message,'error');return}
+  toast(status==='NEEDS_INFO'?'Запрошено уточнение':'Заявка отклонена');
+  await loadSubmissions();
+};
+
+const reportReasonLabels={
+  noPark:'Парковки нет',forbidden:'Парковка запрещена',price:'Неверная цена',
+  cap:'Неверная вместимость',hours:'Неверный график',ev:'Неверные данные EV',other:'Другое'
+};
+async function loadReports(){
+  $('reportRows').innerHTML='<tr><td colspan="6">Загрузка сообщений…</td></tr>';
+  const {data,error}=await sb.rpc('admin_list_reports',{p_status:null,p_limit:500,p_offset:0});
+  if(error){$('reportRows').innerHTML='';toast(error.message,'error');return}
+  reports=data||[];renderReports();
+}
+function renderReports(){
+  const status=val('reportStatusFilter');
+  const list=reports.filter(x=>!status||x.status===status);
+  $('reportEmpty').classList.toggle('hidden',list.length>0);
+  $('reportRows').innerHTML=list.map(r=>{
+    const p=records.find(x=>String(x.id)===String(r.parking_id));
+    return `<tr>
+      <td><div class="parking-title">${escapeHtml(p?.name||r.parking_id)}</div></td>
+      <td>${escapeHtml(reportReasonLabels[r.reason]||r.reason)}</td>
+      <td>${escapeHtml(r.comment||'—')}</td>
+      <td><span class="badge ${r.status==='RESOLVED'?'badge-approved':statusClass(r.status)}">${escapeHtml(r.status)}</span></td>
+      <td>${r.created_at?new Date(r.created_at).toLocaleDateString('ru-RU'):'—'}</td>
+      <td><div class="actions">
+        ${r.status==='PENDING'?`<button class="btn btn-primary table-btn" onclick="reviewReport('${r.id}','RESOLVED')">Исправлено</button>
+        <button class="btn btn-danger table-btn" onclick="reviewReport('${r.id}','REJECTED')">Отклонить</button>`:''}
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+window.reviewReport=async(id,status)=>{
+  const note=prompt(status==='RESOLVED'?'Что было исправлено?':'Причина отклонения:')||'';
+  const {error}=await sb.rpc('admin_review_report',{p_id:id,p_status:status,p_admin_note:note});
+  if(error){toast(error.message,'error');return}
+  toast('Статус сообщения обновлён');await loadReports();
+};
+
 $('addBtn').onclick=()=>openForm();$('closeBtn').onclick=closeForm;$('cancelBtn').onclick=closeForm;
-function openForm(p=null){
+$('centerCoordMap').onclick=()=>refreshCoordMap(true);
+$('uploadPhotosBtn').onclick=uploadSelectedPhotos;
+async function prepareImage(file){
+  if(file.size>5*1024*1024)throw new Error(`Файл ${file.name} больше 5 МБ`);
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error(`Неподдерживаемый формат: ${file.name}`);
+  const bitmap=await createImageBitmap(file);
+  const scale=Math.min(1,1920/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+  canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+  bitmap.close();
+  return await new Promise((resolve,reject)=>canvas.toBlob(
+    blob=>blob?resolve(blob):reject(new Error('Не удалось обработать изображение')),
+    'image/jpeg',0.82
+  ));
+}
+async function uploadSelectedPhotos(){
+  const files=[...$('photoFiles').files];
+  const current=arr(val('photos'));
+  if(!files.length){toast('Выберите фотографии','error');return}
+  if(current.length+files.length>5){toast('Можно добавить не более 5 фотографий','error');return}
+  const btn=$('uploadPhotosBtn');btn.disabled=true;btn.textContent='Загрузка…';
+  try{
+    for(const file of files){
+      const blob=await prepareImage(file);
+      const name=`parkings/${Date.now()}-${crypto.randomUUID()}.jpg`;
+      const {error}=await sb.storage.from('parking-photos').upload(name,blob,{contentType:'image/jpeg',upsert:false});
+      if(error)throw error;
+      const {data}=sb.storage.from('parking-photos').getPublicUrl(name);
+      current.push(data.publicUrl);
+    }
+    $('photos').value=current.join('\n');$('photoFiles').value='';
+    toast('Фотографии загружены');
+  }catch(error){toast(error.message||'Не удалось загрузить фото','error')}
+  finally{btn.disabled=false;btn.textContent='Загрузить выбранные фото'}
+}
+function setCoordinates(coords){
+  $('lat').value=Number(coords[0]).toFixed(6);
+  $('lng').value=Number(coords[1]).toFixed(6);
+  if(coordPlacemark)coordPlacemark.geometry.setCoordinates(coords);
+}
+function refreshCoordMap(recenter=false){
+  if(!window.ymaps){toast('Карта ещё загружается','error');return}
+  ymaps.ready(()=>{
+    const lat=Number($('lat').value)||41.3111,lng=Number($('lng').value)||69.2650;
+    const center=[lat,lng];
+    if(!coordMap){
+      coordMap=new ymaps.Map('coordMap',{center,zoom:16,controls:['zoomControl']});
+      coordPlacemark=new ymaps.Placemark(center,{},{
+        draggable:true,preset:'islands#blueParkingIcon'
+      });
+      coordPlacemark.events.add('dragend',()=>setCoordinates(coordPlacemark.geometry.getCoordinates()));
+      coordMap.events.add('click',event=>setCoordinates(event.get('coords')));
+      coordMap.geoObjects.add(coordPlacemark);
+    }else{
+      coordMap.container.fitToViewport();
+      if(recenter)coordMap.setCenter(center,16);
+      coordPlacemark.geometry.setCoordinates(center);
+    }
+  });
+}
+function openForm(p=null,submissionId=null){
+  editingSubmissionId=submissionId;
   $('parkingForm').reset();$('formMsg').innerHTML='';$('id').value=p?.id||'';
   $('formTitle').textContent=p?'Редактирование парковки':'Новая парковка';
   const defaults={district:'Юнусабадский',city:'Tashkent',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
@@ -354,8 +579,9 @@ function openForm(p=null){
   $('photos').value=(data.photos||[]).join('\n');
   ['is_247','capacity_est','has_ev','has_cctv','has_disabled'].forEach(k=>$(k).checked=Boolean(data[k]));
   $('modal').classList.remove('hidden');
+  setTimeout(()=>refreshCoordMap(true),50);
 }
-function closeForm(){$('modal').classList.add('hidden')}
+function closeForm(){$('modal').classList.add('hidden');editingSubmissionId=null}
 window.editParking=id=>openForm(records.find(x=>x.id===id));
 window.deleteParking=async id=>{
   const p=records.find(x=>x.id===id);
@@ -379,9 +605,18 @@ $('parkingForm').addEventListener('submit',async e=>{
     source_ref:val('source_ref'),verified_at:val('verified_at')||null,status:val('status'),
     moderator_note:val('moderator_note')
   };
-  const {error}=await sb.rpc('admin_save_parking',{p_data:data});
+  const submissionId=editingSubmissionId;
+  const {data:saved,error}=await sb.rpc('admin_save_parking',{p_data:data});
   if(error){formMessage($('formMsg'),error.message);return}
+  if(submissionId){
+    const savedId=typeof saved==='string'?saved:(saved&&saved.id?saved.id:null);
+    const {error:reviewError}=await sb.rpc('admin_review_submission',{
+      p_id:submissionId,p_status:'APPROVED',p_admin_note:data.moderator_note||null,p_published_parking_id:savedId
+    });
+    if(reviewError){formMessage($('formMsg'),'Парковка сохранена, но заявка не закрыта: '+reviewError.message);return}
+  }
   closeForm();toast('Изменения сохранены');await loadParkings();
+  if(submissionId)await loadSubmissions();
 });
 checkSession();
 </script>
