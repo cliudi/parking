@@ -293,6 +293,245 @@
     padding:13px 20px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;max-width:86vw;text-align:center;box-shadow:var(--sh)}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   #maperr{position:absolute;inset:0;z-index:3;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;background:var(--bg)}
+
+/* ═══════════ UI/UX ОБНОВЛЕНИЕ PARKLY — безопасные CSS-переопределения ═══════════ */
+:root{
+  --radius-xs:10px;
+  --radius-sm:12px;
+  --radius-md:16px;
+  --radius-lg:20px;
+  --tap:48px;
+  --content-max:760px;
+}
+body{font-size:16px}
+button,input,select,textarea{touch-action:manipulation}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+  outline:3px solid rgba(37,99,235,.22);
+  outline-offset:2px;
+}
+button:disabled{opacity:.55;cursor:not-allowed}
+
+/* Верхняя область: визуальная иерархия, безопасные зоны и удобный поиск */
+.topwrap{
+  top:calc(12px + var(--top));
+  left:max(12px,env(safe-area-inset-left));
+  right:max(12px,env(safe-area-inset-right));
+}
+.searchbar{
+  min-height:54px;
+  padding:8px 9px 8px 15px;
+  border:1px solid rgba(226,232,240,.92);
+  border-radius:18px;
+  box-shadow:0 8px 28px rgba(15,23,42,.13);
+}
+html[data-theme="dark"] .searchbar{border-color:#2B3B56}
+.searchbar .si{font-size:18px}
+.searchbar input{font-size:15px;line-height:1.4}
+.bell{
+  width:40px;height:40px;
+  display:grid;place-items:center;
+  border-radius:12px;
+  font-size:16px!important;
+}
+.bell:active{transform:scale(.95)}
+.qchips{gap:7px;margin-top:9px;padding:2px 1px 5px}
+.qchip{
+  min-height:40px;
+  padding:8px 14px;
+  border:1px solid var(--line);
+  box-shadow:0 2px 9px rgba(15,23,42,.08);
+}
+.qchip.on{border-color:transparent;box-shadow:0 5px 14px rgba(37,99,235,.26)}
+
+/* Управление картой: единый размер и большая зона касания */
+.sidefabs{
+  right:max(12px,env(safe-area-inset-right));
+  gap:9px;
+  transform:translateY(-54%);
+}
+.sfab,.zoomcol button{width:var(--tap);height:var(--tap)}
+.sfab,.zoomcol,.legendbtn{
+  border:1px solid var(--line);
+  box-shadow:0 5px 18px rgba(15,23,42,.13);
+}
+.sfab{border-radius:15px}
+.zoomcol{border-radius:15px}
+.zoomcol button{font-size:22px}
+.legendbtn{
+  left:max(12px,env(safe-area-inset-left));
+  width:46px;height:46px;border-radius:14px;
+}
+
+/* Мини-карточка: сначала важные данные, затем одно понятное действие */
+#minicard{
+  left:max(12px,env(safe-area-inset-left));
+  right:max(12px,env(safe-area-inset-right));
+  border:1px solid var(--line);
+  border-radius:20px;
+  padding:15px;
+  box-shadow:0 13px 38px rgba(15,23,42,.18);
+}
+.mc-ic{width:48px;height:48px;border-radius:14px}
+.mc-body h3{font-size:15.5px;line-height:1.35}
+.mc-sub{line-height:1.45}
+.mc-meta{flex-wrap:wrap;line-height:1.4}
+.mc-btn{min-height:48px;border-radius:14px;font-size:14.5px}
+
+/* Нижняя навигация: минимум 48 px на действие, более читаемые подписи */
+.bottomnav{
+  min-height:calc(66px + var(--bot));
+  height:calc(66px + var(--bot));
+  padding-left:env(safe-area-inset-left);
+  padding-right:env(safe-area-inset-right);
+  box-shadow:0 -5px 20px rgba(15,23,42,.07);
+}
+.navitem{min-width:64px;gap:4px}
+.navitem .ni{font-size:21px}
+.navitem span{font-size:10.5px}
+.navitem.on::after{
+  content:'';
+  position:absolute;
+  top:0;
+  width:28px;height:3px;
+  border-radius:0 0 4px 4px;
+  background:var(--blue);
+}
+.navadd{transform:translateY(-4px)}
+.navadd::after{display:none}
+.navadd .ni{width:46px;height:46px}
+
+/* Полноэкранные разделы */
+.screen{bottom:calc(66px + var(--bot))}
+.scr-head{
+  min-height:62px;
+  padding:14px max(18px,env(safe-area-inset-right)) 14px max(18px,env(safe-area-inset-left));
+  box-shadow:0 2px 10px rgba(15,23,42,.04);
+}
+.scr-head h1{font-size:20px}
+
+/* Bottom sheets: удобные отступы, фиксируемая зона действий */
+.mask{background:rgba(15,23,42,.58)}
+.sheet{
+  border-radius:26px 26px 0 0;
+  max-height:94vh;
+  overscroll-behavior:contain;
+  box-shadow:0 -18px 55px rgba(15,23,42,.22);
+}
+.grabber{padding:9px 0 6px;background:var(--card);z-index:5}
+.grabber i{width:46px;height:5px}
+
+/* Полная карточка парковки */
+.fc-photo{height:220px;background-color:#DCE3E8}
+.fc-body{padding:18px 18px 4px}
+.fc-title h2{font-size:21px;line-height:1.28}
+.fc-addr{line-height:1.5}
+.fc-status{line-height:1.45}
+.fc-grid{gap:11px;margin:18px 0}
+.fc-cell{
+  min-height:76px;
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:13px 14px;
+}
+.fc-cell .lbl{font-size:10px}
+.fc-cell .val{line-height:1.3}
+.legalnote{border-radius:14px;line-height:1.55}
+.fc-actions{padding-bottom:8px}
+.btn-primary,.btn-outline{min-height:50px;border-radius:15px}
+.btn-report{min-height:44px}
+.sheet-close,.cbtn{width:44px;height:44px}
+
+/* Фильтры: четкие группы и улучшенные строки выбора */
+.filt-head{padding:8px 18px 14px}
+.filt-head h2{font-size:20px}
+.filt-head .x{width:40px;height:40px;font-size:18px}
+.filt-body{padding:0 18px 8px}
+.filt-group{
+  padding:14px 14px 5px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  margin-bottom:14px;
+}
+.radio-row,.check-row{min-height:50px}
+.radio-mark{width:23px;height:23px}
+.toggle{width:48px;height:28px;border-radius:14px}
+.toggle::after{width:22px;height:22px}
+.toggle.on::after{left:23px}
+.filt-foot{gap:10px;padding-top:12px}
+
+/* Формы: лейблы без излишнего верхнего регистра, хорошие состояния фокуса */
+.form-head{min-height:58px;padding:8px 18px 14px}
+.form-head h2{font-size:18px}
+.form-body{padding:0 18px 6px}
+.field{margin-bottom:16px}
+.field label{
+  font-size:12.5px;
+  text-transform:none;
+  letter-spacing:0;
+  margin-bottom:7px;
+  color:var(--ink);
+}
+.field input,.field select,.field textarea{
+  min-height:48px;
+  padding:12px 13px;
+  border-width:1px;
+  border-radius:13px;
+  font-size:14.5px;
+}
+.field textarea{min-height:88px;height:auto;line-height:1.5}
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--blue);
+  box-shadow:0 0 0 3px rgba(37,99,235,.10);
+}
+.photo-slot,.photo-thumb{width:78px;height:78px;border-radius:14px}
+
+/* Избранное и профиль */
+.fav-list{padding:14px 12px}
+.fav-item{
+  min-height:76px;
+  border:1px solid var(--line);
+  box-shadow:none;
+  border-radius:17px;
+}
+.fav-item:active{transform:scale(.99)}
+.prof-card,.prof-list,.prof-logout{border:1px solid var(--line);box-shadow:none}
+.prof-row{min-height:56px}
+.prof-row:active{background:var(--bg)}
+.empty-state{max-width:460px;margin:auto}
+
+/* Тост: не перекрывает нижнюю навигацию и хорошо читается */
+#toast{
+  bottom:calc(66px + 26px + var(--bot));
+  border-radius:14px;
+  line-height:1.45;
+  padding:12px 17px;
+}
+
+/* Адаптация под маленькие экраны */
+@media(max-width:380px){
+  .topwrap{left:8px;right:8px}
+  .searchbar{padding-left:12px}
+  .qchip{padding-left:12px;padding-right:12px}
+  .sidefabs{right:8px}
+  .legendbtn{left:8px}
+  #minicard{left:8px;right:8px}
+  .fc-grid{grid-template-columns:1fr}
+  .field-row{flex-direction:column;gap:0}
+}
+@media(min-width:768px){
+  .sheet{max-width:680px;margin:0 auto}
+  .mask{justify-content:center}
+  #minicard{max-width:520px;left:50%;right:auto;width:calc(100% - 32px);transform:translateX(-50%)}
+  #minicard.on{animation:slideUpCentered .28s cubic-bezier(.2,.8,.3,1)}
+  @keyframes slideUpCentered{
+    from{transform:translate(-50%,30px);opacity:0}
+    to{transform:translate(-50%,0);opacity:1}
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
 </style>
 </head>
 <body>
@@ -309,17 +548,17 @@
   <div class="topwrap">
     <div class="searchbar">
       <span class="si">🔍</span>
-      <input id="search" >
-      <button class="bell" id="themebtn" style="font-size:15px">🌙</button>
-      <button class="bell"><span class="dot"></span>🔔</button>
+      <input id="search" aria-label="Поиск парковок и адресов" autocomplete="off">
+      <button class="bell" id="themebtn" style="font-size:15px" aria-label="Переключить тему" title="Переключить тему">🌙</button>
+      <button class="bell" aria-label="Уведомления" title="Уведомления"><span class="dot"></span>🔔</button>
     </div>
     <div class="qchips" id="qchips"></div>
   </div>
 
-  <button class="legendbtn" id="legendbtn">ⓘ</button>
+  <button class="legendbtn" id="legendbtn" aria-label="Открыть обозначения на карте" title="Обозначения на карте">ⓘ</button>
 
   <div class="sidefabs">
-    <button class="sfab" id="filtbtn">⚙️</button>
+    <button class="sfab" id="filtbtn" aria-label="Открыть фильтры" title="Фильтры">⚙️</button>
     <button class="sfab" id="compassbtn" title="Компас">
       <svg class="compassneedle" id="compassSvg" viewBox="0 0 24 24" fill="none">
         <path d="M12 2 L15 12 L12 10 L9 12 Z" fill="#EF4444"/>
@@ -331,8 +570,8 @@
     </button>
     <div class="accbadge" id="accbadge"></div>
     <div class="zoomcol">
-      <button id="zin">+</button>
-      <button id="zout">−</button>
+      <button id="zin" aria-label="Приблизить карту" title="Приблизить">+</button>
+      <button id="zout" aria-label="Отдалить карту" title="Отдалить">−</button>
     </div>
   </div>
 
@@ -352,7 +591,7 @@
 </div>
 
 <!-- ═══════════ НИЖНЯЯ НАВИГАЦИЯ ═══════════ -->
-<nav class="bottomnav" id="bottomnav"></nav>
+<nav class="bottomnav" id="bottomnav" aria-label="Основная навигация"></nav>
 
 <!-- ═══════════ МОДАЛКИ ═══════════ -->
 <div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
