@@ -677,6 +677,69 @@ function safePhotoUrl(value){
 const SUPABASE_URL = 'https://xgzddkkrlsvtvcriokdk.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
 
+function loadAuthSession(){
+  try{
+    const session=JSON.parse(localStorage.getItem('parkly-auth')||'null');
+    return session&&session.access_token&&session.user?session:null;
+  }catch(e){return null}
+}
+let authSession=loadAuthSession();
+let mySubmissions=[];
+function saveAuthSession(data){
+  authSession=data?{
+    access_token:data.access_token,
+    refresh_token:data.refresh_token,
+    expires_at:Date.now()+Math.max(60,Number(data.expires_in||3600))*1000-60000,
+    user:data.user
+  }:null;
+  try{
+    if(authSession)localStorage.setItem('parkly-auth',JSON.stringify(authSession));
+    else localStorage.removeItem('parkly-auth');
+  }catch(e){}
+}
+async function refreshAuthSession(){
+  if(!authSession?.refresh_token)return null;
+  try{
+    const res=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
+      body:JSON.stringify({refresh_token:authSession.refresh_token})
+    });
+    if(!res.ok)throw new Error('refresh '+res.status);
+    const data=await res.json();saveAuthSession(data);return authSession.access_token;
+  }catch(e){saveAuthSession(null);return null}
+}
+async function accessToken(){
+  if(!authSession)return null;
+  if(authSession.expires_at>Date.now())return authSession.access_token;
+  return refreshAuthSession();
+}
+async function authAction(mode,email,password){
+  const endpoint=mode==='signup'?'/auth/v1/signup':'/auth/v1/token?grant_type=password';
+  const res=await fetch(SUPABASE_URL+endpoint,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
+    body:JSON.stringify({email,password})
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.msg||data.message||data.error_description||'Ошибка авторизации');
+  if(data.access_token)saveAuthSession(data);
+  return data;
+}
+async function userRest(path,options={}){
+  const token=await accessToken();
+  if(!token)throw new Error('Сначала войдите в аккаунт');
+  const headers={apikey:SUPABASE_KEY,Authorization:'Bearer '+token,...(options.headers||{})};
+  if(options.body&&!headers['Content-Type'])headers['Content-Type']='application/json';
+  const res=await fetch(SUPABASE_URL+path,{...options,headers});
+  if(!res.ok){
+    const detail=await res.text().catch(()=>'');
+    throw new Error('Supabase '+res.status+' '+detail);
+  }
+  if(res.status===204)return null;
+  const text=await res.text();return text?JSON.parse(text):null;
+}
+
 function clientId(){
   const key='parkly-client-id';
   let id='';
@@ -691,9 +754,10 @@ function clientId(){
   return id;
 }
 async function supabaseRpc(name,payload){
+  const token=await accessToken();
   const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{
     method:'POST',
-    headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
+    headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+(token||SUPABASE_KEY)},
     body:JSON.stringify(payload)
   });
   if(!res.ok){
@@ -777,8 +841,38 @@ let quickFilter='all';
 let favorites=loadFav();
 let advFilters={price:'all', types:[], e247:false, cctv:false, disabled:false, wash:false, priceMax:100000};
 
-function loadFav(){try{return JSON.parse(localStorage.getItem('parkly-fav')||'[]')}catch(e){return[]}}
-function saveFav(){localStorage.setItem('parkly-fav',JSON.stringify(favorites))}
+function favoriteStorageKey(){
+  return authSession?.user?.id?'parkly-fav-'+authSession.user.id:'parkly-fav-guest';
+}
+function loadFav(){
+  try{
+    const legacy=localStorage.getItem('parkly-fav');
+    const value=localStorage.getItem(favoriteStorageKey())||legacy||'[]';
+    return JSON.parse(value);
+  }catch(e){return[]}
+}
+function saveFav(){localStorage.setItem(favoriteStorageKey(),JSON.stringify(favorites))}
+async function loadRemoteFavorites(){
+  if(!authSession)return;
+  try{
+    const rows=await userRest('/rest/v1/user_favorites?select=parking_id&order=created_at.asc');
+    favorites=(rows||[]).map(x=>String(x.parking_id));
+    saveFav();
+    if(activeTab==='fav')renderFav();
+  }catch(e){console.warn(e)}
+}
+async function syncFavorite(id,added){
+  if(!authSession)return;
+  if(added){
+    await userRest('/rest/v1/user_favorites',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({parking_id:id})
+    });
+  }else{
+    await userRest('/rest/v1/user_favorites?parking_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
+  }
+}
 
 /* ═══════════ РАССТОЯНИЕ ═══════════ */
 function dist(a,b,c,d){
@@ -1098,7 +1192,7 @@ function openFullCard(id){
     +'</div>';
   openSheet(html);
 }
-function toggleFav(id,btn){
+async function toggleFav(id,btn){
   const i=favorites.indexOf(id);
   if(i>=0){favorites.splice(i,1);toast(t('removed'))}
   else{favorites.push(id);toast('★ '+t('inFav'))}
@@ -1112,6 +1206,7 @@ function toggleFav(id,btn){
     actionBtn.innerHTML=added?'★ '+t('inFav'):'☆ '+t('addFav');
   }
   if(activeTab==='fav')renderFav();
+  try{await syncFavorite(id,added)}catch(e){console.warn(e);toast(t('sendFailed'))}
 }
 function shareParking(id){
   const p=PARKINGS.find(x=>x.id===id);
@@ -1489,16 +1584,53 @@ function openAdd(){
       +'<div class="field"><label>'+t('fHours')+'</label><input id="a_hours" placeholder="24/7"></div>'
       +'<div class="field"><label>'+t('fCharge')+'</label><select id="a_ev"><option value="no">'+t('chgNo')+'</option><option value="yes">'+t('chgYes')+'</option><option value="unknown">'+t('chgUnknown')+'</option></select></div>'
     +'</div>'
-    +'<div class="field"><label>'+t('fPhoto')+'</label><div class="photo-add">'
-      +'<div class="photo-slot" onclick="toast(\'Загрузка фото — на этапе сервера\')"><span style="font-size:18px">📷</span>'+t('addPhoto')+'<br>'+t('upTo5')+'</div>'
-    +'</div></div>'
+    +'<div class="field"><label>'+t('fPhoto')+'</label>'
+      +'<input id="a_photos" type="file" accept="image/jpeg,image/png,image/webp" multiple>'
+      +'<small>До 5 фото. Для загрузки фотографий необходимо войти в аккаунт.</small>'
+    +'</div>'
     +'<div class="field"><label>'+t('fNote')+'</label><textarea id="a_note" placeholder="'+t('phNote')+'"></textarea></div>'
     +'</div>';
   openSheet(html);
 }
+async function prepareSubmissionImage(file){
+  if(file.size>5*1024*1024)throw new Error('Фотография больше 5 МБ');
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Поддерживаются JPEG, PNG и WebP');
+  const bitmap=await createImageBitmap(file);
+  const scale=Math.min(1,1920/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+  canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+  bitmap.close();
+  return await new Promise((resolve,reject)=>canvas.toBlob(
+    blob=>blob?resolve(blob):reject(new Error('Не удалось обработать фотографию')),
+    'image/jpeg',0.82
+  ));
+}
+async function uploadSubmissionPhotos(files){
+  if(!files.length)return [];
+  const token=await accessToken();
+  if(!token)throw new Error('Войдите в аккаунт, чтобы добавить фотографии');
+  if(files.length>5)throw new Error('Можно добавить не более 5 фотографий');
+  const urls=[];
+  for(const file of files){
+    const blob=await prepareSubmissionImage(file);
+    const path='submissions/'+authSession.user.id+'/'+crypto.randomUUID()+'.jpg';
+    const res=await fetch(SUPABASE_URL+'/storage/v1/object/parking-photos/'+path,{
+      method:'POST',
+      headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token,'Content-Type':'image/jpeg','x-upsert':'false'},
+      body:blob
+    });
+    if(!res.ok)throw new Error('Не удалось загрузить фотографию');
+    urls.push(SUPABASE_URL+'/storage/v1/object/public/parking-photos/'+path);
+  }
+  return urls;
+}
 async function submitAdd(){
   const addr=document.getElementById('a_addr').value.trim();
   if(!addr){toast(t('needName'));return}
+  const photoFiles=[...(document.getElementById('a_photos')?.files||[])];
+  if(photoFiles.length&&!authSession){toast('Войдите в аккаунт, чтобы добавить фотографии');return}
   const btn=document.getElementById('addSubmitBtn');
   if(btn){btn.disabled=true;btn.textContent=t('sending')}
   const category=document.getElementById('a_cat').value;
@@ -1519,9 +1651,12 @@ async function submitAdd(){
     moderator_note:cleanText(document.getElementById('a_note').value)
   };
   try{
-    await supabaseRpc('submit_parking',{p_data:payload});
+    const photoUrls=await uploadSubmissionPhotos(photoFiles);
+    const submissionId=await supabaseRpc('submit_parking',{p_data:payload});
+    if(photoUrls.length)await supabaseRpc('attach_submission_photos',{p_submission_id:submissionId,p_photos:photoUrls});
     const count=Number(localStorage.getItem('parkly-submission-count')||0)+1;
     localStorage.setItem('parkly-submission-count',String(count));
+    if(authSession)await loadMySubmissions();
     closeSheet();toast(t('addOk'));
   }catch(e){
     console.warn(e);toast(t('sendFailed'));
@@ -1571,24 +1706,102 @@ function renderFav(){
 /* ═══════════ ПРОФИЛЬ ═══════════ */
 function renderProfile(){
   document.getElementById('prof-title').textContent=t('profTitle');
-  const submissionCount=Number(localStorage.getItem('parkly-submission-count')||0);
+  const guestCount=Number(localStorage.getItem('parkly-submission-count')||0);
+  const email=cleanText(authSession?.user?.email);
+  const submissionCount=authSession?mySubmissions.length:guestCount;
   const cont=document.getElementById('prof-content');
   cont.innerHTML=
-    '<div class="prof-card"><div class="prof-ava">Г</div>'
-    +'<div class="prof-info"><b>'+t('guest')+'</b><span>'+t('notSignedIn')+'</span></div></div>'
+    '<div class="prof-card"><div class="prof-ava">'+(email?email[0].toUpperCase():'Г')+'</div>'
+    +'<div class="prof-info"><b>'+(email||t('guest'))+'</b><span>'+(email?'Аккаунт Parkly':t('notSignedIn'))+'</span></div></div>'
     +'<div class="prof-list">'
     +profRow('🚗',t('myCars'),'0')
     +profRow('🕐',t('history'),'')
-    +profRow('📄','Мои заявки',submissionCount?String(submissionCount):'')
+    +'<div class="prof-row" onclick="openMySubmissions()"><span class="pri">📄</span><span class="prl">Мои заявки</span>'
+      +(submissionCount?'<span class="prv">'+submissionCount+'</span>':'')+'<span class="arr">›</span></div>'
     +profRow('💳',t('payments'),'')
     +'<div class="prof-row"><span class="pri">🔔</span><span class="prl">'+t('notifs')+'</span><span class="toggle on" onclick="this.classList.toggle(\'on\')"></span></div>'
     +profRow('💬',t('support'),'')
     +profRow('ⓘ',t('about'),'v1.0')
     +'</div>'
-    +'<button class="prof-logout">'+t('signIn')+'</button>';
+    +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?'Выйти':t('signIn'))+'</button>';
 }
 function profRow(ic,label,val){
   return '<div class="prof-row" onclick="toast(\'Раздел появится на этапе сервера\')"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
+}
+function openAuth(){
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>Аккаунт Parkly</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="form-body">'
+    +'<div class="field"><label>Электронная почта</label><input id="auth_email" type="email" autocomplete="email" placeholder="name@example.com"></div>'
+    +'<div class="field"><label>Пароль</label><input id="auth_password" type="password" autocomplete="current-password" minlength="6" placeholder="Не менее 6 символов"></div>'
+    +'<div id="auth_message" style="font:600 12px Manrope;color:var(--red);margin-bottom:10px"></div>'
+    +'<button id="authLoginBtn" class="btn-primary" onclick="submitAuth(\'login\')">Войти</button>'
+    +'<button id="authSignupBtn" class="btn-outline" style="margin-top:9px" onclick="submitAuth(\'signup\')">Создать аккаунт</button>'
+    +'</div>';
+  openSheet(html);
+}
+async function submitAuth(mode){
+  const email=cleanText(document.getElementById('auth_email').value).toLowerCase();
+  const password=document.getElementById('auth_password').value;
+  const guestFavorites=favorites.slice();
+  const message=document.getElementById('auth_message');
+  if(!email||password.length<6){message.textContent='Введите почту и пароль не короче 6 символов';return}
+  document.getElementById('authLoginBtn').disabled=true;
+  document.getElementById('authSignupBtn').disabled=true;
+  message.textContent='Подождите…';
+  try{
+    const data=await authAction(mode,email,password);
+    if(!data.access_token){
+      message.style.color='var(--green)';
+      message.textContent='Проверьте почту и подтвердите регистрацию, затем войдите.';
+      return;
+    }
+    favorites=loadFav();
+    await loadRemoteFavorites();
+    const missing=guestFavorites.filter(id=>!favorites.includes(id));
+    for(const id of missing){
+      favorites.push(id);
+      await syncFavorite(id,true);
+    }
+    saveFav();
+    await loadMySubmissions();
+    closeSheet();renderProfile();toast(mode==='signup'?'Аккаунт создан':'Вы вошли в аккаунт');
+  }catch(e){
+    message.style.color='var(--red)';
+    message.textContent=e.message.includes('Invalid login')?'Неверная почта или пароль':e.message;
+  }finally{
+    const login=document.getElementById('authLoginBtn'),signup=document.getElementById('authSignupBtn');
+    if(login)login.disabled=false;if(signup)signup.disabled=false;
+  }
+}
+async function signOutUser(){
+  const token=await accessToken();
+  try{
+    if(token)await fetch(SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token}});
+  }catch(e){}
+  saveAuthSession(null);mySubmissions=[];favorites=loadFav();renderProfile();toast('Вы вышли из аккаунта');
+}
+async function loadMySubmissions(){
+  if(!authSession){mySubmissions=[];return}
+  try{
+    mySubmissions=await userRest('/rest/v1/parking_submissions?select=id,name,address,status,admin_note,published_parking_id,created_at&order=created_at.desc')||[];
+  }catch(e){console.warn(e);mySubmissions=[]}
+}
+const submissionStatusLabels={
+  PENDING:'На модерации',APPROVED:'Одобрено',REJECTED:'Отклонено',NEEDS_INFO:'Нужны сведения'
+};
+async function openMySubmissions(){
+  if(!authSession){openAuth();return}
+  await loadMySubmissions();renderProfile();
+  const items=mySubmissions.length?mySubmissions.map(s=>
+    '<div class="fav-item" style="align-items:flex-start">'
+      +'<div class="fav-ic" style="background:'+(s.status==='APPROVED'?'var(--green)':s.status==='REJECTED'?'var(--red)':'var(--amber)')+'">P</div>'
+      +'<div class="fav-txt"><b>'+cleanText(s.name)+'</b><span>'+cleanText(s.address)+'</span>'
+      +'<span style="color:var(--blue);margin-top:5px">'+(submissionStatusLabels[s.status]||s.status)+'</span>'
+      +(s.admin_note?'<span style="margin-top:4px">Комментарий: '+cleanText(s.admin_note)+'</span>':'')
+      +'</div></div>'
+  ).join(''):'<div class="empty-state"><div class="ei">📄</div><b>Заявок пока нет</b><span>Предложите парковку через кнопку «Добавить».</span></div>';
+  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Мои заявки</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="fav-list">'+items+'</div>');
 }
 
 /* ═══════════ ЛЕГЕНДА ═══════════ */
@@ -1628,7 +1841,10 @@ function switchTab(tab){
   document.getElementById('screen-fav').classList.toggle('on',tab==='fav');
   document.getElementById('screen-profile').classList.toggle('on',tab==='profile');
   if(tab==='fav')renderFav();
-  if(tab==='profile')renderProfile();
+  if(tab==='profile'){
+    renderProfile();
+    if(authSession)loadMySubmissions().then(renderProfile);
+  }
   buildNav();
 }
 
@@ -1694,6 +1910,10 @@ applyTheme(isDark);
 document.getElementById('themebtn').onclick=()=>{isDark=!isDark;applyTheme(isDark)};
 
 loadYandex();buildQchips();buildNav();loadParkingsFromDB();
+if(authSession){
+  loadRemoteFavorites();
+  loadMySubmissions();
+}
 /* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
    Кэш показываем сразу, а системный запрос разрешения откладываем,
    пока окно приложения не окажется реально на экране — иначе Android
