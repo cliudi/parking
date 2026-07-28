@@ -15,7 +15,7 @@
   --radius:18px;--sidebar:252px;
   font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
 }
-*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text)} button,input,select,textarea{font:inherit}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden} button,input,select,textarea{font:inherit}
 button{cursor:pointer} .hidden{display:none!important} .muted{color:var(--muted)} .mobile-only{display:none}
 .app{min-height:100vh;display:grid;grid-template-columns:var(--sidebar) 1fr}
 .sidebar{position:sticky;top:0;height:100vh;background:#0f172a;color:#fff;padding:24px 18px;display:flex;flex-direction:column;z-index:20}
@@ -28,6 +28,7 @@ button{cursor:pointer} .hidden{display:none!important} .muted{color:var(--muted)
 .sidebar-user{margin-top:auto;padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.04)}
 .sidebar-user strong{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis} .sidebar-user span{font-size:12px;color:#94a3b8}
 .logout-side{margin-top:10px;width:100%;border:0;border-radius:10px;padding:10px;background:rgba(239,68,68,.12);color:#fecaca;font-weight:750}
+.menu-backdrop{display:none;position:fixed;inset:0;border:0;background:rgba(15,23,42,.52);z-index:19}
 .main{min-width:0;padding:26px}
 .topbar{display:flex;align-items:center;gap:16px;margin-bottom:22px}
 .topbar h1{margin:0;font-size:27px} .topbar p{margin:5px 0 0;color:var(--muted)}
@@ -80,12 +81,47 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 .form-message{margin-top:12px;padding:11px 12px;border-radius:10px;font-size:13px} .form-message.error{background:#fee2e2;color:#991b1b} .form-message.ok{background:#dcfce7;color:#166534}
 @media(max-width:1050px){.stats{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:1fr 180px 150px}.filters .add-inline{grid-column:1/-1}}
 @media(max-width:820px){
-  .app{display:block} .sidebar{position:fixed;left:-280px;width:260px;transition:.22s;box-shadow:12px 0 30px rgba(0,0,0,.2)} .sidebar.open{left:0}
-  .main{padding:16px} .mobile-only{display:inline-flex} .topbar h1{font-size:23px} .topbar p{display:none} .topbar-actions .hide-mobile{display:none}
-  .filters{grid-template-columns:1fr} .stats{grid-template-columns:1fr 1fr} .grid{grid-template-columns:1fr} .field.full{grid-column:auto}
+  .app{display:block}
+  .sidebar{position:fixed;left:-280px;width:min(280px,86vw);transition:.22s;box-shadow:12px 0 30px rgba(0,0,0,.2);padding-top:max(24px,env(safe-area-inset-top))}
+  .sidebar.open{left:0}.sidebar.open + .menu-backdrop{display:block}
+  .main{padding:16px;max-width:100vw} .mobile-only{display:inline-flex} .topbar h1{font-size:23px} .topbar p{display:none} .topbar-actions .hide-mobile{display:none}
+  .filters,.filters[style]{grid-template-columns:1fr!important} .stats{grid-template-columns:1fr 1fr} .grid{grid-template-columns:1fr} .field.full{grid-column:auto}
   .check-grid{grid-template-columns:1fr 1fr} .login-page{grid-template-columns:1fr} .login-visual{display:none}
+  .table-wrap{overflow:visible;padding:12px;background:var(--surface-2)}
+  table{display:block;width:100%;min-width:0} thead{display:none} tbody{display:grid;gap:12px}
+  tbody tr{display:block;border:1px solid var(--line);border-radius:15px;background:var(--surface);overflow:hidden;box-shadow:0 3px 12px rgba(15,23,42,.04)}
+  tbody tr:hover{background:var(--surface)}
+  tbody td{display:grid;grid-template-columns:minmax(88px,34%) minmax(0,1fr);gap:12px;align-items:center;width:100%;padding:11px 13px;border-bottom:1px solid #edf0f5;overflow-wrap:anywhere}
+  tbody td:last-child{border-bottom:0}
+  tbody td::before{content:attr(data-label);font-size:11px;line-height:1.25;font-weight:800;text-transform:uppercase;letter-spacing:.035em;color:var(--muted)}
+  tbody td[colspan]{display:block;text-align:center;padding:26px 14px}
+  tbody td[colspan]::before{display:none}
+  .parking-title,.parking-sub{overflow-wrap:anywhere}
+  .actions{flex-wrap:wrap}.actions .btn{flex:1 1 120px;min-height:38px}
+  .toast{left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));max-width:none}
 }
-@media(max-width:520px){.stats{grid-template-columns:1fr}.check-grid{grid-template-columns:1fr}.modal{padding:8px}.dialog-head,.form-body,.dialog-foot{padding-left:15px;padding-right:15px}}
+@media(max-width:520px){
+  .main{padding:10px;padding-top:max(10px,env(safe-area-inset-top))}
+  .topbar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;margin-bottom:14px}
+  .topbar h1{font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar-actions{grid-column:1/-1;width:100%;margin:0}.topbar-actions .btn:not(.hidden){width:100%}
+  .stats{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .stat{padding:12px;border-radius:13px}.stat-top{font-size:11px}.stat-icon{width:30px;height:30px}.stat-value{font-size:23px;margin-top:7px}.stat-note{display:none}
+  .panel{border-radius:15px}.filters{padding:12px;gap:9px}.control{font-size:16px}
+  .table-wrap{padding:9px} tbody{gap:9px}
+  tbody td{grid-template-columns:88px minmax(0,1fr);padding:10px 11px;font-size:13px}
+  .category,.badge{white-space:normal;line-height:1.25}
+  .check-grid{grid-template-columns:1fr}
+  .modal{padding:0;align-items:stretch}
+  .dialog{width:100%;min-height:100dvh;margin:0;border-radius:0;display:flex;flex-direction:column}
+  .dialog-head{position:sticky;top:0;z-index:5;background:#fff;padding:15px}
+  .dialog-head h2{font-size:19px}.dialog-head p{font-size:12px}
+  .form-body{padding:12px;gap:12px}.form-section{padding:12px;border-radius:13px}
+  #coordMap{height:240px!important}
+  .dialog-foot{position:sticky;bottom:0;z-index:5;padding:11px 12px calc(11px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr 1fr}
+  .dialog-foot .btn{min-width:0}
+  .login-box-wrap{padding:16px;min-height:100dvh}.login-box{padding:22px 18px;border-radius:18px}
+}
 </style>
 </head>
 <body>
@@ -140,6 +176,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <button id="logoutBtn" class="logout-side">Выйти из аккаунта</button>
     </div>
   </aside>
+  <button id="menuBackdrop" class="menu-backdrop" type="button" aria-label="Закрыть меню"></button>
 
   <main class="main">
     <header class="topbar">
@@ -371,6 +408,7 @@ $('refreshReports').onclick=loadReports;
 $('submissionStatusFilter').onchange=renderSubmissions;
 $('reportStatusFilter').onchange=renderReports;
 $('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
+$('menuBackdrop').onclick=()=>$('sidebar').classList.remove('open');
 
 function showSection(section){
   const info={
@@ -416,12 +454,12 @@ function priceText(p){
 function renderRows(){
   const list=filtered();$('empty').classList.toggle('hidden',list.length>0);
   $('rows').innerHTML=list.map(p=>`<tr>
-    <td><div class="parking-title">${escapeHtml(p.name)}</div><div class="parking-sub">${escapeHtml(p.address||p.district||'Адрес не указан')}</div></td>
-    <td><span class="category">${escapeHtml(labels.category[p.category]||p.category)}</span>${p.has_ev?'<div class="parking-sub">⚡ Есть зарядка</div>':''}</td>
-    <td>${escapeHtml(priceText(p))}</td><td>${p.capacity??'—'}</td>
-    <td><span class="badge ${statusClass(p.status)}">${escapeHtml(labels.status[p.status]||p.status)}</span></td>
-    <td>${p.updated_at?new Date(p.updated_at).toLocaleDateString('ru-RU'):'—'}</td>
-    <td><div class="actions"><button class="btn btn-secondary table-btn" onclick="editParking('${p.id}')">Изменить</button><button class="btn btn-danger table-btn" onclick="deleteParking('${p.id}')">Удалить</button></div></td>
+    <td data-label="Парковка"><div class="parking-title">${escapeHtml(p.name)}</div><div class="parking-sub">${escapeHtml(p.address||p.district||'Адрес не указан')}</div></td>
+    <td data-label="Категория"><span class="category">${escapeHtml(labels.category[p.category]||p.category)}</span>${p.has_ev?'<div class="parking-sub">⚡ Есть зарядка</div>':''}</td>
+    <td data-label="Стоимость">${escapeHtml(priceText(p))}</td><td data-label="Места">${p.capacity??'—'}</td>
+    <td data-label="Статус"><span class="badge ${statusClass(p.status)}">${escapeHtml(labels.status[p.status]||p.status)}</span></td>
+    <td data-label="Обновлено">${p.updated_at?new Date(p.updated_at).toLocaleDateString('ru-RU'):'—'}</td>
+    <td data-label="Действия"><div class="actions"><button class="btn btn-secondary table-btn" onclick="editParking('${p.id}')">Изменить</button><button class="btn btn-danger table-btn" onclick="deleteParking('${p.id}')">Удалить</button></div></td>
   </tr>`).join('');
 }
 
@@ -436,12 +474,12 @@ function renderSubmissions(){
   const list=submissions.filter(x=>!status||x.status===status);
   $('submissionEmpty').classList.toggle('hidden',list.length>0);
   $('submissionRows').innerHTML=list.map(s=>`<tr>
-    <td><div class="parking-title">${escapeHtml(s.name)}</div><div class="parking-sub">${escapeHtml(s.address)}</div></td>
-    <td>${Number(s.lat).toFixed(5)}, ${Number(s.lng).toFixed(5)}</td>
-    <td><span class="category">${escapeHtml(labels.category[s.category]||s.category)}</span></td>
-    <td><span class="badge ${statusClass(s.status)}">${escapeHtml(labels.status[s.status]||s.status)}</span></td>
-    <td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td>
-    <td><div class="actions">
+    <td data-label="Парковка"><div class="parking-title">${escapeHtml(s.name)}</div><div class="parking-sub">${escapeHtml(s.address)}</div></td>
+    <td data-label="Координаты">${Number(s.lat).toFixed(5)}, ${Number(s.lng).toFixed(5)}</td>
+    <td data-label="Категория"><span class="category">${escapeHtml(labels.category[s.category]||s.category)}</span></td>
+    <td data-label="Статус"><span class="badge ${statusClass(s.status)}">${escapeHtml(labels.status[s.status]||s.status)}</span></td>
+    <td data-label="Дата">${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td>
+    <td data-label="Действия"><div class="actions">
       ${s.status==='PENDING'||s.status==='NEEDS_INFO'?`<button class="btn btn-primary table-btn" onclick="publishSubmission('${s.id}')">Проверить и опубликовать</button>
       <button class="btn btn-secondary table-btn" onclick="reviewSubmission('${s.id}','NEEDS_INFO')">Уточнить</button>
       <button class="btn btn-danger table-btn" onclick="reviewSubmission('${s.id}','REJECTED')">Отклонить</button>`:''}
@@ -485,12 +523,12 @@ function renderReports(){
   $('reportRows').innerHTML=list.map(r=>{
     const p=records.find(x=>String(x.id)===String(r.parking_id));
     return `<tr>
-      <td><div class="parking-title">${escapeHtml(p?.name||r.parking_id)}</div></td>
-      <td>${escapeHtml(reportReasonLabels[r.reason]||r.reason)}</td>
-      <td>${escapeHtml(r.comment||'—')}</td>
-      <td><span class="badge ${r.status==='RESOLVED'?'badge-approved':statusClass(r.status)}">${escapeHtml(r.status)}</span></td>
-      <td>${r.created_at?new Date(r.created_at).toLocaleDateString('ru-RU'):'—'}</td>
-      <td><div class="actions">
+      <td data-label="Парковка"><div class="parking-title">${escapeHtml(p?.name||r.parking_id)}</div></td>
+      <td data-label="Причина">${escapeHtml(reportReasonLabels[r.reason]||r.reason)}</td>
+      <td data-label="Комментарий">${escapeHtml(r.comment||'—')}</td>
+      <td data-label="Статус"><span class="badge ${r.status==='RESOLVED'?'badge-approved':statusClass(r.status)}">${escapeHtml(r.status)}</span></td>
+      <td data-label="Дата">${r.created_at?new Date(r.created_at).toLocaleDateString('ru-RU'):'—'}</td>
+      <td data-label="Действия"><div class="actions">
         ${r.status==='PENDING'?`<button class="btn btn-primary table-btn" onclick="reviewReport('${r.id}','RESOLVED')">Исправлено</button>
         <button class="btn btn-danger table-btn" onclick="reviewReport('${r.id}','REJECTED')">Отклонить</button>`:''}
       </div></td>
