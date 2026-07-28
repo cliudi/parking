@@ -236,6 +236,14 @@
   .fav-right{text-align:right;flex-shrink:0}
   .fav-dist{font:800 12.5px 'Manrope';color:var(--blue)}
   .fav-more{font-size:18px;color:var(--grey);padding:4px}
+  .submission-card .fav-txt{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+  .submission-card .fav-txt b{width:100%}
+  .submission-address{display:block!important;width:100%;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+  .submission-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font:800 11px 'Manrope';line-height:1.2}
+  .submission-status.pending,.submission-status.needs-info{color:#92400E;background:#FEF3C7}
+  .submission-status.approved{color:#166534;background:#DCFCE7}
+  .submission-status.rejected{color:#991B1B;background:#FEE2E2}
+  .submission-note{display:block!important;width:100%;margin-top:1px;line-height:1.45}
 
   /* профиль */
   .prof-card{background:var(--card);margin:12px;border-radius:18px;padding:18px;display:flex;align-items:center;gap:14px;box-shadow:var(--sh-s)}
@@ -1794,11 +1802,11 @@ async function openMySubmissions(){
   if(!authSession){openAuth();return}
   await loadMySubmissions();renderProfile();
   const items=mySubmissions.length?mySubmissions.map(s=>
-    '<div class="fav-item" style="align-items:flex-start">'
+    '<div class="fav-item submission-card" style="align-items:flex-start">'
       +'<div class="fav-ic" style="background:'+(s.status==='APPROVED'?'var(--green)':s.status==='REJECTED'?'var(--red)':'var(--amber)')+'">P</div>'
-      +'<div class="fav-txt"><b>'+cleanText(s.name)+'</b><span>'+cleanText(s.address)+'</span>'
-      +'<span style="color:var(--blue);margin-top:5px">'+(submissionStatusLabels[s.status]||s.status)+'</span>'
-      +(s.admin_note?'<span style="margin-top:4px">Комментарий: '+cleanText(s.admin_note)+'</span>':'')
+      +'<div class="fav-txt"><b>'+cleanText(s.name)+'</b><span class="submission-address">'+cleanText(s.address)+'</span>'
+      +'<span class="submission-status '+(s.status==='APPROVED'?'approved':s.status==='REJECTED'?'rejected':s.status==='NEEDS_INFO'?'needs-info':'pending')+'">'+(submissionStatusLabels[s.status]||s.status)+'</span>'
+      +(s.admin_note?'<span class="submission-note">Комментарий: '+cleanText(s.admin_note)+'</span>':'')
       +'</div></div>'
   ).join(''):'<div class="empty-state"><div class="ei">📄</div><b>Заявок пока нет</b><span>Предложите парковку через кнопку «Добавить».</span></div>';
   openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Мои заявки</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="fav-list">'+items+'</div>');
