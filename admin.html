@@ -112,13 +112,20 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   tbody td{grid-template-columns:88px minmax(0,1fr);padding:10px 11px;font-size:13px}
   .category,.badge{white-space:normal;line-height:1.25}
   .check-grid{grid-template-columns:1fr}
-  .modal{padding:0;align-items:stretch}
-  .dialog{width:100%;min-height:100dvh;margin:0;border-radius:0;display:flex;flex-direction:column}
-  .dialog-head{position:sticky;top:0;z-index:5;background:#fff;padding:15px}
+  /* Диалог занимает ровно экран: шапка и кнопки закреплены,
+     прокручивается только середина формы. Раньше диалог растягивался
+     по высоте экрана вместе с overflow:hidden и обрезал форму без прокрутки. */
+  .modal{padding:0;align-items:stretch;overflow:hidden}
+  .dialog{width:100%;height:100dvh;min-height:100dvh;max-height:100dvh;margin:0;border-radius:0;
+    display:flex;flex-direction:column;overflow:hidden}
+  #parkingForm{flex:1;min-height:0;display:flex;flex-direction:column}
+  .form-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  #formMsg{flex-shrink:0}
+  .dialog-head{position:static;flex-shrink:0;z-index:5;background:#fff;padding:15px}
   .dialog-head h2{font-size:19px}.dialog-head p{font-size:12px}
   .form-body{padding:12px;gap:12px}.form-section{padding:12px;border-radius:13px}
   #coordMap{height:240px!important}
-  .dialog-foot{position:sticky;bottom:0;z-index:5;padding:11px 12px calc(11px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr 1fr}
+  .dialog-foot{position:static;flex-shrink:0;z-index:5;padding:11px 12px calc(11px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr 1fr}
   .dialog-foot .btn{min-width:0}
   .login-box-wrap{padding:16px;min-height:100dvh}.login-box{padding:22px 18px;border-radius:18px}
 }
