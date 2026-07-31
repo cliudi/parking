@@ -16,6 +16,10 @@
   font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
 }
 *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden} button,input,select,textarea{font:inherit}
+/* Пока открыта форма, фон под ней не должен прокручиваться.
+   На iOS без этого свайп по форме уводил страницу позади — казалось,
+   что форма не листается. */
+body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 button{cursor:pointer} .hidden{display:none!important} .muted{color:var(--muted)} .mobile-only{display:none}
 .app{min-height:100vh;display:grid;grid-template-columns:var(--sidebar) 1fr}
 .sidebar{position:sticky;top:0;height:100vh;background:#0f172a;color:#fff;padding:24px 18px;display:flex;flex-direction:column;z-index:20}
@@ -116,8 +120,10 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
      прокручивается только середина формы. Раньше диалог растягивался
      по высоте экрана вместе с overflow:hidden и обрезал форму без прокрутки. */
   .modal{padding:0;align-items:stretch;overflow:hidden}
-  .dialog{width:100%;height:100dvh;min-height:100dvh;max-height:100dvh;margin:0;border-radius:0;
-    display:flex;flex-direction:column;overflow:hidden}
+  /* 100vh — запасной вариант для Safari до iOS 15.4, где dvh не поддерживается.
+     Без него правило целиком отбрасывалось и форма снова обрезалась. */
+  .dialog{width:100%;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;
+    margin:0;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
   #parkingForm{flex:1;min-height:0;display:flex;flex-direction:column}
   .form-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
   #formMsg{flex-shrink:0}
@@ -127,7 +133,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   #coordMap{height:240px!important}
   .dialog-foot{position:static;flex-shrink:0;z-index:5;padding:11px 12px calc(11px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr 1fr}
   .dialog-foot .btn{min-width:0}
-  .login-box-wrap{padding:16px;min-height:100dvh}.login-box{padding:22px 18px;border-radius:18px}
+  .login-box-wrap{padding:16px;min-height:100vh;min-height:100dvh}.login-box{padding:22px 18px;border-radius:18px}
 }
 </style>
 </head>
@@ -612,6 +618,19 @@ function refreshCoordMap(recenter=false){
     }
   });
 }
+/* Блокировка фона под модалкой. Позицию прокрутки запоминаем и
+   возвращаем — иначе после закрытия страница прыгает наверх. */
+let savedScrollY=0;
+function lockBodyScroll(){
+  savedScrollY=window.scrollY||window.pageYOffset||0;
+  document.body.style.top=(-savedScrollY)+'px';
+  document.body.classList.add('modal-open');
+}
+function unlockBodyScroll(){
+  document.body.classList.remove('modal-open');
+  document.body.style.top='';
+  window.scrollTo(0,savedScrollY);
+}
 function openForm(p=null,submissionId=null){
   editingSubmissionId=submissionId;
   $('parkingForm').reset();$('formMsg').innerHTML='';$('id').value=p?.id||'';
@@ -624,9 +643,10 @@ function openForm(p=null,submissionId=null){
   $('photos').value=(data.photos||[]).join('\n');
   ['is_247','capacity_est','has_ev','has_cctv','has_disabled'].forEach(k=>$(k).checked=Boolean(data[k]));
   $('modal').classList.remove('hidden');
+  lockBodyScroll();
   setTimeout(()=>refreshCoordMap(true),50);
 }
-function closeForm(){$('modal').classList.add('hidden');editingSubmissionId=null}
+function closeForm(){$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null}
 window.editParking=id=>openForm(records.find(x=>x.id===id));
 window.deleteParking=async id=>{
   const p=records.find(x=>x.id===id);
