@@ -176,7 +176,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <button class="nav-item" id="approvedNav">✓ Опубликованные</button>
       <button class="nav-item" id="submissionsNav">＋ Заявки пользователей</button>
       <button class="nav-item" id="reportsNav">⚑ Сообщения об ошибках</button>
-      <button class="nav-item" id="osmNav">◉ Импорт OpenStreetMap</button>
+      <button class="nav-item" id="osmNav">◉ Проверка данных OSM</button>
     </nav>
     <div class="sidebar-user">
       <strong id="who"></strong>
@@ -266,7 +266,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 
     <section id="osmPanel" class="panel hidden">
       <div class="filters" style="grid-template-columns:minmax(220px,1fr) 220px auto auto">
-        <div class="search-wrap"><span>⌕</span><input id="osmSearch" class="control" placeholder="Название, адрес или OSM ID"></div>
+        <div class="search-wrap"><span>⌕</span><input id="osmSearch" class="control" placeholder="Название, адрес или номер OSM"></div>
         <select id="osmStatusFilter" class="control">
           <option value="">Все кандидаты</option>
           <option value="NEW">Новые</option>
@@ -275,10 +275,10 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           <option value="REJECTED">Отклонённые</option>
         </select>
         <button id="refreshOsm" class="btn btn-secondary">Обновить список</button>
-        <button id="runOsmImport" class="btn btn-primary">Импортировать Юнусабад</button>
+        <button id="runOsmImport" class="btn btn-primary">Загрузить новые объекты</button>
       </div>
       <div style="padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)">
-        Импорт создаёт только кандидатов. Перед публикацией каждый объект необходимо проверить.
+        Новые объекты попадают только в очередь проверки и не публикуются автоматически. Перед публикацией проверьте адрес, координаты и возможные дубли.
         Данные © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>, ODbL.
       </div>
       <div id="osmSummary" class="osm-summary"></div>
@@ -289,7 +289,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         </table>
       </div>
       <div id="osmPager" class="pager hidden"><button id="osmPrev" class="btn btn-secondary">← Назад</button><strong id="osmPageLabel"></strong><button id="osmNext" class="btn btn-secondary">Вперёд →</button></div>
-      <div id="osmEmpty" class="empty hidden"><strong>Кандидатов пока нет</strong>Запустите импорт OpenStreetMap.</div>
+      <div id="osmEmpty" class="empty hidden"><strong>Объекты не найдены</strong>Измените поиск или загрузите новые данные OpenStreetMap.</div>
     </section>
   </main>
 </div>
@@ -408,6 +408,7 @@ let reports=[];
 let osmCandidates=[];
 let osmPage=0;
 const osmPageSize=50;
+let currentAdminSection='parkings';
 let editingSubmissionId=null;
 let editingOsmCandidateId=null;
 let coordMap=null;
@@ -436,6 +437,7 @@ async function checkSession(){
   $('roleLabel').textContent=labels.role[admin.role]||admin.role;
   $('loginView').classList.add('hidden');$('adminView').classList.remove('hidden');
   await loadParkings();
+  restoreAdminRoute();
 }
 function showLogin(){$('adminView').classList.add('hidden');$('loginView').classList.remove('hidden')}
 
@@ -460,23 +462,49 @@ $('reportsNav').onclick=()=>showSection('reports');
 $('osmNav').onclick=()=>showSection('osm');
 $('refreshSubmissions').onclick=loadSubmissions;
 $('refreshReports').onclick=loadReports;
-$('refreshOsm').onclick=loadOsmCandidates;
+$('refreshOsm').onclick=()=>loadOsmCandidates(true);
 $('runOsmImport').onclick=runOsmImport;
 $('submissionStatusFilter').onchange=renderSubmissions;
 $('reportStatusFilter').onchange=renderReports;
-$('osmSearch').oninput=()=>{osmPage=0;renderOsmCandidates()};
-$('osmStatusFilter').onchange=()=>{osmPage=0;renderOsmCandidates()};
-$('osmPrev').onclick=()=>{if(osmPage>0){osmPage--;renderOsmCandidates();$('osmPanel').scrollIntoView({behavior:'smooth'})}};
-$('osmNext').onclick=()=>{osmPage++;renderOsmCandidates();$('osmPanel').scrollIntoView({behavior:'smooth'})};
+$('osmSearch').oninput=()=>{osmPage=0;renderOsmCandidates();writeAdminRoute('osm',true)};
+$('osmStatusFilter').onchange=()=>{osmPage=0;renderOsmCandidates();writeAdminRoute('osm',true)};
+$('osmPrev').onclick=()=>{if(osmPage>0){osmPage--;renderOsmCandidates();writeAdminRoute('osm',true);$('osmPanel').scrollIntoView({behavior:'smooth'})}};
+$('osmNext').onclick=()=>{osmPage++;renderOsmCandidates();writeAdminRoute('osm',true);$('osmPanel').scrollIntoView({behavior:'smooth'})};
 $('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
 $('menuBackdrop').onclick=()=>$('sidebar').classList.remove('open');
 
-function showSection(section){
+function readAdminRoute(){
+  const raw=location.hash.slice(1),parts=raw.split('?'),allowed=['parkings','submissions','reports','osm'];
+  return {section:allowed.includes(parts[0])?parts[0]:'parkings',params:new URLSearchParams(parts[1]||'')};
+}
+function writeAdminRoute(section,replace=false){
+  let hash=section;
+  if(section==='osm'){
+    const params=new URLSearchParams(),q=val('osmSearch'),status=val('osmStatusFilter');
+    if(q)params.set('q',q);if(status)params.set('status',status);if(osmPage>0)params.set('page',String(osmPage+1));
+    const query=params.toString();if(query)hash+='?'+query;
+  }
+  history[replace?'replaceState':'pushState'](null,'','#'+hash);
+}
+function restoreAdminRoute(){
+  const route=readAdminRoute();
+  if(route.section==='osm'){
+    $('osmSearch').value=route.params.get('q')||'';
+    $('osmStatusFilter').value=route.params.get('status')||'';
+    osmPage=Math.max(0,(Number(route.params.get('page'))||1)-1);
+  }
+  showSection(route.section,{fromRoute:true,preservePage:true});
+  if(!location.hash)writeAdminRoute(route.section,true);
+}
+window.addEventListener('hashchange',()=>{if(!$('adminView').classList.contains('hidden'))restoreAdminRoute()});
+
+function showSection(section,options={}){
+  currentAdminSection=section;
   const info={
     parkings:['Парковки','Управление данными, статусами и публикацией парковок'],
     submissions:['Заявки пользователей','Проверка и публикация предложенных парковок'],
     reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей'],
-    osm:['Импорт OpenStreetMap','Предварительная проверка данных перед публикацией']
+    osm:['Проверка данных OSM','Подготовка импортированных парковок к публикации']
   }[section];
   $('pageTitle').textContent=info[0];$('pageSubtitle').textContent=info[1];
   $('parkingsPanel').classList.toggle('hidden',section!=='parkings');
@@ -489,7 +517,8 @@ function showSection(section){
   $('sidebar').classList.remove('open');
   if(section==='submissions')loadSubmissions();
   if(section==='reports')loadReports();
-  if(section==='osm')loadOsmCandidates();
+  if(section==='osm')loadOsmCandidates(!!options.preservePage);
+  if(!options.fromRoute)writeAdminRoute(section);
 }
 
 async function loadParkings(){
@@ -620,7 +649,7 @@ function osmCandidateFromElement(el){
   const cap=/^\d+$/.test(String(t.capacity||''))?Number(t.capacity):null;
   return {
     osm_type:el.type,osm_id:el.id,
-    name:t['name:ru']||t.name||t['name:uz']||t.operator||t.brand||(isEv?'Зарядная станция':'Парковка OpenStreetMap'),
+    name:t['name:ru']||t.name||t['name:uz']||t.operator||t.brand||(isEv?'Зарядная станция без названия':'Парковка без названия'),
     address,lat:Number(point.lat),lng:Number(point.lon),category,
     price_type:t.fee==='no'?'free':t.fee==='yes'?'paid':'unknown',
     capacity:cap,kind:kindMap[t.parking]||null,hours:t.opening_hours||null,
@@ -629,8 +658,8 @@ function osmCandidateFromElement(el){
   };
 }
 async function runOsmImport(){
-  if(!confirm('Загрузить парковки и автомобильные зарядные станции из OpenStreetMap? Они попадут только в список предварительной проверки.'))return;
-  const btn=$('runOsmImport');btn.disabled=true;btn.textContent='Импорт выполняется…';
+  if(!confirm('Загрузить новые парковки и зарядные станции из OpenStreetMap? Все объекты останутся в очереди до ручной проверки.'))return;
+  const btn=$('runOsmImport');btn.disabled=true;btn.textContent='Загрузка начинается…';
   const bbox='41.3000,69.2200,41.4300,69.3900';
   const boxes=['41.3000,69.2200,41.3650,69.3050','41.3000,69.3050,41.3650,69.3900','41.3650,69.2200,41.4300,69.3050','41.3650,69.3050,41.4300,69.3900'];
   const queryFor=box=>`[out:json][timeout:25];(nwr["amenity"="parking"](${box});nwr["amenity"="charging_station"]["motorcar"!="no"](${box}););out center tags;`;
@@ -679,13 +708,13 @@ async function runOsmImport(){
     }
     result=await sb.rpc('admin_finish_osm_import_batch',{p_batch_id:batchId,p_error_text:null});
     if(result.error)throw result.error;
-    toast(`Импортировано для проверки: ${candidates.length}`);await loadOsmCandidates();
+    toast(`Загружено в очередь проверки: ${candidates.length}`);await loadOsmCandidates(true);
   }catch(e){
     if(batchId)await sb.rpc('admin_finish_osm_import_batch',{p_batch_id:batchId,p_error_text:String(e.message||e)});
     toast('Импорт не завершён: '+(e.message||e),'error');
-  }finally{btn.disabled=false;btn.textContent='Импортировать Юнусабад'}
+  }finally{btn.disabled=false;btn.textContent='Загрузить новые объекты'}
 }
-async function loadOsmCandidates(){
+async function loadOsmCandidates(preservePage=false){
   $('osmRows').innerHTML='<tr><td colspan="6">Загрузка кандидатов…</td></tr>';
   const all=[];
   for(let offset=0;offset<5000;offset+=500){
@@ -693,7 +722,7 @@ async function loadOsmCandidates(){
     if(error){$('osmRows').innerHTML='';toast(error.message,'error');return}
     all.push(...(data||[]));if(!data||data.length<500)break;
   }
-  osmCandidates=all;osmPage=0;renderOsmCandidates();
+  osmCandidates=all;if(!preservePage)osmPage=0;renderOsmCandidates();if(currentAdminSection==='osm')writeAdminRoute('osm',true);
 }
 function renderOsmCandidates(){
   const status=val('osmStatusFilter'),q=val('osmSearch').toLowerCase();
@@ -708,7 +737,7 @@ function renderOsmCandidates(){
   $('osmPrev').disabled=osmPage===0;$('osmNext').disabled=osmPage>=pageCount-1;
   const statusText={NEW:'Новый',DUPLICATE:'Возможный дубль',IMPORTED:'Опубликован',REJECTED:'Отклонён'};
   $('osmRows').innerHTML=pageItems.map(c=>`<tr>
-    <td data-label="Объект"><div class="parking-title">${escapeHtml(c.name)}</div><div class="parking-sub">${escapeHtml(c.address||'Адрес не указан')}</div><div class="parking-sub"><a href="https://www.openstreetmap.org/${encodeURIComponent(c.osm_type)}/${encodeURIComponent(c.osm_id)}" target="_blank" rel="noopener">OSM ${escapeHtml(c.osm_type)}/${escapeHtml(c.osm_id)}</a> · <a href="https://yandex.uz/maps/?ll=${encodeURIComponent(c.lng+','+c.lat)}&z=18" target="_blank" rel="noopener">Открыть координаты</a></div></td>
+    <td data-label="Объект"><div class="parking-title">${escapeHtml(c.name)}</div><div class="parking-sub">${escapeHtml(c.address||'Адрес требует проверки')}</div><div class="parking-sub"><a href="https://www.openstreetmap.org/${encodeURIComponent(c.osm_type)}/${encodeURIComponent(c.osm_id)}" target="_blank" rel="noopener">Открыть источник OSM</a> · <a href="https://yandex.uz/maps/?ll=${encodeURIComponent(c.lng+','+c.lat)}&z=18" target="_blank" rel="noopener">Показать на карте</a></div></td>
     <td data-label="Категория"><span class="category">${escapeHtml(labels.category[c.category]||c.category)}</span></td>
     <td data-label="Данные">${c.capacity==null?'Места не указаны':c.capacity+' мест'}<div class="parking-sub">${escapeHtml(labels.price[c.price_type]||c.price_type)}</div></td>
     <td data-label="Проверка дубля">${c.duplicate_parking_id?`Объект рядом: ${c.duplicate_distance_m??'≤30'} м`:'Рядом не найдено'}</td>
