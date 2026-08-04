@@ -45,6 +45,7 @@
   /* ─────────── КАРТА (экран) ─────────── */
   #screen-map{position:fixed;inset:0}
   #map{position:absolute;inset:0;z-index:1;background:#E8EDF0}
+  .osm-credit{position:absolute;left:7px;bottom:72px;z-index:5;padding:3px 6px;border-radius:6px;background:rgba(255,255,255,.88);color:#475467;font:600 9px Manrope;text-decoration:none;box-shadow:0 1px 4px rgba(15,23,42,.12)}
   html[data-theme="dark"] #map{background:#0B1220}
   html[data-theme="dark"] #map [class*="ground-pane"]{
     filter:invert(91%) hue-rotate(180deg) brightness(.78) contrast(1.08) saturate(.72);
@@ -302,21 +303,6 @@
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   #maperr{position:absolute;inset:0;z-index:3;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;background:var(--bg)}
 
-  /* Диагностика: видно на самом экране, без Mac и инструментов разработчика.
-     Копится тихо в фоне; открывается долгим тапом по логотипу-заголовку. */
-  #diagbtn{position:fixed;left:6px;bottom:calc(var(--nav) + 6px + var(--bot));z-index:70;
-    width:26px;height:26px;border-radius:50%;background:rgba(15,23,42,.14);border:0;
-    font:800 12px 'Manrope';color:var(--ink2);display:none;align-items:center;justify-content:center}
-  #diagbtn.on{display:flex}
-  #diagpanel{position:fixed;inset:0;z-index:500;background:rgba(15,23,42,.97);color:#D1FAE5;
-    display:none;flex-direction:column;padding:calc(14px + var(--top)) 14px calc(14px + var(--bot))}
-  #diagpanel.open{display:flex}
-  #diagpanel h3{color:#fff;font:800 15px 'Manrope';margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-  #diagpanel .dx{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;width:30px;height:30px;font-size:16px}
-  #diaglog{flex:1;overflow-y:auto;font:500 11.5px/1.5 monospace;white-space:pre-wrap;word-break:break-all}
-  #diaglog .e{color:#FCA5A5;border-top:1px solid rgba(255,255,255,.12);padding:8px 0}
-  #diaglog .i{color:#93C5FD;padding:2px 0}
-
 /* ═══════════ UI/UX ОБНОВЛЕНИЕ PARKLY — безопасные CSS-переопределения ═══════════ */
 :root{
   --radius-xs:10px;
@@ -562,6 +548,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 <!-- ═══════════ ЭКРАН: КАРТА ═══════════ -->
 <div id="screen-map">
   <div id="map"></div>
+  <a class="osm-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">Данные © OpenStreetMap contributors, ODbL</a>
   <div id="maperr">
     <div style="font-size:40px;margin-bottom:12px">🗺️</div>
     <b id="maperr-t" style="font:800 16px Manrope"></b>
@@ -619,57 +606,9 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 <!-- ═══════════ МОДАЛКИ ═══════════ -->
 <div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
-<button id="diagbtn" title="Диагностика">i</button>
-<div id="diagpanel">
-  <h3>Диагностика Parkly <button class="dx" onclick="document.getElementById('diagpanel').classList.remove('open')">✕</button></h3>
-  <div id="diaglog"></div>
-</div>
 
 <script>
 const YANDEX_API_KEY='be1856ef-50e1-40ed-abb7-80a23f99ddb3';
-
-/* ═══════════ ДИАГНОСТИКА (видно прямо на экране, без Mac и devtools) ═══════════
-   На случай нестандартного поведения на отдельных телефонах (в первую очередь iOS,
-   где нет лёгкого доступа к консоли). Копится тихо в фоне. Открыть: 5 тапов подряд
-   в левый верхний угол экрана (по строке поиска) в течение 2 секунд. */
-const diagLines=[];
-function diagLog(kind,text){
-  diagLines.push({kind,text,t:new Date().toLocaleTimeString('ru')});
-  if(diagLines.length>200)diagLines.shift();
-  const btn=document.getElementById('diagbtn');if(btn)btn.classList.add('on');
-  const panel=document.getElementById('diagpanel');
-  if(panel&&panel.classList.contains('open'))renderDiag();
-}
-function renderDiag(){
-  const el=document.getElementById('diaglog');if(!el)return;
-  el.innerHTML=diagLines.map(l=>'<div class="'+(l.kind==='error'?'e':'i')+'">['+l.t+'] '+
-    (l.kind==='error'?'⚠ ':'')+String(l.text).replace(/[<>]/g,c=>c==='<'?'&lt;':'&gt;')+'</div>').join('')
-    ||'<div class="i">Пока ничего не записано.</div>';
-  el.scrollTop=el.scrollHeight;
-}
-window.addEventListener('error',e=>{
-  diagLog('error',(e.message||'Ошибка')+' — '+(e.filename?e.filename.split('/').pop():'')+':'+(e.lineno||'?'));
-});
-window.addEventListener('unhandledrejection',e=>{
-  diagLog('error','Promise отклонён: '+(e.reason&&e.reason.message||e.reason));
-});
-diagLog('info','UA: '+navigator.userAgent);
-diagLog('info','Экран: '+window.innerWidth+'×'+window.innerHeight+' · online: '+navigator.onLine);
-
-// открытие: 5 тапов за 2 секунды в область поиска (пока строки поиска ещё нет в DOM,
-// вешаем на document и проверяем координаты — работает в любой момент загрузки)
-let diagTaps=[];
-document.addEventListener('click',e=>{
-  if(e.clientY>90||e.clientX>220)return;
-  const now=Date.now();
-  diagTaps=diagTaps.filter(ts=>now-ts<2000);diagTaps.push(now);
-  if(diagTaps.length>=5){
-    diagTaps=[];renderDiag();
-    document.getElementById('diagpanel').classList.add('open');
-  }
-});
-document.getElementById('diagbtn').onclick=()=>{renderDiag();document.getElementById('diagpanel').classList.add('open')};
-
 
 /* ═══════════ СЛОВАРИ (i18n, тексты не зашиты в код — по ТЗ) ═══════════ */
 const I18N={
@@ -863,7 +802,6 @@ function fromDbRow(r){
 
 // Грузим парковки рядом с точкой (или центр Ташкента, если позиция ещё не известна)
 async function loadParkingsFromDB(lat, lng, radius){
-  diagLog('info','loadParkingsFromDB старт: lat='+lat+' lng='+lng+' radius='+radius);
   try{
     const body = {
       lat: lat||41.3111, lng: lng||69.2650,
@@ -875,23 +813,16 @@ async function loadParkingsFromDB(lat, lng, radius){
       headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
       body: JSON.stringify(body)
     });
-    diagLog('info','Supabase ответил: HTTP '+res.status);
-    if(!res.ok){
-      const detail=await res.text().catch(()=>'');
-      throw new Error('db http '+res.status+' '+detail.slice(0,200));
-    }
+    if(!res.ok) throw new Error('db http '+res.status);
     const rows = await res.json();
-    if(!Array.isArray(rows))throw new Error('db response не массив: '+JSON.stringify(rows).slice(0,200));
-    diagLog('info','Получено строк: '+rows.length);
+    if(!Array.isArray(rows))throw new Error('db response');
     PARKINGS = rows.map(fromDbRow).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
-    diagLog('info','После обработки в PARKINGS: '+PARKINGS.length);
     lastMarkerSignature='';
     drawMarkers(true);
     if(activeTab==='fav')renderFav();
     return true;
   }catch(e){
     console.warn('Supabase недоступен:', e);
-    diagLog('error','loadParkingsFromDB: '+(e&&e.message||e));
     toast(t('networkErr'));
     return false;
   }
@@ -969,13 +900,12 @@ function toast(x){const el=document.getElementById('toast');el.innerHTML=x;el.cl
 
 /* ═══════════ КАРТА ═══════════ */
 function loadYandex(){
-  diagLog('info','Загрузка Яндекс Карт: старт');
   const sc=document.createElement('script');
   sc.src='https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey='+YANDEX_API_KEY;
-  sc.onload=()=>{diagLog('info','Скрипт Яндекс Карт загружен, инициализирую…');ymaps.ready(initMap);};
-  sc.onerror=()=>{diagLog('error','Скрипт Яндекс Карт НЕ загрузился (сеть/блокировка)');showMapErr();};
+  sc.onload=()=>ymaps.ready(initMap);
+  sc.onerror=showMapErr;
   document.head.appendChild(sc);
-  setTimeout(()=>{if(!ymap){diagLog('error','Карта не инициализировалась за 9 сек');showMapErr()}},9000);
+  setTimeout(()=>{if(!ymap)showMapErr()},9000);
 }
 function showMapErr(){
   document.getElementById('maperr-t').textContent=t('mapErr');
@@ -985,7 +915,6 @@ function showMapErr(){
 function initMap(){
   ymap=new ymaps.Map('map',{center:[41.3111,69.2650],zoom:13,controls:[]},
     {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
-  diagLog('info','Карта инициализирована успешно');
   document.getElementById('maperr').style.display='none';
   drawMarkers();
   trackPan();
@@ -1181,7 +1110,6 @@ function drawMarkers(force){
   const signature=theme+'|'+String(selectedId||'')+'|'+wanted.map(p=>String(p.id)).join(',');
   if(!force&&signature===lastMarkerSignature)return;
   lastMarkerSignature=signature;
-  diagLog('info','drawMarkers: всего в PARKINGS='+PARKINGS.length+', отрисовано на экране='+wanted.length);
 
   const features=wanted.map(p=>({
     type:'Feature',

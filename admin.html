@@ -16,9 +16,6 @@
   font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
 }
 *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden} button,input,select,textarea{font:inherit}
-/* Пока открыта форма, фон под ней не должен прокручиваться.
-   На iOS без этого свайп по форме уводил страницу позади — казалось,
-   что форма не листается. */
 body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 button{cursor:pointer} .hidden{display:none!important} .muted{color:var(--muted)} .mobile-only{display:none}
 .app{min-height:100vh;display:grid;grid-template-columns:var(--sidebar) 1fr}
@@ -116,14 +113,8 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   tbody td{grid-template-columns:88px minmax(0,1fr);padding:10px 11px;font-size:13px}
   .category,.badge{white-space:normal;line-height:1.25}
   .check-grid{grid-template-columns:1fr}
-  /* Диалог занимает ровно экран: шапка и кнопки закреплены,
-     прокручивается только середина формы. Раньше диалог растягивался
-     по высоте экрана вместе с overflow:hidden и обрезал форму без прокрутки. */
   .modal{padding:0;align-items:stretch;overflow:hidden}
-  /* 100vh — запасной вариант для Safari до iOS 15.4, где dvh не поддерживается.
-     Без него правило целиком отбрасывалось и форма снова обрезалась. */
-  .dialog{width:100%;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;
-    margin:0;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
+  .dialog{width:100%;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;margin:0;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
   #parkingForm{flex:1;min-height:0;display:flex;flex-direction:column}
   .form-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
   #formMsg{flex-shrink:0}
@@ -182,6 +173,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <button class="nav-item" id="approvedNav">✓ Опубликованные</button>
       <button class="nav-item" id="submissionsNav">＋ Заявки пользователей</button>
       <button class="nav-item" id="reportsNav">⚑ Сообщения об ошибках</button>
+      <button class="nav-item" id="osmNav">◉ Импорт OpenStreetMap</button>
     </nav>
     <div class="sidebar-user">
       <strong id="who"></strong>
@@ -267,6 +259,31 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         </table>
       </div>
       <div id="reportEmpty" class="empty hidden"><strong>Сообщений нет</strong>Жалобы и исправления пользователей появятся здесь.</div>
+    </section>
+
+    <section id="osmPanel" class="panel hidden">
+      <div class="filters" style="grid-template-columns:220px auto auto">
+        <select id="osmStatusFilter" class="control">
+          <option value="">Все кандидаты</option>
+          <option value="NEW">Новые</option>
+          <option value="DUPLICATE">Возможные дубли</option>
+          <option value="IMPORTED">Опубликованные</option>
+          <option value="REJECTED">Отклонённые</option>
+        </select>
+        <button id="refreshOsm" class="btn btn-secondary">Обновить список</button>
+        <button id="runOsmImport" class="btn btn-primary">Импортировать Юнусабад</button>
+      </div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)">
+        Импорт создаёт только кандидатов. Перед публикацией каждый объект необходимо проверить.
+        Данные © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>, ODbL.
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Объект</th><th>Категория</th><th>Данные</th><th>Проверка дубля</th><th>Статус</th><th>Действия</th></tr></thead>
+          <tbody id="osmRows"></tbody>
+        </table>
+      </div>
+      <div id="osmEmpty" class="empty hidden"><strong>Кандидатов пока нет</strong>Запустите импорт OpenStreetMap.</div>
     </section>
   </main>
 </div>
@@ -368,7 +385,9 @@ const $=id=>document.getElementById(id);
 let records=[];
 let submissions=[];
 let reports=[];
+let osmCandidates=[];
 let editingSubmissionId=null;
+let editingOsmCandidateId=null;
 let coordMap=null;
 let coordPlacemark=null;
 
@@ -416,10 +435,14 @@ $('pendingNav').onclick=()=>{showSection('parkings');$('statusFilter').value='PE
 $('approvedNav').onclick=()=>{showSection('parkings');$('statusFilter').value='APPROVED';renderRows()};
 $('submissionsNav').onclick=()=>showSection('submissions');
 $('reportsNav').onclick=()=>showSection('reports');
+$('osmNav').onclick=()=>showSection('osm');
 $('refreshSubmissions').onclick=loadSubmissions;
 $('refreshReports').onclick=loadReports;
+$('refreshOsm').onclick=loadOsmCandidates;
+$('runOsmImport').onclick=runOsmImport;
 $('submissionStatusFilter').onchange=renderSubmissions;
 $('reportStatusFilter').onchange=renderReports;
+$('osmStatusFilter').onchange=renderOsmCandidates;
 $('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
 $('menuBackdrop').onclick=()=>$('sidebar').classList.remove('open');
 
@@ -427,18 +450,21 @@ function showSection(section){
   const info={
     parkings:['Парковки','Управление данными, статусами и публикацией парковок'],
     submissions:['Заявки пользователей','Проверка и публикация предложенных парковок'],
-    reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей']
+    reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей'],
+    osm:['Импорт OpenStreetMap','Предварительная проверка данных перед публикацией']
   }[section];
   $('pageTitle').textContent=info[0];$('pageSubtitle').textContent=info[1];
   $('parkingsPanel').classList.toggle('hidden',section!=='parkings');
   $('submissionsPanel').classList.toggle('hidden',section!=='submissions');
   $('reportsPanel').classList.toggle('hidden',section!=='reports');
+  $('osmPanel').classList.toggle('hidden',section!=='osm');
   $('addBtn').classList.toggle('hidden',section!=='parkings');
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
-  $(({parkings:'parkingsNav',submissions:'submissionsNav',reports:'reportsNav'})[section]).classList.add('active');
+  $(({parkings:'parkingsNav',submissions:'submissionsNav',reports:'reportsNav',osm:'osmNav'})[section]).classList.add('active');
   $('sidebar').classList.remove('open');
   if(section==='submissions')loadSubmissions();
   if(section==='reports')loadReports();
+  if(section==='osm')loadOsmCandidates();
 }
 
 async function loadParkings(){
@@ -555,6 +581,95 @@ window.reviewReport=async(id,status)=>{
   toast('Статус сообщения обновлён');await loadReports();
 };
 
+function osmCandidateFromElement(el){
+  const t=el.tags||{}, point=el.center||el;
+  if(!Number.isFinite(Number(point.lat))||!Number.isFinite(Number(point.lon)))return null;
+  const isEv=t.amenity==='charging_station';
+  const access=String(t.access||'').toLowerCase();
+  const category=isEv?'EV_STATION':(['private','customers','permit'].includes(access)?'PRIVATE':'OFFICIAL');
+  const kindMap={surface:'open',underground:'underground','multi-storey':'multilevel',street_side:'street',lane:'street',rooftop:'open'};
+  const address=[t['addr:street'],t['addr:housenumber']].filter(Boolean).join(', ')||
+    t['addr:full']||t.description||'Адрес требует проверки';
+  const connectors=Object.keys(t).filter(k=>k.startsWith('socket:')&&!k.includes(':output')&&Number(t[k])>0)
+    .map(k=>k.slice(7));
+  const cap=/^\d+$/.test(String(t.capacity||''))?Number(t.capacity):null;
+  return {
+    osm_type:el.type,osm_id:el.id,
+    name:t['name:ru']||t.name||t['name:uz']||t.operator||t.brand||(isEv?'Зарядная станция':'Парковка OpenStreetMap'),
+    address,lat:Number(point.lat),lng:Number(point.lon),category,
+    price_type:t.fee==='no'?'free':t.fee==='yes'?'paid':'unknown',
+    capacity:cap,kind:kindMap[t.parking]||null,hours:t.opening_hours||null,
+    has_ev:isEv,ev_operator:t.operator||t.brand||null,ev_ports:isEv?cap:null,
+    ev_connectors:connectors,raw_tags:t
+  };
+}
+async function runOsmImport(){
+  if(!confirm('Загрузить парковки и автомобильные зарядные станции из OpenStreetMap? Они попадут только в список предварительной проверки.'))return;
+  const btn=$('runOsmImport');btn.disabled=true;btn.textContent='Импорт выполняется…';
+  const bbox='41.3000,69.2200,41.4300,69.3900';
+  const query=`[out:json][timeout:60];(nwr["amenity"="parking"](${bbox});nwr["amenity"="charging_station"]["motorcar"!="no"](${bbox}););out center tags;`;
+  let batchId=null;
+  try{
+    let result=await sb.rpc('admin_create_osm_import_batch',{p_bbox:bbox,p_overpass_query:query});
+    if(result.error)throw result.error;batchId=result.data;
+    const response=await fetch('https://overpass-api.de/api/interpreter',{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body:'data='+encodeURIComponent(query)
+    });
+    if(!response.ok)throw new Error('Overpass API: HTTP '+response.status);
+    const payload=await response.json();
+    const candidates=(payload.elements||[]).map(osmCandidateFromElement).filter(Boolean);
+    for(let i=0;i<candidates.length;i+=100){
+      result=await sb.rpc('admin_stage_osm_candidates',{p_batch_id:batchId,p_items:candidates.slice(i,i+100)});
+      if(result.error)throw result.error;
+    }
+    result=await sb.rpc('admin_finish_osm_import_batch',{p_batch_id:batchId,p_error_text:null});
+    if(result.error)throw result.error;
+    toast(`Импортировано для проверки: ${candidates.length}`);await loadOsmCandidates();
+  }catch(e){
+    if(batchId)await sb.rpc('admin_finish_osm_import_batch',{p_batch_id:batchId,p_error_text:String(e.message||e)});
+    toast('Импорт не завершён: '+(e.message||e),'error');
+  }finally{btn.disabled=false;btn.textContent='Импортировать Юнусабад'}
+}
+async function loadOsmCandidates(){
+  $('osmRows').innerHTML='<tr><td colspan="6">Загрузка кандидатов…</td></tr>';
+  const {data,error}=await sb.rpc('admin_list_osm_candidates',{p_status:null,p_limit:500,p_offset:0});
+  if(error){$('osmRows').innerHTML='';toast(error.message,'error');return}
+  osmCandidates=data||[];renderOsmCandidates();
+}
+function renderOsmCandidates(){
+  const status=val('osmStatusFilter'), list=osmCandidates.filter(x=>!status||x.status===status);
+  $('osmEmpty').classList.toggle('hidden',list.length>0);
+  const statusText={NEW:'Новый',DUPLICATE:'Возможный дубль',IMPORTED:'Опубликован',REJECTED:'Отклонён'};
+  $('osmRows').innerHTML=list.map(c=>`<tr>
+    <td data-label="Объект"><div class="parking-title">${escapeHtml(c.name)}</div><div class="parking-sub">${escapeHtml(c.address||'Адрес не указан')}</div><div class="parking-sub">OSM ${c.osm_type}/${c.osm_id}</div></td>
+    <td data-label="Категория"><span class="category">${escapeHtml(labels.category[c.category]||c.category)}</span></td>
+    <td data-label="Данные">${c.capacity==null?'Места не указаны':c.capacity+' мест'}<div class="parking-sub">${escapeHtml(labels.price[c.price_type]||c.price_type)}</div></td>
+    <td data-label="Проверка дубля">${c.duplicate_parking_id?`Объект рядом: ${c.duplicate_distance_m??'≤30'} м`:'Рядом не найдено'}</td>
+    <td data-label="Статус"><span class="badge ${c.status==='NEW'?'badge-pending':c.status==='DUPLICATE'?'badge-info':c.status==='IMPORTED'?'badge-approved':'badge-rejected'}">${statusText[c.status]||c.status}</span></td>
+    <td data-label="Действия"><div class="actions">
+      ${c.status==='NEW'||c.status==='DUPLICATE'?`<button class="btn btn-primary table-btn" onclick="checkOsmCandidate('${c.id}')">Проверить</button><button class="btn btn-danger table-btn" onclick="rejectOsmCandidate('${c.id}')">Отклонить</button>`:''}
+    </div></td>
+  </tr>`).join('');
+}
+window.checkOsmCandidate=id=>{
+  const c=osmCandidates.find(x=>x.id===id);if(!c)return;
+  openForm({
+    name:c.name,address:c.address||'',district:'Юнусабадский',city:'Tashkent',
+    lat:c.lat,lng:c.lng,category:c.category,kind:c.kind,price_type:c.price_type,
+    capacity:c.capacity,hours:c.hours,has_ev:c.has_ev,ev_operator:c.ev_operator,
+    ev_ports:c.ev_ports,ev_connectors:c.ev_connectors||[],status:'APPROVED',
+    source:'OSM',source_ref:`osm:${c.osm_type}/${c.osm_id}`,
+    moderator_note:c.duplicate_parking_id?`Возможный дубль на расстоянии ${c.duplicate_distance_m??30} м. Обязательно проверить.`:''
+  },null,id);
+  $('formTitle').textContent='Проверка объекта OpenStreetMap';
+};
+window.rejectOsmCandidate=async id=>{
+  const note=prompt('Причина отклонения кандидата:')||'Не подходит для публикации';
+  const {error}=await sb.rpc('admin_review_osm_candidate',{p_id:id,p_status:'REJECTED',p_moderator_note:note,p_published_parking_id:null});
+  if(error){toast(error.message,'error');return}toast('Кандидат отклонён');await loadOsmCandidates();
+};
+
 $('addBtn').onclick=()=>openForm();$('closeBtn').onclick=closeForm;$('cancelBtn').onclick=closeForm;
 $('centerCoordMap').onclick=()=>refreshCoordMap(true);
 $('uploadPhotosBtn').onclick=uploadSelectedPhotos;
@@ -618,8 +733,6 @@ function refreshCoordMap(recenter=false){
     }
   });
 }
-/* Блокировка фона под модалкой. Позицию прокрутки запоминаем и
-   возвращаем — иначе после закрытия страница прыгает наверх. */
 let savedScrollY=0;
 function lockBodyScroll(){
   savedScrollY=window.scrollY||window.pageYOffset||0;
@@ -631,8 +744,9 @@ function unlockBodyScroll(){
   document.body.style.top='';
   window.scrollTo(0,savedScrollY);
 }
-function openForm(p=null,submissionId=null){
+function openForm(p=null,submissionId=null,osmCandidateId=null){
   editingSubmissionId=submissionId;
+  editingOsmCandidateId=osmCandidateId;
   $('parkingForm').reset();$('formMsg').innerHTML='';$('id').value=p?.id||'';
   $('formTitle').textContent=p?'Редактирование парковки':'Новая парковка';
   const defaults={district:'Юнусабадский',city:'Tashkent',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
@@ -646,7 +760,7 @@ function openForm(p=null,submissionId=null){
   lockBodyScroll();
   setTimeout(()=>refreshCoordMap(true),50);
 }
-function closeForm(){$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null}
+function closeForm(){$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
 window.editParking=id=>openForm(records.find(x=>x.id===id));
 window.deleteParking=async id=>{
   const p=records.find(x=>x.id===id);
@@ -671,6 +785,7 @@ $('parkingForm').addEventListener('submit',async e=>{
     moderator_note:val('moderator_note')
   };
   const submissionId=editingSubmissionId;
+  const osmCandidateId=editingOsmCandidateId;
   const {data:saved,error}=await sb.rpc('admin_save_parking',{p_data:data});
   if(error){formMessage($('formMsg'),error.message);return}
   if(submissionId){
@@ -680,8 +795,16 @@ $('parkingForm').addEventListener('submit',async e=>{
     });
     if(reviewError){formMessage($('formMsg'),'Парковка сохранена, но заявка не закрыта: '+reviewError.message);return}
   }
+  if(osmCandidateId){
+    const savedId=typeof saved==='string'?saved:(saved&&saved.id?saved.id:null);
+    const {error:osmError}=await sb.rpc('admin_review_osm_candidate',{
+      p_id:osmCandidateId,p_status:'IMPORTED',p_moderator_note:data.moderator_note||null,p_published_parking_id:savedId
+    });
+    if(osmError){formMessage($('formMsg'),'Парковка сохранена, но кандидат OSM не закрыт: '+osmError.message);return}
+  }
   closeForm();toast('Изменения сохранены');await loadParkings();
   if(submissionId)await loadSubmissions();
+  if(osmCandidateId)await loadOsmCandidates();
 });
 checkSession();
 </script>
