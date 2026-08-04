@@ -58,6 +58,8 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 .badge-rejected{background:#fee2e2;color:#991b1b} .badge-info{background:#e2e8f0;color:#334155}
 .category{display:inline-flex;padding:5px 8px;border-radius:8px;background:#f2f4f7;font-size:12px;font-weight:700;color:#475467}
 .actions{display:flex;gap:7px} .table-btn{padding:7px 9px;font-size:12px}
+.osm-summary{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+.osm-summary .badge{font-size:11px}.pager{padding:13px 16px;display:flex;align-items:center;justify-content:center;gap:12px;border-top:1px solid var(--line)}
 .empty{padding:55px 20px;text-align:center;color:var(--muted)} .empty strong{display:block;color:#344054;font-size:17px;margin-bottom:6px}
 .toast{position:fixed;right:22px;bottom:22px;z-index:300;max-width:380px;padding:13px 15px;border-radius:12px;color:#fff;box-shadow:0 14px 32px rgba(15,23,42,.24)}
 .toast.ok{background:#15803d} .toast.error{background:#b42318}
@@ -110,6 +112,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   .stat{padding:12px;border-radius:13px}.stat-top{font-size:11px}.stat-icon{width:30px;height:30px}.stat-value{font-size:23px;margin-top:7px}.stat-note{display:none}
   .panel{border-radius:15px}.filters{padding:12px;gap:9px}.control{font-size:16px}
   .table-wrap{padding:9px} tbody{gap:9px}
+  .osm-summary{padding:10px 12px}.pager{padding:10px;gap:8px}.pager .btn{flex:1;min-width:105px}
   tbody td{grid-template-columns:88px minmax(0,1fr);padding:10px 11px;font-size:13px}
   .category,.badge{white-space:normal;line-height:1.25}
   .check-grid{grid-template-columns:1fr}
@@ -262,7 +265,8 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
     </section>
 
     <section id="osmPanel" class="panel hidden">
-      <div class="filters" style="grid-template-columns:220px auto auto">
+      <div class="filters" style="grid-template-columns:minmax(220px,1fr) 220px auto auto">
+        <div class="search-wrap"><span>⌕</span><input id="osmSearch" class="control" placeholder="Название, адрес или OSM ID"></div>
         <select id="osmStatusFilter" class="control">
           <option value="">Все кандидаты</option>
           <option value="NEW">Новые</option>
@@ -277,12 +281,14 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         Импорт создаёт только кандидатов. Перед публикацией каждый объект необходимо проверить.
         Данные © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>, ODbL.
       </div>
+      <div id="osmSummary" class="osm-summary"></div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Объект</th><th>Категория</th><th>Данные</th><th>Проверка дубля</th><th>Статус</th><th>Действия</th></tr></thead>
           <tbody id="osmRows"></tbody>
         </table>
       </div>
+      <div id="osmPager" class="pager hidden"><button id="osmPrev" class="btn btn-secondary">← Назад</button><strong id="osmPageLabel"></strong><button id="osmNext" class="btn btn-secondary">Вперёд →</button></div>
       <div id="osmEmpty" class="empty hidden"><strong>Кандидатов пока нет</strong>Запустите импорт OpenStreetMap.</div>
     </section>
   </main>
@@ -400,6 +406,8 @@ let records=[];
 let submissions=[];
 let reports=[];
 let osmCandidates=[];
+let osmPage=0;
+const osmPageSize=50;
 let editingSubmissionId=null;
 let editingOsmCandidateId=null;
 let coordMap=null;
@@ -456,7 +464,10 @@ $('refreshOsm').onclick=loadOsmCandidates;
 $('runOsmImport').onclick=runOsmImport;
 $('submissionStatusFilter').onchange=renderSubmissions;
 $('reportStatusFilter').onchange=renderReports;
-$('osmStatusFilter').onchange=renderOsmCandidates;
+$('osmSearch').oninput=()=>{osmPage=0;renderOsmCandidates()};
+$('osmStatusFilter').onchange=()=>{osmPage=0;renderOsmCandidates()};
+$('osmPrev').onclick=()=>{if(osmPage>0){osmPage--;renderOsmCandidates();$('osmPanel').scrollIntoView({behavior:'smooth'})}};
+$('osmNext').onclick=()=>{osmPage++;renderOsmCandidates();$('osmPanel').scrollIntoView({behavior:'smooth'})};
 $('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
 $('menuBackdrop').onclick=()=>$('sidebar').classList.remove('open');
 
@@ -676,16 +687,28 @@ async function runOsmImport(){
 }
 async function loadOsmCandidates(){
   $('osmRows').innerHTML='<tr><td colspan="6">Загрузка кандидатов…</td></tr>';
-  const {data,error}=await sb.rpc('admin_list_osm_candidates',{p_status:null,p_limit:500,p_offset:0});
-  if(error){$('osmRows').innerHTML='';toast(error.message,'error');return}
-  osmCandidates=data||[];renderOsmCandidates();
+  const all=[];
+  for(let offset=0;offset<5000;offset+=500){
+    const {data,error}=await sb.rpc('admin_list_osm_candidates',{p_status:null,p_limit:500,p_offset:offset});
+    if(error){$('osmRows').innerHTML='';toast(error.message,'error');return}
+    all.push(...(data||[]));if(!data||data.length<500)break;
+  }
+  osmCandidates=all;osmPage=0;renderOsmCandidates();
 }
 function renderOsmCandidates(){
-  const status=val('osmStatusFilter'), list=osmCandidates.filter(x=>!status||x.status===status);
+  const status=val('osmStatusFilter'),q=val('osmSearch').toLowerCase();
+  const list=osmCandidates.filter(x=>(!status||x.status===status)&&(!q||[x.name,x.address,x.osm_type+'/'+x.osm_id].some(v=>String(v||'').toLowerCase().includes(q))));
+  const counts=s=>osmCandidates.filter(x=>x.status===s).length;
+  $('osmSummary').innerHTML=`<span class="badge badge-info">Всего: ${osmCandidates.length}</span><span class="badge badge-pending">Новые: ${counts('NEW')}</span><span class="badge badge-info">Дубли: ${counts('DUPLICATE')}</span><span class="badge badge-approved">Опубликованы: ${counts('IMPORTED')}</span><span class="badge badge-rejected">Отклонены: ${counts('REJECTED')}</span>`;
+  const pageCount=Math.max(1,Math.ceil(list.length/osmPageSize));if(osmPage>=pageCount)osmPage=pageCount-1;
+  const pageItems=list.slice(osmPage*osmPageSize,(osmPage+1)*osmPageSize);
   $('osmEmpty').classList.toggle('hidden',list.length>0);
+  $('osmPager').classList.toggle('hidden',list.length<=osmPageSize);
+  $('osmPageLabel').textContent=`${osmPage+1} / ${pageCount}`;
+  $('osmPrev').disabled=osmPage===0;$('osmNext').disabled=osmPage>=pageCount-1;
   const statusText={NEW:'Новый',DUPLICATE:'Возможный дубль',IMPORTED:'Опубликован',REJECTED:'Отклонён'};
-  $('osmRows').innerHTML=list.map(c=>`<tr>
-    <td data-label="Объект"><div class="parking-title">${escapeHtml(c.name)}</div><div class="parking-sub">${escapeHtml(c.address||'Адрес не указан')}</div><div class="parking-sub">OSM ${c.osm_type}/${c.osm_id}</div></td>
+  $('osmRows').innerHTML=pageItems.map(c=>`<tr>
+    <td data-label="Объект"><div class="parking-title">${escapeHtml(c.name)}</div><div class="parking-sub">${escapeHtml(c.address||'Адрес не указан')}</div><div class="parking-sub"><a href="https://www.openstreetmap.org/${encodeURIComponent(c.osm_type)}/${encodeURIComponent(c.osm_id)}" target="_blank" rel="noopener">OSM ${escapeHtml(c.osm_type)}/${escapeHtml(c.osm_id)}</a> · <a href="https://yandex.uz/maps/?ll=${encodeURIComponent(c.lng+','+c.lat)}&z=18" target="_blank" rel="noopener">Открыть координаты</a></div></td>
     <td data-label="Категория"><span class="category">${escapeHtml(labels.category[c.category]||c.category)}</span></td>
     <td data-label="Данные">${c.capacity==null?'Места не указаны':c.capacity+' мест'}<div class="parking-sub">${escapeHtml(labels.price[c.price_type]||c.price_type)}</div></td>
     <td data-label="Проверка дубля">${c.duplicate_parking_id?`Объект рядом: ${c.duplicate_distance_m??'≤30'} м`:'Рядом не найдено'}</td>
