@@ -328,6 +328,20 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           </div>
         </section>
 
+        <section id="streetSection" class="form-section hidden">
+          <div class="section-title">Разрешённый участок вдоль дороги</div>
+          <div class="field">
+            <label>Точки линии</label>
+            <textarea id="street_path" class="control" placeholder="41.36670, 69.28880&#10;41.36710, 69.28940"></textarea>
+            <small>Минимум две точки. Каждая строка: широта, долгота.</small>
+            <button id="addStreetPoint" class="btn btn-secondary" type="button" style="margin-top:8px">Добавить текущую точку карты</button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label>Предупреждение водителю</label>
+            <input id="legal_note" class="control" value="Перед парковкой проверьте дорожные знаки и разметку.">
+          </div>
+        </section>
+
         <section class="form-section">
           <div class="section-title">Режим работы и удобства</div>
           <div class="grid">
@@ -672,6 +686,11 @@ window.rejectOsmCandidate=async id=>{
 
 $('addBtn').onclick=()=>openForm();$('closeBtn').onclick=closeForm;$('cancelBtn').onclick=closeForm;
 $('centerCoordMap').onclick=()=>refreshCoordMap(true);
+$('category').onchange=()=>$('streetSection').classList.toggle('hidden',val('category')!=='STREET_ALLOWED');
+$('addStreetPoint').onclick=()=>{
+  const lat=val('lat'),lng=val('lng');if(!lat||!lng){toast('Сначала выберите точку на карте','error');return}
+  $('street_path').value+=($('street_path').value.trim()?'\n':'')+lat+', '+lng;
+};
 $('uploadPhotosBtn').onclick=uploadSelectedPhotos;
 async function prepareImage(file){
   if(file.size>5*1024*1024)throw new Error(`Файл ${file.name} больше 5 МБ`);
@@ -744,6 +763,14 @@ function unlockBodyScroll(){
   document.body.style.top='';
   window.scrollTo(0,savedScrollY);
 }
+function parseStreetPath(){
+  const lines=val('street_path').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  if(!lines.length)return null;
+  const points=lines.map(line=>line.split(',').map(Number));
+  if(points.length<2||points.some(p=>p.length!==2||!Number.isFinite(p[0])||!Number.isFinite(p[1])))
+    throw new Error('Для уличного участка укажите минимум две точки в формате: широта, долгота');
+  return points;
+}
 function openForm(p=null,submissionId=null,osmCandidateId=null){
   editingSubmissionId=submissionId;
   editingOsmCandidateId=osmCandidateId;
@@ -755,6 +782,9 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   $('ev_connectors').value=(data.ev_connectors||[]).join(', ');
   $('payment_methods').value=(data.payment_methods||[]).join(', ');
   $('photos').value=(data.photos||[]).join('\n');
+  $('street_path').value=(data.street_path||[]).map(point=>point.join(', ')).join('\n');
+  $('legal_note').value=data.legal_note||'Перед парковкой проверьте дорожные знаки и разметку.';
+  $('streetSection').classList.toggle('hidden',data.category!=='STREET_ALLOWED');
   ['is_247','capacity_est','has_ev','has_cctv','has_disabled'].forEach(k=>$(k).checked=Boolean(data[k]));
   $('modal').classList.remove('hidden');
   lockBodyScroll();
@@ -772,6 +802,8 @@ window.deleteParking=async id=>{
 
 $('parkingForm').addEventListener('submit',async e=>{
   e.preventDefault();formMessage($('formMsg'),'');
+  let streetPath=null;
+  try{streetPath=val('category')==='STREET_ALLOWED'?parseStreetPath():null}catch(error){formMessage($('formMsg'),error.message);return}
   const data={
     id:val('id')||null,name:val('name'),address:val('address'),district:val('district'),city:val('city'),
     lat:nullableNumber('lat'),lng:nullableNumber('lng'),category:val('category'),kind:val('kind'),
@@ -788,17 +820,22 @@ $('parkingForm').addEventListener('submit',async e=>{
   const osmCandidateId=editingOsmCandidateId;
   const {data:saved,error}=await sb.rpc('admin_save_parking',{p_data:data});
   if(error){formMessage($('formMsg'),error.message);return}
+  const savedParkingId=typeof saved==='string'?saved:(saved&&saved.id?saved.id:data.id);
+  if(savedParkingId){
+    const {error:pathError}=await sb.rpc('admin_set_parking_street_path',{
+      p_parking_id:savedParkingId,p_path:streetPath,p_legal_note:val('legal_note')||null
+    });
+    if(pathError){formMessage($('formMsg'),'Парковка сохранена, но линия участка не сохранена: '+pathError.message);return}
+  }
   if(submissionId){
-    const savedId=typeof saved==='string'?saved:(saved&&saved.id?saved.id:null);
     const {error:reviewError}=await sb.rpc('admin_review_submission',{
-      p_id:submissionId,p_status:'APPROVED',p_admin_note:data.moderator_note||null,p_published_parking_id:savedId
+      p_id:submissionId,p_status:'APPROVED',p_admin_note:data.moderator_note||null,p_published_parking_id:savedParkingId
     });
     if(reviewError){formMessage($('formMsg'),'Парковка сохранена, но заявка не закрыта: '+reviewError.message);return}
   }
   if(osmCandidateId){
-    const savedId=typeof saved==='string'?saved:(saved&&saved.id?saved.id:null);
     const {error:osmError}=await sb.rpc('admin_review_osm_candidate',{
-      p_id:osmCandidateId,p_status:'IMPORTED',p_moderator_note:data.moderator_note||null,p_published_parking_id:savedId
+      p_id:osmCandidateId,p_status:'IMPORTED',p_moderator_note:data.moderator_note||null,p_published_parking_id:savedParkingId
     });
     if(osmError){formMessage($('formMsg'),'Парковка сохранена, но кандидат OSM не закрыт: '+osmError.message);return}
   }

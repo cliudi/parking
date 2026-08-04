@@ -817,6 +817,7 @@ async function loadParkingsFromDB(lat, lng, radius){
     const rows = await res.json();
     if(!Array.isArray(rows))throw new Error('db response');
     PARKINGS = rows.map(fromDbRow).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+    await loadStreetSegments();
     lastMarkerSignature='';
     drawMarkers(true);
     if(activeTab==='fav')renderFav();
@@ -826,6 +827,29 @@ async function loadParkingsFromDB(lat, lng, radius){
     toast(t('networkErr'));
     return false;
   }
+}
+
+let streetSegments=[],streetLines=[],streetSegmentIds=new Set();
+async function loadStreetSegments(){
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/street_parking_segments',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},body:'{}'});
+    if(!res.ok){streetSegments=[];streetSegmentIds=new Set();return}
+    const rows=await res.json();
+    streetSegments=(Array.isArray(rows)?rows:[]).filter(x=>Array.isArray(x.path)&&x.path.length>=2);
+    streetSegmentIds=new Set(streetSegments.map(x=>String(x.parking_id)));
+    drawStreetSegments();
+  }catch(e){console.warn('Уличные участки недоступны:',e)}
+}
+function drawStreetSegments(){
+  if(!ymap||!window.ymaps)return;
+  streetLines.forEach(line=>ymap.geoObjects.remove(line));streetLines=[];
+  streetSegments.forEach(segment=>{
+    const parking=PARKINGS.find(p=>String(p.id)===String(segment.parking_id));
+    const color=parking?markerColor(parking):'#2563EB';
+    const line=new ymaps.Polyline(segment.path,{hintContent:parking?.name||'Разрешённая уличная парковка'},{strokeColor:color,strokeWidth:7,strokeOpacity:.86});
+    line.events.add('click',()=>selectParking(String(segment.parking_id)));
+    ymap.geoObjects.add(line);streetLines.push(line);
+  });
 }
 
 /* цвет/иконка маркера по типу (ПДД разд.7.3: зелёный=бесплатно, синий=платно, серый=неизвестно) */
@@ -917,6 +941,7 @@ function initMap(){
     {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
   document.getElementById('maperr').style.display='none';
   drawMarkers();
+  drawStreetSegments();
   trackPan();
   ymap.events.add('boundschange',scheduleMarkerDraw);
   initHeading();
@@ -1104,7 +1129,7 @@ function ensureObjectManager(){
 function drawMarkers(force){
   if(!ymap)return;
   ensureObjectManager();
-  const wanted=visibleParkings();
+  const wanted=visibleParkings().filter(p=>!streetSegmentIds.has(String(p.id)));
   visibleParkingMap=new Map(wanted.map(p=>[String(p.id),p]));
   const theme=document.documentElement.getAttribute('data-theme')||'light';
   const signature=theme+'|'+String(selectedId||'')+'|'+wanted.map(p=>String(p.id)).join(',');
