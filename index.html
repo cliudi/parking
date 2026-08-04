@@ -245,6 +245,10 @@
   .submission-status.approved{color:#166534;background:#DCFCE7}
   .submission-status.rejected{color:#991B1B;background:#FEE2E2}
   .submission-note{display:block!important;width:100%;margin-top:1px;line-height:1.45}
+  .info-list{display:flex;flex-direction:column;gap:10px}
+  .info-card{padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+  .info-card b{display:block;font:800 14px 'Manrope';margin-bottom:5px}
+  .info-card span{display:block;font:600 12.5px 'Manrope';color:var(--ink2);line-height:1.55}
 
   /* профиль */
   .prof-card{background:var(--card);margin:12px;border-radius:18px;padding:18px;display:flex;align-items:center;gap:14px;box-shadow:var(--sh-s)}
@@ -695,6 +699,7 @@ function loadAuthSession(){
 }
 let authSession=loadAuthSession();
 let mySubmissions=[];
+let myReports=[];
 function saveAuthSession(data){
   authSession=data?{
     access_token:data.access_token,
@@ -1714,6 +1719,7 @@ async function sendReport(id,reason){
   const comment=cleanText(document.getElementById('report_comment')?.value);
   try{
     await supabaseRpc('submit_parking_report',{p_parking_id:id,p_reason:reason,p_comment:comment||null,p_client_id:clientId()});
+    if(authSession)await loadMyReports();
     closeSheet();toast(t('reportSent'));
   }catch(e){console.warn(e);toast(t('sendFailed'))}
 }
@@ -1744,24 +1750,63 @@ function renderProfile(){
   const guestCount=Number(localStorage.getItem('parkly-submission-count')||0);
   const email=cleanText(authSession?.user?.email);
   const submissionCount=authSession?mySubmissions.length:guestCount;
+  const reportCount=authSession?myReports.length:0;
+  const notificationsOn=localStorage.getItem('parkly-notifications')!=='off';
   const cont=document.getElementById('prof-content');
   cont.innerHTML=
     '<div class="prof-card"><div class="prof-ava">'+(email?email[0].toUpperCase():'Г')+'</div>'
     +'<div class="prof-info"><b>'+(email||t('guest'))+'</b><span>'+(email?'Аккаунт Parkly':t('notSignedIn'))+'</span></div></div>'
     +'<div class="prof-list">'
-    +profRow('🚗',t('myCars'),'0')
-    +profRow('🕐',t('history'),'')
-    +'<div class="prof-row" onclick="openMySubmissions()"><span class="pri">📄</span><span class="prl">Мои заявки</span>'
-      +(submissionCount?'<span class="prv">'+submissionCount+'</span>':'')+'<span class="arr">›</span></div>'
-    +profRow('💳',t('payments'),'')
-    +'<div class="prof-row"><span class="pri">🔔</span><span class="prl">'+t('notifs')+'</span><span class="toggle on" onclick="this.classList.toggle(\'on\')"></span></div>'
-    +profRow('💬',t('support'),'')
-    +profRow('ⓘ',t('about'),'v1.0')
+    +profRow('📄','Мои заявки',submissionCount,'openMySubmissions()')
+    +profRow('🛠','Мои исправления',reportCount,'openMyReports()')
+    +'<div class="prof-row"><span class="pri">🔔</span><span class="prl">'+t('notifs')+'</span><span class="toggle'+(notificationsOn?' on':'')+'" role="switch" aria-checked="'+notificationsOn+'" onclick="toggleNotifications(this)"></span></div>'
+    +profRow('💬',t('support'),'','openSupport()')
+    +profRow('ⓘ',t('about'),'v1.0','openAbout()')
     +'</div>'
     +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?'Выйти':t('signIn'))+'</button>';
 }
-function profRow(ic,label,val){
-  return '<div class="prof-row" onclick="toast(\'Раздел появится на этапе сервера\')"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
+function profRow(ic,label,val,action){
+  return '<div class="prof-row" onclick="'+action+'"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val!==''?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
+}
+function toggleNotifications(el){
+  const enabled=!el.classList.contains('on');
+  el.classList.toggle('on',enabled);
+  el.setAttribute('aria-checked',String(enabled));
+  localStorage.setItem('parkly-notifications',enabled?'on':'off');
+  toast(enabled?'Уведомления включены':'Уведомления выключены');
+}
+function openSupport(){
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>Помощь и поддержка</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="form-body info-list">'
+    +'<div class="info-card"><b>Как добавить парковку?</b><span>Нажмите «Добавить» внизу экрана, укажите точку на карте и заполните известные данные.</span></div>'
+    +'<div class="info-card"><b>Почему объект появился не сразу?</b><span>Все новые парковки проходят проверку администратора. Статус виден в разделе «Мои заявки».</span></div>'
+    +'<div class="info-card"><b>Как сообщить об ошибке?</b><span>Откройте карточку парковки и нажмите «Сообщить об ошибке». Ответ администратора появится в «Моих исправлениях».</span></div>'
+    +'<div class="info-card"><b>Показывает ли Parkly свободные места?</b><span>Нет. Вместимость — это общее количество мест, а не занятость в реальном времени.</span></div>'
+    +'</div>';
+  openSheet(html);
+}
+function openAbout(){
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>О приложении</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="form-body info-list">'
+    +'<div class="info-card"><b>Parkly v1.0</b><span>Карта парковок Ташкента с поиском, фильтрами, избранным и предложением новых объектов.</span></div>'
+    +'<div class="info-card"><b>Источники данных</b><span>Данные Parkly, предложения пользователей и OpenStreetMap. Карта предоставлена сервисом Яндекс Карты.</span></div>'
+    +'<div class="legalnote" style="margin:0">ℹ️<span>Parkly не гарантирует наличие свободных мест. Перед поездкой проверяйте знаки, режим работы и условия оплаты на месте.</span></div>'
+    +'<button class="btn-outline" onclick="openPrivacyInfo()">Как используются мои данные</button>'
+    +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>'
+    +'</div>';
+  openSheet(html);
+}
+function openPrivacyInfo(){
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>Использование данных</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="form-body info-list">'
+    +'<div class="info-card"><b>Аккаунт</b><span>Для входа Supabase хранит адрес электронной почты и защищённые данные авторизации.</span></div>'
+    +'<div class="info-card"><b>Геолокация</b><span>Используется для показа вашего положения и расстояний. Parkly не создаёт историю поездок.</span></div>'
+    +'<div class="info-card"><b>Ваш вклад</b><span>Предложения парковок, фотографии и сообщения об ошибках сохраняются для модерации. Избранное синхронизируется с аккаунтом после входа.</span></div>'
+    +'</div>';
+  openSheet(html);
 }
 function openAuth(){
   const html='<div class="grabber"><i></i></div>'
@@ -1799,7 +1844,7 @@ async function submitAuth(mode){
       await syncFavorite(id,true);
     }
     saveFav();
-    await loadMySubmissions();
+    await Promise.all([loadMySubmissions(),loadMyReports()]);
     closeSheet();renderProfile();toast(mode==='signup'?'Аккаунт создан':'Вы вошли в аккаунт');
   }catch(e){
     message.style.color='var(--red)';
@@ -1814,13 +1859,19 @@ async function signOutUser(){
   try{
     if(token)await fetch(SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token}});
   }catch(e){}
-  saveAuthSession(null);mySubmissions=[];favorites=loadFav();renderProfile();toast('Вы вышли из аккаунта');
+  saveAuthSession(null);mySubmissions=[];myReports=[];favorites=loadFav();renderProfile();toast('Вы вышли из аккаунта');
 }
 async function loadMySubmissions(){
   if(!authSession){mySubmissions=[];return}
   try{
     mySubmissions=await userRest('/rest/v1/parking_submissions?select=id,name,address,status,admin_note,published_parking_id,created_at&order=created_at.desc')||[];
   }catch(e){console.warn(e);mySubmissions=[]}
+}
+async function loadMyReports(){
+  if(!authSession){myReports=[];return}
+  try{
+    myReports=await userRest('/rest/v1/parking_reports?select=id,parking_id,reason,comment,status,admin_note,created_at&order=created_at.desc')||[];
+  }catch(e){console.warn(e);myReports=[]}
 }
 const submissionStatusLabels={
   PENDING:'На модерации',APPROVED:'Одобрено',REJECTED:'Отклонено',NEEDS_INFO:'Нужны сведения'
@@ -1837,6 +1888,25 @@ async function openMySubmissions(){
       +'</div></div>'
   ).join(''):'<div class="empty-state"><div class="ei">📄</div><b>Заявок пока нет</b><span>Предложите парковку через кнопку «Добавить».</span></div>';
   openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Мои заявки</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="fav-list">'+items+'</div>');
+}
+const reportStatusLabels={PENDING:'На проверке',RESOLVED:'Исправлено',REJECTED:'Отклонено'};
+const reportReasonLabels={noPark:'Парковки больше нет',forbidden:'Парковка запрещена',price:'Неверная стоимость',cap:'Неверная вместимость',hours:'Неверное время работы',ev:'Неверные данные о зарядке',other:'Другое'};
+async function openMyReports(){
+  if(!authSession){openAuth();return}
+  await loadMyReports();renderProfile();
+  const items=myReports.length?myReports.map(r=>{
+    const parking=PARKINGS.find(p=>p.id===r.parking_id);
+    const statusClass=r.status==='RESOLVED'?'approved':r.status==='REJECTED'?'rejected':'pending';
+    return '<div class="fav-item submission-card" style="align-items:flex-start">'
+      +'<div class="fav-ic" style="background:'+(r.status==='RESOLVED'?'var(--green)':r.status==='REJECTED'?'var(--red)':'var(--amber)')+'">!</div>'
+      +'<div class="fav-txt"><b>'+cleanText(parking?.name||'Парковка')+'</b>'
+      +'<span class="submission-address">'+cleanText(reportReasonLabels[r.reason]||r.reason||'Сообщение об ошибке')+'</span>'
+      +'<span class="submission-status '+statusClass+'">'+cleanText(reportStatusLabels[r.status]||r.status)+'</span>'
+      +(r.comment?'<span class="submission-note">Ваш комментарий: '+cleanText(r.comment)+'</span>':'')
+      +(r.admin_note?'<span class="submission-note"><b>Ответ администратора:</b> '+cleanText(r.admin_note)+'</span>':'')
+      +'</div></div>';
+  }).join(''):'<div class="empty-state"><div class="ei">🛠</div><b>Исправлений пока нет</b><span>Сообщить о неточности можно из карточки любой парковки.</span></div>';
+  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Мои исправления</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="fav-list">'+items+'</div>');
 }
 
 /* ═══════════ ЛЕГЕНДА ═══════════ */
@@ -1878,7 +1948,7 @@ function switchTab(tab){
   if(tab==='fav')renderFav();
   if(tab==='profile'){
     renderProfile();
-    if(authSession)loadMySubmissions().then(renderProfile);
+    if(authSession)Promise.all([loadMySubmissions(),loadMyReports()]).then(renderProfile);
   }
   buildNav();
 }
@@ -1948,6 +2018,7 @@ loadYandex();buildQchips();buildNav();loadParkingsFromDB();
 if(authSession){
   loadRemoteFavorites();
   loadMySubmissions();
+  loadMyReports();
 }
 /* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
    Кэш показываем сразу, а системный запрос разрешения откладываем,
