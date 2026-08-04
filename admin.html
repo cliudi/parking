@@ -621,18 +621,31 @@ async function runOsmImport(){
   if(!confirm('Загрузить парковки и автомобильные зарядные станции из OpenStreetMap? Они попадут только в список предварительной проверки.'))return;
   const btn=$('runOsmImport');btn.disabled=true;btn.textContent='Импорт выполняется…';
   const bbox='41.3000,69.2200,41.4300,69.3900';
-  const query=`[out:json][timeout:60];(nwr["amenity"="parking"](${bbox});nwr["amenity"="charging_station"]["motorcar"!="no"](${bbox}););out center tags;`;
+  const boxes=['41.3000,69.2200,41.3650,69.3050','41.3000,69.3050,41.3650,69.3900','41.3650,69.2200,41.4300,69.3050','41.3650,69.3050,41.4300,69.3900'];
+  const queryFor=box=>`[out:json][timeout:25];(nwr["amenity"="parking"](${box});nwr["amenity"="charging_station"]["motorcar"!="no"](${box}););out center tags;`;
+  const query=boxes.map(queryFor).join('\n');
   let batchId=null;
   try{
     let result=await sb.rpc('admin_create_osm_import_batch',{p_bbox:bbox,p_overpass_query:query});
     if(result.error)throw result.error;batchId=result.data;
-    const response=await fetch('https://overpass-api.de/api/interpreter',{
-      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-      body:'data='+encodeURIComponent(query)
-    });
-    if(!response.ok)throw new Error('Overpass API: HTTP '+response.status);
-    const payload=await response.json();
-    const candidates=(payload.elements||[]).map(osmCandidateFromElement).filter(Boolean);
+    const endpoints=['https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass-api.de/api/interpreter'];
+    const imported=new Map();
+    for(let boxIndex=0;boxIndex<boxes.length;boxIndex++){
+      btn.textContent=`Импорт: часть ${boxIndex+1} из ${boxes.length}`;
+      const tileQuery=queryFor(boxes[boxIndex]);let payload=null,lastError=null;
+      for(const endpoint of endpoints){
+        try{
+          const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),55000);
+          const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:'data='+encodeURIComponent(tileQuery),signal:controller.signal});
+          clearTimeout(timer);
+          if(!response.ok)throw new Error('HTTP '+response.status);
+          payload=await response.json();break;
+        }catch(error){lastError=error}
+      }
+      if(!payload)throw new Error(`Overpass, часть ${boxIndex+1}: ${lastError?.message||'сервер недоступен'}`);
+      (payload.elements||[]).forEach(element=>imported.set(element.type+'/'+element.id,element));
+    }
+    const candidates=[...imported.values()].map(osmCandidateFromElement).filter(Boolean);
     for(let i=0;i<candidates.length;i+=100){
       result=await sb.rpc('admin_stage_osm_candidates',{p_batch_id:batchId,p_items:candidates.slice(i,i+100)});
       if(result.error)throw result.error;
