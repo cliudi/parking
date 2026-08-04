@@ -628,22 +628,38 @@ async function runOsmImport(){
   try{
     let result=await sb.rpc('admin_create_osm_import_batch',{p_bbox:bbox,p_overpass_query:query});
     if(result.error)throw result.error;batchId=result.data;
-    const endpoints=['https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass-api.de/api/interpreter'];
+    const endpoints=['https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass.private.coffee/api/interpreter','https://overpass-api.de/api/interpreter'];
     const imported=new Map();
-    for(let boxIndex=0;boxIndex<boxes.length;boxIndex++){
-      btn.textContent=`Импорт: часть ${boxIndex+1} из ${boxes.length}`;
-      const tileQuery=queryFor(boxes[boxIndex]);let payload=null,lastError=null;
+    const splitBox=box=>{
+      const [south,west,north,east]=box.split(',').map(Number),midLat=(south+north)/2,midLng=(west+east)/2;
+      return [[south,west,midLat,midLng],[south,midLng,midLat,east],[midLat,west,north,midLng],[midLat,midLng,north,east]].map(v=>v.map(n=>n.toFixed(6)).join(','));
+    };
+    const fetchBox=async(box,depth=0)=>{
+      const tileQuery=queryFor(box);let lastError=null;
       for(const endpoint of endpoints){
+        let timer=null;
         try{
-          const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),55000);
+          const controller=new AbortController();timer=setTimeout(()=>controller.abort(),45000);
           const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:'data='+encodeURIComponent(tileQuery),signal:controller.signal});
           clearTimeout(timer);
           if(!response.ok)throw new Error('HTTP '+response.status);
-          payload=await response.json();break;
-        }catch(error){lastError=error}
+          const payload=await response.json();return payload.elements||[];
+        }catch(error){if(timer)clearTimeout(timer);lastError=error}
       }
-      if(!payload)throw new Error(`Overpass, часть ${boxIndex+1}: ${lastError?.message||'сервер недоступен'}`);
-      (payload.elements||[]).forEach(element=>imported.set(element.type+'/'+element.id,element));
+      if(depth<2){
+        btn.textContent=`Сервер занят — делим область (${depth+1}/2)`;
+        const result=[];
+        for(const child of splitBox(box))result.push(...await fetchBox(child,depth+1));
+        return result;
+      }
+      throw new Error(lastError?.message||'сервер недоступен');
+    };
+    for(let boxIndex=0;boxIndex<boxes.length;boxIndex++){
+      btn.textContent=`Импорт: часть ${boxIndex+1} из ${boxes.length}`;
+      try{
+        const elements=await fetchBox(boxes[boxIndex]);
+        elements.forEach(element=>imported.set(element.type+'/'+element.id,element));
+      }catch(error){throw new Error(`Overpass, часть ${boxIndex+1}: ${error.message||error}`)}
     }
     const candidates=[...imported.values()].map(osmCandidateFromElement).filter(Boolean);
     for(let i=0;i<candidates.length;i+=100){
