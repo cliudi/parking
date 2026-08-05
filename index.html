@@ -1392,7 +1392,7 @@ async function permState(){try{if(navigator.permissions){const p=await navigator
 function yandexGeo(){return new Promise((res,rej)=>{if(!window.ymaps||!ymaps.geolocation)return rej();ymaps.geolocation.get({provider:'auto'}).then(r=>{const c=r.geoObjects.get(0).geometry.getCoordinates();res({lat:c[0],lng:c[1],acc:5000})},rej)})}
 const GeoPlugin=()=>(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Geolocation)||null;
 
-let meAcc=0, userPanned=false, precising=false, gpsGot=false, dbReloadedForUser=false;
+let meAcc=0,meSpeed=0,userPanned=false,precising=false,gpsGot=false,dbReloadedForUser=false;
 
 /* кэш последней позиции — только если она была точной */
 const LP_KEY='parkly-lastpos';
@@ -1447,13 +1447,19 @@ let lastFixTs=0;
 const GPS_GOOD=60;      // настоящий спутниковый замер — до 60 м
 const ROUGH_OVER=100;   // всё, что хуже 100 м, показываем как приблизительное
 const JUNK_OVER=2500;    // хуже 2.5 км — это определение по IP, ему верить нельзя
-function applyFix(lat,lng,acc,label,precise){
+function applyFix(lat,lng,acc,label,precise,heading,speed){
   // мусорный замер (IP-геолокация) не показываем вовсе, если уже есть что-то лучше
   if(acc>JUNK_OVER&&mePos&&meAcc&&meAcc<acc)return false;
   const stale = Date.now()-lastFixTs>20000;   // старый замер устарел — берём любой новый
-  const better = !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot) || stale;
+  const movingFix=routeGuidanceActive&&acc<=Math.max(120,(meAcc||60)*2.5);
+  const better = movingFix || !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot) || stale;
   if(!better)return false;
   lastFixTs=Date.now();
+  meSpeed=Number.isFinite(speed)&&speed>0?speed:0;
+  if(Number.isFinite(heading)&&heading>=0&&(meSpeed>.6||meHeading==null)){
+    const delta=((heading-(meHeading==null?heading:meHeading)+540)%360)-180;
+    meHeading=(meHeading==null?heading:(meHeading+delta*.35)+360)%360;
+  }
   if(!dbReloadedForUser && acc<3000){ dbReloadedForUser=true; loadParkingsFromDB(lat,lng,15000); }
   const jumped = mePos ? dist(mePos.lat,mePos.lng,lat,lng)>0.2 : true;
   putMe(lat,lng,acc,acc>ROUGH_OVER);
@@ -1556,7 +1562,7 @@ async function startPreciseWatch(){
     if(!p||!p.coords)return;
     const acc=p.coords.accuracy;
     const first=!gpsGot&&acc<=GPS_GOOD;
-    applyFix(p.coords.latitude,p.coords.longitude,acc,first?t('geoPrecise'):null,acc<=GPS_GOOD);
+    applyFix(p.coords.latitude,p.coords.longitude,acc,first?t('geoPrecise'):null,acc<=GPS_GOOD,p.coords.heading,p.coords.speed);
     showAcc(acc);
   };
   try{
@@ -1645,7 +1651,7 @@ document.getElementById('filtbtn').onclick=openFilters;
 
 /* ═══════════ МАРШРУТ ВНУТРИ PARKLY ═══════════ */
 let route=null,routeTarget=null,routeMode='auto',routeInfo=null,routeAlternative=0;
-let routeGuidanceActive=false,lastRouteRefreshAt=0,lastRouteOrigin=null,routeRequestAbort=null;
+let routeGuidanceActive=false,lastRouteRefreshAt=0,lastRouteOrigin=null,routeRequestAbort=null,lastRouteDeviationToast=0;
 const routeCache=new Map(),ROUTE_CACHE_MS=5*60*1000;
 function routeOrigin(){return selectedStart||mePos}
 function routeCacheKey(origin,target,mode){return [mode,origin.lat.toFixed(5),origin.lng.toFixed(5),target.lat.toFixed(5),target.lng.toFixed(5)].join(':')}
@@ -1691,20 +1697,26 @@ function selectRouteAlternative(index){
   if(!route||!route.alternatives||!route.alternatives[index])return;const alternatives=route.alternatives;routeAlternative=index;drawRoadRoutes(alternatives,index);
   const r=alternatives[index];routeInfo={dist:formatRouteDistance(r.distance),time:formatRouteDuration(r.duration),alternatives:alternatives.length};drawRoutePanel(routeInfo);
 }
-async function startRouteGuidance(){if(!routeTarget)return;if(!mePos){toast(t('needGeoRoute'));await locate(true);if(!mePos)return}routeGuidanceActive=true;selectedStart=null;lastRouteRefreshAt=0;await startPreciseWatch();ymap.setCenter([mePos.lat,mePos.lng],Math.max(16,ymap.getZoom()),{duration:300});drawRoutePanel(routeInfo)}
+async function startRouteGuidance(){if(!routeTarget||!routeInfo||routeInfo.error)return;if(!mePos){toast(t('needGeoRoute'));await locate(true);if(!mePos)return}routeGuidanceActive=true;selectedStart=null;userPanned=false;lastRouteRefreshAt=Date.now();lastRouteOrigin={lat:mePos.lat,lng:mePos.lng};initHeading();await startPreciseWatch();ymap.setCenter([mePos.lat,mePos.lng],Math.max(17,ymap.getZoom()),{duration:300});drawRoutePanel(routeInfo)}
 function stopRouteGuidance(silent){routeGuidanceActive=false;if(!silent)toast('Сопровождение остановлено');if(routeTarget)drawRoutePanel(routeInfo)}
 function updateRouteGuidance(){
-  if(!routeGuidanceActive||!routeTarget||!mePos)return;const directLeft=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng),left=routeRemainingDistance();
+  if(!routeGuidanceActive||!routeTarget||!mePos)return;const directLeft=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng),progress=routeProgressState(),left=progress.remaining;
   if(directLeft<0.04){toast(t('routeArrived'));stopRouteGuidance(true)}
   const now=Date.now(),moved=lastRouteOrigin?dist(lastRouteOrigin.lat,lastRouteOrigin.lng,mePos.lat,mePos.lng):1;
-  if(now-lastRouteRefreshAt>7000&&moved>0.04){lastRouteRefreshAt=now;routeTo(routeTarget.id,routeMode);return}
-  drawRoutePanel(Object.assign({},routeInfo,{progress:left<1?Math.round(left*1000)+' м':left.toFixed(1)+' км'}));if(!userPanned&&ymap)ymap.panTo([mePos.lat,mePos.lng],{duration:250});
+  const offRoute=progress.deviation>Math.max(.045,(meAcc||30)/1000*1.5);
+  const periodicRefresh=now-lastRouteRefreshAt>45000&&moved>.2;
+  if((offRoute&&now-lastRouteRefreshAt>10000)||periodicRefresh){
+    if(offRoute&&now-lastRouteDeviationToast>15000){toast('Перестраиваю маршрут');lastRouteDeviationToast=now}
+    lastRouteRefreshAt=now;routeTo(routeTarget.id,routeMode);return;
+  }
+  drawRoutePanel(Object.assign({},routeInfo,{progress:left<1?Math.round(left*1000)+' м':left.toFixed(1)+' км'}));if(!userPanned&&ymap)ymap.panTo([mePos.lat,mePos.lng],{duration:220});
 }
-function routeRemainingDistance(){
-  const geometry=route&&route.alternatives&&route.alternatives[routeAlternative]&&route.alternatives[routeAlternative].geometry;if(!geometry||!geometry.length)return dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng);
+function routeProgressState(){
+  const geometry=route&&route.alternatives&&route.alternatives[routeAlternative]&&route.alternatives[routeAlternative].geometry;if(!geometry||!geometry.length){const direct=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng);return{remaining:direct,deviation:0}}
   let nearest=0,best=Infinity;geometry.forEach((c,i)=>{const d=dist(mePos.lat,mePos.lng,c[1],c[0]);if(d<best){best=d;nearest=i}});let km=best;
-  for(let i=nearest;i<geometry.length-1;i++)km+=dist(geometry[i][1],geometry[i][0],geometry[i+1][1],geometry[i+1][0]);return km;
+  for(let i=nearest;i<geometry.length-1;i++)km+=dist(geometry[i][1],geometry[i][0],geometry[i+1][1],geometry[i+1][0]);return{remaining:km,deviation:best};
 }
+function routeRemainingDistance(){return routeProgressState().remaining}
 function drawRoutePanel(info){
   const p=routeTarget;if(!p)return;let rp=document.getElementById('routepanel');if(!rp){rp=document.createElement('div');rp.id='routepanel';document.getElementById('screen-map').appendChild(rp)}
   const altCount=Math.min(3,Number(info&&info.alternatives||0));
