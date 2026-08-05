@@ -985,7 +985,7 @@ function showMapErr(){
 }
 function initMap(){
   ymap=new ymaps.Map('map',{center:[41.3111,69.2650],zoom:13,controls:[]},
-    {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
+    {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:false});
   document.getElementById('maperr').style.display='none';
   drawMarkers();
   drawStreetSegments();
@@ -1000,12 +1000,18 @@ function initMap(){
     ymap.setCenter([c.lat,c.lng],zoomFor(c.acc));
     drawMarkers();
   }
+  ymap.events.add('balloonopen',()=>{
+    /* Карточки базовых POI формирует сам Яндекс. Не перекрываем их карточкой Parkly. */
+    if(selectedPointMark)clearSelectedPoint();
+    else document.getElementById('minicard').classList.remove('on');
+  });
   ymap.events.add('click',e=>{
     /* Если пользователь попал рядом с визуальным пином, выбираем ближайший.
        Это страхует маленькие экраны и частично перекрывающиеся метки. */
-    const hit=findNearestVisibleParking(e.get('coords'),28);
+    const coords=e.get('coords'),hit=findNearestVisibleParking(coords,28);
     if(hit){selectParking(hit.id);return}
-    setSelectedPoint(e.get('coords'));
+    /* Даём встроенной карточке POI один кадр на открытие. Если POI нет — показываем выбранную точку Parkly. */
+    setTimeout(()=>{if(!ymap)return;try{if(ymap.balloon&&ymap.balloon.isOpen())return}catch(error){}setSelectedPoint(coords)},0);
   });
 }
 
