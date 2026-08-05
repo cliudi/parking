@@ -834,8 +834,34 @@ function fromDbRow(r){
     payment: (r.payment_methods||[]).map(cleanText).join(', ')||'—', rating: null,
     photo: safePhotoUrl(r.photos&&r.photos[0]),
     verified: cleanText(r.verified_at), source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parkly':cleanText(r.source)||'Источник не указан'),
-    legal: r.category==='STREET_ALLOWED'
+    legal: r.category==='STREET_ALLOWED',
+    has_barrier: !!r.has_barrier,
+    has_free_period: !!r.has_free_period,
+    free_period_minutes: r.free_period_minutes==null?null:Number(r.free_period_minutes),
+    price_after_free_period: r.price_after_free_period==null?null:Number(r.price_after_free_period),
+    price_after_free_period_unit: cleanText(r.price_after_free_period_unit)||'unknown',
+    requires_purchase: !!r.requires_purchase,
+    requires_receipt: !!r.requires_receipt
   };
+}
+
+async function loadParkingAccess(rows,signal){
+  const ids=(rows||[]).map(row=>String(row.id)).filter(Boolean);
+  if(!ids.length)return new Map();
+  const select='id,has_barrier,has_free_period,free_period_minutes,price_after_free_period,price_after_free_period_unit,requires_purchase,requires_receipt';
+  const filter='in.('+ids.join(',')+')';
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/parkings?select='+encodeURIComponent(select)+'&id='+encodeURIComponent(filter),{
+      signal,headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    if(!res.ok)throw new Error('parking access http '+res.status);
+    const data=await res.json();
+    return new Map((Array.isArray(data)?data:[]).map(row=>[String(row.id),row]));
+  }catch(error){
+    if(error.name==='AbortError')throw error;
+    console.warn('Условия доступа парковок временно недоступны:',error);
+    return new Map();
+  }
 }
 
 // Грузим парковки рядом с точкой (или центр Ташкента, если позиция ещё не известна).
@@ -866,8 +892,9 @@ async function loadParkingsFromDB(lat, lng, radius){
     if(!res.ok)throw new Error('db http '+res.status);
     const rows=await res.json();
     if(!Array.isArray(rows))throw new Error('db response');
+    const accessById=await loadParkingAccess(rows,controller.signal);
     if(controller!==parkingLoadController)return false;
-    PARKINGS=rows.map(fromDbRow).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+    PARKINGS=rows.map(row=>fromDbRow({...row,...(accessById.get(String(row.id))||{})})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
     lastParkingLoadKey=requestKey;lastParkingLoadAt=Date.now();
     lastMarkerSignature='';
     requestAnimationFrame(()=>{drawStreetSegments();drawMarkers(true)});
@@ -934,6 +961,21 @@ let selectedStart=null,selectedDestination=null,selectedPointRequest=0;
 let quickFilter='all';
 let favorites=loadFav();
 let advFilters={price:'all', types:[], e247:false, cctv:false, disabled:false, wash:false, priceMax:100000};
+const PARKING_MARKER_ASSETS={
+  barrier:{small:'assets/markers/barrier-parking-small.png',normal:'assets/markers/barrier-parking.png',selected:'assets/markers/barrier-parking-selected.png'},
+  freePeriod:{small:'assets/markers/limited-free-parking-small.png',normal:'assets/markers/limited-free-parking.png',selected:'assets/markers/limited-free-parking-selected.png'}
+};
+let parkingMarkerAssetsReady=false;
+function preloadParkingMarkerAssets(){
+  const urls=[...new Set(Object.values(PARKING_MARKER_ASSETS).flatMap(Object.values))];
+  Promise.all(urls.map(url=>new Promise(resolve=>{
+    const image=new Image();image.decoding='async';image.onload=()=>resolve(true);image.onerror=()=>resolve(false);image.src=url;
+  }))).then(results=>{
+    parkingMarkerAssetsReady=results.every(Boolean);
+    if(parkingMarkerAssetsReady&&ymap){lastMarkerSignature='';drawMarkers(true)}
+  });
+}
+preloadParkingMarkerAssets();
 
 function favoriteStorageKey(){
   return authSession?.user?.id?'parkly-fav-'+authSession.user.id:'parkly-fav-guest';
@@ -1141,7 +1183,24 @@ function markerSizeByZoom(selected){
   if(selected) size=[Math.round(size[0]*1.12),Math.round(size[1]*1.12)];
   return size;
 }
+function specialParkingMarker(p,selected){
+  if(!parkingMarkerAssetsReady||(!p.has_free_period&&!p.has_barrier))return null;
+  const family=p.has_free_period?PARKING_MARKER_ASSETS.freePeriod:PARKING_MARKER_ASSETS.barrier;
+  const variant=selected?'selected':((ymap?ymap.getZoom():13)<13?'small':'normal');
+  const size=variant==='selected'?[46,58]:variant==='small'?[30,38]:[38,48];
+  return {href:family[variant],size};
+}
 function markerOptions(p,selected){
+  const special=specialParkingMarker(p,selected);
+  if(special){
+    return {
+      iconLayout:'default#image',iconImageHref:special.href,iconImageSize:special.size,
+      iconImageOffset:[-Math.round(special.size[0]/2),-Math.round(special.size[1]*.92)],
+      iconShape:{type:'Rectangle',coordinates:[[0,0],[special.size[0],special.size[1]]]},
+      interactivityModel:'default#transparent',cursor:'pointer',zIndex:selected?1000:140,
+      hasBalloon:false,hasHint:false
+    };
+  }
   const isEvOnly=p.category==='EV_STATION';
   const symbol=isEvOnly?'⚡':'P';
   const combo=p.ev&&!isEvOnly;
