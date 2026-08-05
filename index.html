@@ -127,6 +127,9 @@
   .mc-place-details{margin-top:10px;padding:10px 12px;border-radius:13px;background:var(--bg);font:600 11.5px Manrope;color:var(--ink2);line-height:1.45}
   .mc-place-card{overflow:hidden}
   .mc-place-hero{display:flex;align-items:center;gap:12px;margin:-2px -2px 0;padding:13px;border-radius:16px;background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 58%,#0f766e 100%);color:#fff}
+  .mc-place-hero.parking{background:linear-gradient(135deg,#16a34a 0%,#059669 58%,#047857 100%)}
+  .mc-place-hero.ev{background:linear-gradient(135deg,#f59e0b 0%,#ea580c 58%,#c2410c 100%)}
+  .mc-place-hero.position{background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 62%,#4338ca 100%)}
   .mc-place-hero .mc-ic{width:50px;height:50px;border-radius:15px;background:rgba(255,255,255,.18)!important;border:1px solid rgba(255,255,255,.25);font-size:23px}
   .mc-place-hero .mc-kicker,.mc-place-hero .mc-sub{color:rgba(255,255,255,.78)}
   .mc-place-hero h3{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
@@ -1305,20 +1308,16 @@ function statusLabel(p){
 function showMiniCard(id){
   const p=PARKINGS.find(x=>x.id===id);if(!p)return;
   const el=document.getElementById('minicard');
-  const d=distText(p);
-  el.innerHTML=
-    '<div class="mc-head">'
-    +'<div class="mc-ic" style="background:'+markerColor(p)+'">'+catIcon(p)+'</div>'
-    +'<div class="mc-body"><h3>'+escapeHtml(p.name)+'</h3>'
-    +'<div class="mc-sub">'+priceLabel(p)+' · '+(p.cap?(p.cap_est?t('approx').toLowerCase()+' ':'')+p.cap+' '+t('places'):t('capUnknown'))+'</div>'
-    +'<div class="mc-meta" style="color:'+(p.is247?'var(--green)':'var(--ink2)')+'">'+(p.is247?'● '+t('open247'):'○ '+p.hours)+'</div>'
-    +'</div>'
-    +(d?'<div class="mc-dist">➤ '+d+'</div>':'')
-    +'<button class="mc-dismiss" aria-label="Закрыть" onclick="closeMiniCard()">✕</button>'
-    +'</div>'
+  const d=distText(p)||'—';
+  const cap=p.cap?(p.cap_est?t('approx').toLowerCase()+' ':'')+p.cap+' '+t('places'):t('capUnknown');
+  const hours=p.is247?t('open247'):(p.hours||'Время работы не указано');
+  const kind=p.ev?'Парковка с зарядкой':(p.ptype==='street'?'Уличная парковка':'Парковка');
+  el.innerHTML='<div class="mc-place-card"><div class="mc-place-hero '+(p.ev?'ev':'parking')+'"><div class="mc-ic">'+catIcon(p)+'</div><div class="mc-body"><div class="mc-kicker">'+escapeHtml(kind)+'</div><h3>'+escapeHtml(p.name)+'</h3><div class="mc-sub">'+escapeHtml(p.addr||'Адрес не указан')+'</div></div><button class="mc-dismiss" aria-label="Закрыть" onclick="closeMiniCard()">✕</button></div>'
+    +'<div class="mc-place-facts"><div class="mc-place-fact"><small>Стоимость</small><b>'+escapeHtml(priceLabel(p))+'</b></div><div class="mc-place-fact"><small>Расстояние</small><b>'+escapeHtml(d)+'</b></div><div class="mc-place-fact"><small>Вместимость</small><b>'+escapeHtml(cap)+'</b></div><div class="mc-place-fact"><small>Режим работы</small><b>'+escapeHtml(hours)+'</b></div></div>'
     +'<div class="mc-main-actions"><button class="mc-btn" onclick="routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button><button class="mc-btn secondary" onclick="openFullCard(\''+p.id+'\')">'+t('showDetails')+'</button></div>'
     +'<div class="mc-tools"><button class="mc-btn" aria-label="Избранное" onclick="toggleFav(\''+p.id+'\',this)">'+(favorites.includes(p.id)?'★ В избранном':'☆ Избранное')+'</button>'
-    +'<button class="mc-btn" aria-label="Поделиться" onclick="shareParking(\''+p.id+'\')">↗ Поделиться</button><button class="mc-btn" aria-label="Сообщить об ошибке" onclick="openReport(\''+p.id+'\')">⚑ Ошибка</button></div>';
+    +'<button class="mc-btn" aria-label="Поделиться" onclick="shareParking(\''+p.id+'\')">↗ Поделиться</button><button class="mc-btn" aria-label="Сообщить об ошибке" onclick="openReport(\''+p.id+'\')">⚑ Ошибка</button></div>'
+    +(p.legal?'<div class="mc-place-note">⚠️ '+escapeHtml(t('legalStreet'))+'</div>':'')+'</div>';
   el.classList.add('on');
 }
 function closeMiniCard(){selectedId=null;updateSelection(null);document.getElementById('minicard').classList.remove('on')}
@@ -1478,8 +1477,9 @@ function putMe(lat,lng,acc,rough){
 }
 function showCurrentPositionCard(){
   if(!mePos)return;const el=document.getElementById('minicard');
-  el.innerHTML='<div class="mc-head"><div class="mc-ic" style="background:var(--blue)">●</div><div class="mc-body"><h3>'+t('currentPosition')+'</h3><div class="mc-sub">Точность ±'+Math.round(meAcc||0)+' м</div></div></div>'
-    +'<div style="display:flex;gap:7px"><button class="mc-btn" style="flex:1" onclick="selectedStart={lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')};toast(t(\'useAsStart\'))">'+t('useAsStart')+'</button><button class="mc-btn" style="flex:1" onclick="sharePoint({lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')})">↗ Поделиться</button></div>';
+  el.innerHTML='<div class="mc-place-card"><div class="mc-place-hero position"><div class="mc-ic">●</div><div class="mc-body"><div class="mc-kicker">Геопозиция</div><h3>'+t('currentPosition')+'</h3><div class="mc-sub">Точность ±'+Math.round(meAcc||0)+' м</div></div><button class="mc-dismiss" aria-label="Закрыть" onclick="closeMiniCard()">✕</button></div>'
+    +'<div class="mc-place-facts"><div class="mc-place-fact"><small>Широта</small><b>'+Number(mePos.lat).toFixed(5)+'</b></div><div class="mc-place-fact"><small>Долгота</small><b>'+Number(mePos.lng).toFixed(5)+'</b></div></div>'
+    +'<div class="mc-main-actions"><button class="mc-btn" onclick="selectedStart={lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')};toast(t(\'useAsStart\'))">'+t('useAsStart')+'</button><button class="mc-btn secondary" onclick="sharePoint({lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')})">↗ Поделиться</button></div></div>';
   el.classList.add('on');
 }
 
