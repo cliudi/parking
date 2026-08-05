@@ -125,6 +125,16 @@
   .mc-btn.secondary{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
   .mc-btn.icon{padding:0;font-size:17px}.mc-kicker{font:800 10px Manrope;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
   .mc-place-details{margin-top:10px;padding:10px 12px;border-radius:13px;background:var(--bg);font:600 11.5px Manrope;color:var(--ink2);line-height:1.45}
+  .mc-place-card{overflow:hidden}
+  .mc-place-hero{display:flex;align-items:center;gap:12px;margin:-2px -2px 0;padding:13px;border-radius:16px;background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 58%,#0f766e 100%);color:#fff}
+  .mc-place-hero .mc-ic{width:50px;height:50px;border-radius:15px;background:rgba(255,255,255,.18)!important;border:1px solid rgba(255,255,255,.25);font-size:23px}
+  .mc-place-hero .mc-kicker,.mc-place-hero .mc-sub{color:rgba(255,255,255,.78)}
+  .mc-place-hero h3{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
+  .mc-place-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+  .mc-place-fact{padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:var(--card)}
+  .mc-place-fact small{display:block;font:700 9px Manrope;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+  .mc-place-fact b{display:block;font:750 11.5px Manrope;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mc-place-note{margin-top:9px;font:600 10.5px Manrope;color:var(--ink2);line-height:1.4}
   .mc-dismiss{width:34px;height:34px;flex:0 0 34px;border:0;border-radius:11px;background:var(--bg);color:var(--ink2);font-size:15px;cursor:pointer}
   .mc-main-actions{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;margin-top:12px}.mc-main-actions .mc-btn{margin:0;padding:11px 8px}
   .mc-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.mc-tools .mc-btn{margin:0;padding:9px 6px;min-height:40px;background:var(--bg);color:var(--ink);border:1px solid var(--line);font-size:12px}
@@ -985,7 +995,7 @@ function showMapErr(){
 }
 function initMap(){
   ymap=new ymaps.Map('map',{center:[41.3111,69.2650],zoom:13,controls:[]},
-    {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:false});
+    {suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
   document.getElementById('maperr').style.display='none';
   drawMarkers();
   drawStreetSegments();
@@ -1000,18 +1010,12 @@ function initMap(){
     ymap.setCenter([c.lat,c.lng],zoomFor(c.acc));
     drawMarkers();
   }
-  ymap.events.add('balloonopen',()=>{
-    /* Карточки базовых POI формирует сам Яндекс. Не перекрываем их карточкой Parkly. */
-    if(selectedPointMark)clearSelectedPoint();
-    else document.getElementById('minicard').classList.remove('on');
-  });
   ymap.events.add('click',e=>{
     /* Если пользователь попал рядом с визуальным пином, выбираем ближайший.
        Это страхует маленькие экраны и частично перекрывающиеся метки. */
-    const coords=e.get('coords'),hit=findNearestVisibleParking(coords,28);
+    const hit=findNearestVisibleParking(e.get('coords'),28);
     if(hit){selectParking(hit.id);return}
-    /* Даём встроенной карточке POI один кадр на открытие. Если POI нет — показываем выбранную точку Parkly. */
-    setTimeout(()=>{if(!ymap)return;try{if(ymap.balloon&&ymap.balloon.isOpen())return}catch(error){}setSelectedPoint(coords)},0);
+    setSelectedPoint(e.get('coords'));
   });
 }
 
@@ -1045,13 +1049,24 @@ async function setSelectedPoint(coords,label){
 }
 function showSelectedPointCard(){
   if(!selectedDestination)return;const el=document.getElementById('minicard'),p=selectedDestination;
-  const subtitle=p.loading?'Определяю место…':(p.description||'Точка, выбранная на карте');
-  el.innerHTML='<div class="mc-head"><div class="mc-ic" style="background:var(--blue)">⌖</div><div class="mc-body"><div class="mc-kicker">Место на карте</div><h3>'+escapeHtml(p.label)+'</h3><div class="mc-sub">'+escapeHtml(subtitle)+'</div></div></div>'
-    +'<div class="mc-place-details">Координаты: '+p.lat.toFixed(5)+', '+p.lng.toFixed(5)+(p.kind?' · '+escapeHtml(placeKindLabel(p.kind)):'')+'<br>Метка перемещается долгим нажатием и перетаскиванием.</div>'
-    +'<div class="mc-actions"><button class="mc-btn" onclick="routeToSelectedPoint()">➤ Маршрут сюда</button><button class="mc-btn secondary" onclick="sharePoint(selectedDestination)">↗ Поделиться</button><button class="mc-btn secondary icon" aria-label="Закрыть" onclick="clearSelectedPoint()">✕</button></div>';
+  const subtitle=p.loading?'Определяю адрес…':(p.description||'Точка, выбранная на карте');
+  const distance=mePos?distText({lat:p.lat,lng:p.lng}):'Не определено';
+  const kind=placeKindLabel(p.kind);
+  el.innerHTML='<div class="mc-place-card"><div class="mc-place-hero"><div class="mc-ic">'+placeKindIcon(p.kind)+'</div><div class="mc-body"><div class="mc-kicker">'+escapeHtml(kind)+'</div><h3>'+escapeHtml(p.label)+'</h3><div class="mc-sub">'+escapeHtml(subtitle)+'</div></div><button class="mc-dismiss" aria-label="Закрыть" onclick="clearSelectedPoint()">✕</button></div>'
+    +'<div class="mc-place-facts"><div class="mc-place-fact"><small>Расстояние</small><b>'+escapeHtml(distance)+'</b></div><div class="mc-place-fact"><small>Координаты</small><b>'+p.lat.toFixed(5)+', '+p.lng.toFixed(5)+'</b></div></div>'
+    +'<div class="mc-main-actions"><button class="mc-btn" onclick="routeToSelectedPoint()">➤ Маршрут сюда</button><button class="mc-btn secondary" onclick="sharePoint(selectedDestination)">↗ Поделиться</button></div>'
+    +'<div class="mc-tools"><button class="mc-btn" onclick="copyPointCoordinates()">⧉ Координаты</button><button class="mc-btn" onclick="centerSelectedPoint()">◎ По центру</button><button class="mc-btn" onclick="openPointInYandex()">↗ В Яндекс</button></div>'
+    +'<div class="mc-place-note">Parkly показывает сведения, доступные по выбранным координатам. Фото, отзывы и часы работы не добавляются без подтверждённого источника.</div></div>';
   el.classList.add('on');
 }
 function placeKindLabel(kind){return({house:'здание',street:'улица',metro:'метро',district:'район',locality:'населённый пункт',vegetation:'парк',hydro:'водоём',route:'дорога'})[kind]||'объект'}
+function placeKindIcon(kind){return({house:'▦',street:'═',metro:'M',district:'⌖',locality:'⌂',vegetation:'♧',hydro:'≈',route:'↗'})[kind]||'⌖'}
+function copyPointCoordinates(){
+  if(!selectedDestination)return;const text=selectedDestination.lat.toFixed(6)+', '+selectedDestination.lng.toFixed(6);
+  if(navigator.clipboard)navigator.clipboard.writeText(text).then(()=>toast('Координаты скопированы')).catch(()=>toast(text));else toast(text)
+}
+function centerSelectedPoint(){if(selectedDestination&&ymap)ymap.setCenter([selectedDestination.lat,selectedDestination.lng],Math.max(16,ymap.getZoom()),{duration:300})}
+function openPointInYandex(){if(!selectedDestination)return;window.open('https://yandex.uz/maps/?pt='+selectedDestination.lng+','+selectedDestination.lat+'&z=17','_blank','noopener')}
 function sharePoint(point){
   if(!point)return;const url='https://yandex.uz/maps/?pt='+point.lng+','+point.lat;
   if(navigator.share)navigator.share({title:point.label||t('selectedPoint'),url}).catch(()=>{});else{navigator.clipboard&&navigator.clipboard.writeText(url);toast('Ссылка скопирована')}
