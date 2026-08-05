@@ -621,7 +621,8 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 <div id="toast"></div>
 
 <script>
-const YANDEX_API_KEY='4f9b7024-c973-42b5-b0b3-853f5c61c234';
+const YANDEX_API_KEY='be1856ef-50e1-40ed-abb7-80a23f99ddb3';
+const YANDEX_GEOCODER_API_KEY='4f9b7024-c973-42b5-b0b3-853f5c61c234';
 
 /* ═══════════ СЛОВАРИ (i18n, тексты не зашиты в код — по ТЗ) ═══════════ */
 const I18N={
@@ -2111,6 +2112,21 @@ function switchTab(tab){
 }
 
 /* ═══════════ ПОИСК ═══════════ */
+async function geocodeAddressHttp(query){
+  const params=new URLSearchParams({
+    apikey:YANDEX_GEOCODER_API_KEY,geocode:query,format:'json',lang:'ru_RU',results:'1'
+  });
+  const response=await fetch(`https://geocode-maps.yandex.ru/v1/?${params.toString()}`,{
+    headers:{Accept:'application/json'},referrerPolicy:'strict-origin-when-cross-origin'
+  });
+  if(!response.ok)throw new Error(`GEOCODER_HTTP_${response.status}`);
+  const payload=await response.json();
+  const object=payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
+  if(!object)return null;
+  const position=String(object?.Point?.pos||'').trim().split(/\s+/).map(Number);
+  if(position.length!==2||!position.every(Number.isFinite))return null;
+  return {coords:[position[1],position[0]],label:object?.name||object?.metaDataProperty?.GeocoderMetaData?.text||query};
+}
 document.getElementById('search').addEventListener('input',e=>{
   const q=e.target.value.toLowerCase().trim();
   if(!q)return;
@@ -2121,15 +2137,12 @@ document.getElementById('search').addEventListener('change',async e=>{
   const q=e.target.value.toLowerCase().trim();
   const found=PARKINGS.find(p=>(p.name+p.addr).toLowerCase().includes(q));
   if(found)selectParking(found.id);
-  else if(q&&ymap&&window.ymaps){
+  else if(q&&ymap){
     try{
-      const result=await ymaps.geocode(q,{results:1});
-      const object=result.geoObjects.get(0);
-      if(!object){toast(t('noParkArea'));return}
-      const coords=object.geometry.getCoordinates();
-      ymap.setCenter(coords,16,{duration:400});
-      const label=cleanText(object.properties.get('name')||object.properties.get('text')||q);
-      setSelectedPoint(coords,label);drawMarkers(true);
+      const result=await geocodeAddressHttp(q);
+      if(!result){toast(t('noParkArea'));return}
+      ymap.setCenter(result.coords,16,{duration:400});
+      setSelectedPoint(result.coords,cleanText(result.label));drawMarkers(true);
     }catch(err){console.warn(err);toast(t('noParkArea'))}
   }
 });

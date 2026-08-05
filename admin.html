@@ -6,7 +6,7 @@
 <title>Parkly — панель управления</title>
 <meta name="theme-color" content="#0f172a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=4f9b7024-c973-42b5-b0b3-853f5c61c234"></script>
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=be1856ef-50e1-40ed-abb7-80a23f99ddb3"></script>
 <style>
 :root{
   --bg:#f5f7fb;--surface:#fff;--surface-2:#f8fafc;--text:#172033;--muted:#667085;
@@ -410,6 +410,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 <script>
 const SUPABASE_URL='https://xgzddkkrlsvtvcriokdk.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
+const YANDEX_GEOCODER_API_KEY='4f9b7024-c973-42b5-b0b3-853f5c61c234';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=id=>document.getElementById(id);
 let records=[];
@@ -860,6 +861,8 @@ function geocodeErrorText(error,action='определить адрес'){
   if(/scriptError|script error|networkerror|failed to fetch/i.test(technical)){
     return `Яндекс Карты не разрешили ${action}. Проверьте доступ геокодера для API-ключа и разрешённый домен cliudi.github.io`;
   }
+  if(/GEOCODER_ACCESS_DENIED/i.test(technical))return `API Геокодера не разрешил ${action}. Проверьте HTTP Referer cliudi.github.io и дождитесь активации ключа`;
+  if(/GEOCODER_HTTP_/i.test(technical))return `API Геокодера временно не смог ${action}`;
   if(/timeout/i.test(technical))return `Яндекс Карты не успели ${action}. Повторите попытку`;
   return technical&&!/error/i.test(technical)?technical:`Не удалось ${action}`;
 }
@@ -889,6 +892,35 @@ function geocoderFields(geoObject){
   address=String(address).replace(/^Узбекистан,?\s*/i,'').replace(/^(Ташкент|Tashkent|Toshkent),?\s*/i,'').trim();
   return {address,district:normalizeDistrict(district),city:normalizeCity(locality)};
 }
+function httpGeocoderResult(geoObject){
+  const meta=geoObject?.metaDataProperty?.GeocoderMetaData||{};
+  const addressMeta=meta.Address||{};
+  const components=addressMeta.Components||[];
+  const locality=componentValue(components,['locality','area','province']);
+  const district=componentValue(components,['district']);
+  let address=addressMeta.formatted||meta.text||geoObject?.name||'';
+  address=String(address).replace(/^Узбекистан,?\s*/i,'').replace(/^(Ташкент|Tashkent|Toshkent),?\s*/i,'').trim();
+  const position=String(geoObject?.Point?.pos||'').trim().split(/\s+/).map(Number);
+  return {
+    fields:{address,district:normalizeDistrict(district),city:normalizeCity(locality)},
+    coords:position.length===2&&position.every(Number.isFinite)?[position[1],position[0]]:null
+  };
+}
+async function requestYandexGeocoder(query,{kind}={}){
+  const geocode=Array.isArray(query)?`${query[1]},${query[0]}`:String(query);
+  const params=new URLSearchParams({apikey:YANDEX_GEOCODER_API_KEY,geocode,format:'json',lang:'ru_RU',results:'1'});
+  if(kind)params.set('kind',kind);
+  const response=await fetch(`https://geocode-maps.yandex.ru/v1/?${params.toString()}`,{
+    headers:{Accept:'application/json'},referrerPolicy:'strict-origin-when-cross-origin'
+  });
+  if(!response.ok){
+    const error=new Error(response.status===401||response.status===403?'GEOCODER_ACCESS_DENIED':`GEOCODER_HTTP_${response.status}`);
+    error.status=response.status;throw error;
+  }
+  const payload=await response.json();
+  const geoObject=payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
+  return geoObject?httpGeocoderResult(geoObject):null;
+}
 function applyGeocoderFields(fields,{force=false}={}){
   const protectedFields=['address','district'].filter(id=>geoDirty[id]&&fields[id]&&val(id)!==fields[id]);
   let overwrite=force;
@@ -910,11 +942,10 @@ async function reverseGeocode(coords,{force=false}={}){
   const requestId=++geocodeRequestId;
   setGeoStatus('Определяем адрес по точке…','loading');
   try{
-    const result=await ymaps.geocode(coords,{results:1,kind:'house'});
+    const result=await requestYandexGeocoder(coords,{kind:'house'});
     if(requestId!==geocodeRequestId)return;
-    const geoObject=result.geoObjects.get(0);
-    if(!geoObject)throw new Error('Адрес для этой точки не найден');
-    const fields=geocoderFields(geoObject);
+    if(!result)throw new Error('Адрес для этой точки не найден');
+    const fields=result.fields;
     if(!fields.address&&!fields.district)throw new Error('Сервис не вернул адресные данные');
     const fullyApplied=applyGeocoderFields(fields,{force});
     setGeoStatus(fullyApplied?'Адрес определён по точке на карте.':'Новая точка сохранена, ручной адрес оставлен без изменений.','ok');
@@ -944,11 +975,10 @@ async function searchAddressOnMap(){
   const requestId=++geocodeRequestId;setGeoStatus('Ищем адрес на карте…','loading');
   try{
     const fullQuery=/ташкент|tashkent|toshkent/i.test(query)?query:`Ташкент, ${query}`;
-    const result=await ymaps.geocode(fullQuery,{results:1});
+    const result=await requestYandexGeocoder(fullQuery);
     if(requestId!==geocodeRequestId)return;
-    const geoObject=result.geoObjects.get(0);if(!geoObject)throw new Error('Адрес не найден');
-    const coords=geoObject.geometry.getCoordinates();
-    writeCoordinates(coords);refreshCoordMap(true);applyGeocoderFields(geocoderFields(geoObject),{force:true});
+    if(!result||!result.coords)throw new Error('Адрес не найден');
+    writeCoordinates(result.coords);refreshCoordMap(true);applyGeocoderFields(result.fields,{force:true});
     setGeoStatus('Адрес найден, точка на карте обновлена.','ok');
   }catch(error){
     console.warn('Yandex direct geocoding failed',error);
