@@ -672,7 +672,7 @@ const I18N={
   geoUnav:'Включите GPS', geoTime:'Не удалось определить. Попробуйте на улице',
   geoNo:'Геолокация не поддерживается', geoHttp:'Геолокация работает только на HTTPS',
   needGeoRoute:'Определяю ваше местоположение для маршрута…',
-  buildRoute:'строю…', min:'мин', roughR:'примерно', startGuide:'Начать сопровождение', stopGuide:'Остановить', routeFollowing:'Сопровождение по маршруту', routeAlt:'Вариант', routeLeft:'Осталось', routeArrived:'Вы прибыли к парковке', useAsStart:'Начать отсюда', selectedPoint:'Выбранная точка', currentPosition:'Ваше местоположение', clearPoint:'Убрать точку',
+  buildRoute:'строю…', min:'мин', roughR:'примерно', startGuide:'Начать сопровождение', stopGuide:'Остановить', routeFollowing:'Сопровождение по маршруту', routeAlt:'Вариант', routeLeft:'Осталось', routeArrived:'Вы прибыли к парковке', routeUnavailable:'Маршрут по дорогам не построен', routeRetry:'Повторить построение', useAsStart:'Начать отсюда', selectedPoint:'Выбранная точка', currentPosition:'Ваше местоположение', clearPoint:'Убрать точку',
   byCar:'На машине', onFoot:'Пешком',
   noParkArea:'В этой области парковки пока не добавлены',
   mapErr:'Карта не загрузилась', mapErrP:'Проверьте интернет или домен в кабинете Яндекс API.',
@@ -1651,16 +1651,13 @@ async function routeTo(id,mode){
   if(!routeOrigin()){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!routeOrigin()){toast(t('geoDeny'));return}}
   routeTarget=p;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');clearRoute();drawRoutePanel(null);
   const origin=routeOrigin();lastRouteOrigin={lat:origin.lat,lng:origin.lng};routeAlternative=0;
-  route=new ymaps.multiRouter.MultiRoute({referencePoints:[[origin.lat,origin.lng],[p.lat,p.lng]],params:{routingMode:routeMode,results:3,avoidTrafficJams:routeMode==='auto'}},
+  route=new ymaps.multiRouter.MultiRoute({referencePoints:[[origin.lat,origin.lng],[p.lat,p.lng]],params:{routingMode:routeMode,results:3,avoidTrafficJams:routeMode==='auto',reverseGeocoding:false}},
     {boundsAutoApply:!routeGuidanceActive,zoomMargin:[120,40,270,40],wayPointVisible:true,pinVisible:false,routeActiveStrokeWidth:7,routeActiveStrokeColor:'#2563EB',routeActivePedestrianSegmentStrokeColor:'#16A34A',routeStrokeWidth:4,routeStrokeColor:'#94A3B888'});
-  route.model.events.add('requestsuccess',()=>{const a=route.getActiveRoute();if(!a){fallbackRoute(p);return}const d=a.properties.get('distance'),dur=a.properties.get('durationInTraffic')||a.properties.get('duration');routeInfo={dist:d&&d.text,time:dur&&dur.text,alternatives:route.getRoutes().getLength()};drawRoutePanel(routeInfo)});
-  route.model.events.add('requestfail',()=>fallbackRoute(p));ymap.geoObjects.add(route);
+  route.model.events.add('requestsuccess',()=>{const a=route.getActiveRoute();if(!a){routeFailed(p);return}const d=a.properties.get('distance'),dur=a.properties.get('durationInTraffic')||a.properties.get('duration');routeInfo={dist:d&&d.text,time:dur&&dur.text,alternatives:route.getRoutes().getLength()};drawRoutePanel(routeInfo)});
+  route.model.events.add('requestfail',event=>{console.warn('Yandex road route failed',event?.get?.('error')||event);routeFailed(p)});ymap.geoObjects.add(route);
 }
-function fallbackRoute(p){
-  clearRoute();const origin=routeOrigin();
-  route=new ymaps.Polyline([[origin.lat,origin.lng],[p.lat,p.lng]],{},{strokeColor:'#2563EB',strokeWidth:4,strokeStyle:'shortdash'});ymap.geoObjects.add(route);
-  ymap.setBounds([[Math.min(origin.lat,p.lat),Math.min(origin.lng,p.lng)],[Math.max(origin.lat,p.lat),Math.max(origin.lng,p.lng)]],{checkZoomRange:true,zoomMargin:[120,40,220,40]});
-  const km=dist(origin.lat,origin.lng,p.lat,p.lng),sp=routeMode==='pedestrian'?4.5:22;routeInfo={dist:km.toFixed(1)+' км',time:Math.max(1,Math.round(km/sp*60))+' '+t('min'),rough:true,alternatives:1};drawRoutePanel(routeInfo);
+function routeFailed(p){
+  clearRoute();routeInfo={error:true,dist:'—',time:'—',alternatives:0};drawRoutePanel(routeInfo);toast(t('routeUnavailable'));
 }
 function clearRoute(){if(route&&ymap){ymap.geoObjects.remove(route);route=null}}
 function closeRoute(){stopRouteGuidance(true);clearRoute();routeTarget=null;routeInfo=null;document.getElementById('minicard').classList.remove('on');const rp=document.getElementById('routepanel');if(rp)rp.remove()}
@@ -1681,11 +1678,13 @@ function drawRoutePanel(info){
   const p=routeTarget;if(!p)return;let rp=document.getElementById('routepanel');if(!rp){rp=document.createElement('div');rp.id='routepanel';document.getElementById('screen-map').appendChild(rp)}
   const altCount=Math.min(3,Number(info&&info.alternatives||0));
   const alternatives=altCount>1?'<div class="route-alts">'+Array.from({length:altCount},(_,i)=>'<button class="route-alt'+(i===routeAlternative?' on':'')+'" onclick="selectRouteAlternative('+i+')">'+t('routeAlt')+' '+(i+1)+'</button>').join('')+'</div>':'';
+  const routeStatus=info&&info.error?t('routeUnavailable'):priceLabel(p);
+  const routeActions=info&&info.error?'<div class="route-actions"><button class="route-action primary" onclick="routeTo(\''+p.id+'\',routeMode)">↻ '+t('routeRetry')+'</button></div>':'<div class="route-actions"><button class="route-action '+(routeGuidanceActive?'stop':'primary')+'" onclick="'+(routeGuidanceActive?'stopRouteGuidance()':'startRouteGuidance()')+'">'+(routeGuidanceActive?'■ '+t('stopGuide'):'▶ '+t('startGuide'))+'</button></div>';
   rp.innerHTML='<div class="route-head"><div class="mc-ic" style="background:'+markerColor(p)+';width:40px;height:40px">'+catIcon(p)+'</div>'
-    +'<div class="route-summary"><b>'+p.name+'</b><span>'+priceLabel(p)+(info&&info.rough?' · '+t('roughR'):'')+'</span></div>'
+    +'<div class="route-summary"><b>'+p.name+'</b><span>'+routeStatus+'</span></div>'
     +'<div class="route-metrics"><b>'+(info?info.time:'…')+'</b><span>'+(info?info.dist:t('buildRoute'))+'</span></div><button class="route-close" onclick="closeRoute()">✕</button></div>'
     +'<div class="route-modes"><button class="route-mode'+(routeMode==='auto'?' on':'')+'" onclick="routeTo(\''+p.id+'\',\'auto\')">🚗 '+t('byCar')+'</button><button class="route-mode'+(routeMode==='pedestrian'?' on':'')+'" onclick="routeTo(\''+p.id+'\',\'pedestrian\')">🚶 '+t('onFoot')+'</button></div>'
-    +alternatives+'<div class="route-actions"><button class="route-action '+(routeGuidanceActive?'stop':'primary')+'" onclick="'+(routeGuidanceActive?'stopRouteGuidance()':'startRouteGuidance()')+'">'+(routeGuidanceActive?'■ '+t('stopGuide'):'▶ '+t('startGuide'))+'</button></div>'
+    +alternatives+routeActions
     +(routeGuidanceActive?'<div class="route-progress"><span>'+t('routeFollowing')+'</span><b>'+t('routeLeft')+': '+(info&&info.progress?info.progress:(info?info.dist:'…'))+'</b></div>':'');
 }
 
