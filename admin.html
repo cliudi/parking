@@ -72,6 +72,9 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 .section-title{font-size:15px;font-weight:850;margin-bottom:14px} .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .field{display:flex;flex-direction:column;gap:7px} .field.full{grid-column:1/-1} .field label{font-size:13px;font-weight:750;color:#344054}
 .field small{color:#98a2b3} textarea.control{min-height:88px;resize:vertical}
+.geo-tools{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:10px}.geo-tools .btn{flex:0 1 auto}
+.geo-status{min-height:20px;margin-top:8px;font-size:13px;color:var(--muted)}
+.geo-status.loading{color:var(--primary)}.geo-status.ok{color:#15803d}.geo-status.error{color:var(--danger)}
 .check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .check-card{display:flex;gap:9px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:11px;background:#fbfcfe}
 .dialog-foot{padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;background:#fbfcfe}
@@ -125,6 +128,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   .dialog-head h2{font-size:19px}.dialog-head p{font-size:12px}
   .form-body{padding:12px;gap:12px}.form-section{padding:12px;border-radius:13px}
   #coordMap{height:240px!important}
+  .geo-tools{display:grid;grid-template-columns:1fr}.geo-tools .btn{width:100%}
   .dialog-foot{position:static;flex-shrink:0;z-index:5;padding:11px 12px calc(11px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr 1fr}
   .dialog-foot .btn{min-width:0}
   .login-box-wrap{padding:16px;min-height:100vh;min-height:100dvh}.login-box{padding:22px 18px;border-radius:18px}
@@ -308,16 +312,21 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           <div class="section-title">Основная информация</div>
           <div class="grid">
             <div class="field"><label>Название *</label><input id="name" class="control" required placeholder="Например: Парковка у рынка Юнусабад"></div>
-            <div class="field"><label>Адрес</label><input id="address" class="control" placeholder="Улица, дом или ориентир"></div>
+            <div class="field"><label>Адрес</label><input id="address" class="control" placeholder="Улица, дом или ориентир" autocomplete="street-address"></div>
             <div class="field"><label>Район</label><input id="district" class="control" value="Юнусабадский"></div>
-            <div class="field"><label>Город</label><input id="city" class="control" value="Tashkent"></div>
-            <div class="field"><label>Широта *</label><input id="lat" class="control" type="number" step="any" required placeholder="41.3667"></div>
-            <div class="field"><label>Долгота *</label><input id="lng" class="control" type="number" step="any" required placeholder="69.2888"></div>
+            <div class="field"><label>Город</label><input id="city" class="control" value="Ташкент"></div>
+            <div class="field"><label>Широта *</label><input id="lat" class="control" type="text" inputmode="decimal" required placeholder="41.3667"></div>
+            <div class="field"><label>Долгота *</label><input id="lng" class="control" type="text" inputmode="decimal" required placeholder="69.2888"></div>
             <div class="field full">
               <label>Точка на карте</label>
-              <button id="centerCoordMap" class="btn btn-secondary" type="button" style="margin-bottom:10px">Показать координаты на карте</button>
+              <div class="geo-tools">
+                <button id="centerCoordMap" class="btn btn-secondary" type="button">Показать координаты на карте</button>
+                <button id="searchAddressMap" class="btn btn-secondary" type="button">Найти введённый адрес</button>
+                <button id="geocodeCoordsBtn" class="btn btn-primary" type="button">Определить по точке на карте</button>
+              </div>
               <div id="coordMap" style="height:300px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#eef2f7"></div>
-              <small>Нажмите на карту или перетащите метку — широта и долгота заполнятся автоматически.</small>
+              <div id="geocodeStatus" class="geo-status" role="status" aria-live="polite"></div>
+              <small>Нажмите на карту или перетащите метку — координаты и адрес определятся автоматически. Можно вводить координаты с точкой или запятой.</small>
             </div>
           </div>
         </section>
@@ -414,6 +423,10 @@ let editingSubmissionId=null;
 let editingOsmCandidateId=null;
 let coordMap=null;
 let coordPlacemark=null;
+let geocodeRequestId=0;
+let geocodeTimer=null;
+let fillingGeoFields=false;
+const geoDirty={address:false,district:false,city:false};
 
 const labels={
   status:{APPROVED:'Опубликовано',PENDING:'На модерации',REJECTED:'Отклонено',DRAFT:'Черновик',NEEDS_INFO:'Нужны сведения'},
@@ -424,7 +437,8 @@ const labels={
 };
 function escapeHtml(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function val(id){return $(id).value.trim()}
-function nullableNumber(id){return val(id)===''?null:Number(val(id))}
+function normalizedNumber(value){return Number(String(value??'').trim().replace(',','.'))}
+function nullableNumber(id){return val(id)===''?null:normalizedNumber(val(id))}
 function arr(v){return String(v||'').split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}
 function toast(text,type='ok'){const el=$('toast');el.textContent=text;el.className='toast '+type;setTimeout(()=>el.classList.add('hidden'),3000)}
 function formMessage(el,text,type='error'){el.innerHTML=text?`<div class="form-message ${type}">${escapeHtml(text)}</div>`:''}
@@ -769,6 +783,14 @@ window.rejectOsmCandidate=async id=>{
 
 $('addBtn').onclick=()=>openForm();$('closeBtn').onclick=closeForm;$('cancelBtn').onclick=closeForm;
 $('centerCoordMap').onclick=()=>refreshCoordMap(true);
+$('geocodeCoordsBtn').onclick=()=>{
+  const coords=readCoordinates();
+  if(coords)reverseGeocode(coords,{force:true});
+};
+$('searchAddressMap').onclick=searchAddressOnMap;
+['address','district','city'].forEach(id=>$(id).addEventListener('input',()=>{if(!fillingGeoFields)geoDirty[id]=true}));
+['lat','lng'].forEach(id=>$(id).addEventListener('change',syncManualCoordinates));
+$('address').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchAddressOnMap()}});
 $('category').onchange=()=>$('streetSection').classList.toggle('hidden',val('category')!=='STREET_ALLOWED');
 $('addStreetPoint').onclick=()=>{
   const lat=val('lat'),lng=val('lng');if(!lat||!lng){toast('Сначала выберите точку на карте','error');return}
@@ -810,16 +832,121 @@ async function uploadSelectedPhotos(){
   }catch(error){toast(error.message||'Не удалось загрузить фото','error')}
   finally{btn.disabled=false;btn.textContent='Загрузить выбранные фото'}
 }
-function setCoordinates(coords){
-  $('lat').value=Number(coords[0]).toFixed(6);
-  $('lng').value=Number(coords[1]).toFixed(6);
+const districtAliases=[
+  ['Алмазарский',['алмазар','almazar','olmazor']],['Бектемирский',['бектемир','bektemir']],
+  ['Мирабадский',['мирабад','mirabad','mirobod']],['Мирзо-Улугбекский',['мирзо улугбек','mirzo ulugbek','mirzo ulug‘bek','mirzo ulughbek']],
+  ['Сергелийский',['сергели','sergeli']],['Учтепинский',['учтепа','uchtepa']],
+  ['Чиланзарский',['чиланзар','chilanzar','chilonzor']],['Шайхантахурский',['шайхантахур','shaykhantakhur','shayxontohur']],
+  ['Юнусабадский',['юнусабад','yunusabad','yunusobod']],['Яккасарайский',['яккасарай','yakkasaray','yakkasaroy']],
+  ['Яшнабадский',['яшнабад','yashnabad','yashnabod']],['Янги-Хаётский',['янги хаёт','yangi hayot','yangihayot']]
+];
+function normalizeText(value){return String(value||'').toLocaleLowerCase('ru-RU').replace(/[’'`ʻʼ]/g,'').replace(/[-–—]/g,' ').replace(/\s+/g,' ').trim()}
+function normalizeDistrict(value){
+  const source=normalizeText(value).replace(/\b(район|district|tumani|tuman)\b/g,'').trim();
+  for(const [canonical,aliases] of districtAliases){
+    if(aliases.some(alias=>source.includes(normalizeText(alias))))return canonical;
+  }
+  return String(value||'').trim();
+}
+function normalizeCity(value){
+  const source=normalizeText(value);
+  return /(^|\s)(ташкент|tashkent|toshkent)(\s|$)/.test(source)?'Ташкент':String(value||'').trim();
+}
+function setGeoStatus(textValue,state=''){
+  const el=$('geocodeStatus');el.textContent=textValue;el.className='geo-status'+(state?' '+state:'');
+}
+function readCoordinates(showError=true){
+  const lat=normalizedNumber(val('lat')),lng=normalizedNumber(val('lng'));
+  if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat < -90||lat > 90||lng < -180||lng > 180){
+    if(showError)setGeoStatus('Проверьте широту и долготу. Допустимы точка или запятая.','error');
+    return null;
+  }
+  return [lat,lng];
+}
+function writeCoordinates(coords){
+  $('lat').value=Number(coords[0]).toFixed(6);$('lng').value=Number(coords[1]).toFixed(6);
   if(coordPlacemark)coordPlacemark.geometry.setCoordinates(coords);
+}
+function componentValue(components,kinds){
+  const item=components.find(component=>kinds.includes(component.kind));
+  return item?.name||'';
+}
+function geocoderFields(geoObject){
+  const meta=geoObject?.properties?.get('metaDataProperty')?.GeocoderMetaData||{};
+  const addressMeta=meta.Address||{};
+  const components=addressMeta.Components||[];
+  const locality=componentValue(components,['locality','area','province']);
+  const district=componentValue(components,['district']);
+  let address=addressMeta.formatted||geoObject?.getAddressLine?.()||geoObject?.properties?.get('text')||'';
+  address=String(address).replace(/^Узбекистан,?\s*/i,'').replace(/^(Ташкент|Tashkent|Toshkent),?\s*/i,'').trim();
+  return {address,district:normalizeDistrict(district),city:normalizeCity(locality)};
+}
+function applyGeocoderFields(fields,{force=false}={}){
+  const protectedFields=['address','district'].filter(id=>geoDirty[id]&&fields[id]&&val(id)!==fields[id]);
+  let overwrite=force;
+  if(protectedFields.length&&!force){
+    overwrite=confirm('Координаты изменились. Обновить введённый вручную адрес и район по новой точке?');
+  }
+  fillingGeoFields=true;
+  try{
+    ['address','district','city'].forEach(id=>{
+      if(!fields[id])return;
+      if((id==='address'||id==='district')&&geoDirty[id]&&!overwrite)return;
+      $(id).value=fields[id];geoDirty[id]=false;
+    });
+  }finally{fillingGeoFields=false}
+  return !protectedFields.length||overwrite;
+}
+async function reverseGeocode(coords,{force=false}={}){
+  if(!window.ymaps){setGeoStatus('Карта ещё загружается. Повторите попытку.','error');return}
+  const requestId=++geocodeRequestId;
+  setGeoStatus('Определяем адрес по точке…','loading');
+  try{
+    const result=await ymaps.geocode(coords,{results:1,kind:'house'});
+    if(requestId!==geocodeRequestId)return;
+    const geoObject=result.geoObjects.get(0);
+    if(!geoObject)throw new Error('Адрес для этой точки не найден');
+    const fields=geocoderFields(geoObject);
+    if(!fields.address&&!fields.district)throw new Error('Сервис не вернул адресные данные');
+    const fullyApplied=applyGeocoderFields(fields,{force});
+    setGeoStatus(fullyApplied?'Адрес определён по точке на карте.':'Новая точка сохранена, ручной адрес оставлен без изменений.','ok');
+  }catch(error){
+    if(requestId!==geocodeRequestId)return;
+    setGeoStatus((error?.message||'Не удалось определить адрес')+'. Значения в форме сохранены — можно повторить.','error');
+  }
+}
+function scheduleReverseGeocode(coords,options={}){
+  clearTimeout(geocodeTimer);geocodeTimer=setTimeout(()=>reverseGeocode(coords,options),180);
+}
+function setCoordinates(coords,{recenter=false,geocode=true,force=false}={}){
+  writeCoordinates(coords);
+  if(recenter&&coordMap)coordMap.setCenter(coords,16);
+  if(geocode)scheduleReverseGeocode(coords,{force});
+}
+function syncManualCoordinates(){
+  const coords=readCoordinates();if(!coords)return;
+  writeCoordinates(coords);if(coordMap)coordMap.setCenter(coords,16);
+  scheduleReverseGeocode(coords);
+}
+async function searchAddressOnMap(){
+  const query=val('address');
+  if(!query){setGeoStatus('Сначала введите улицу, дом или ориентир.','error');return}
+  if(!window.ymaps){setGeoStatus('Карта ещё загружается. Повторите попытку.','error');return}
+  const requestId=++geocodeRequestId;setGeoStatus('Ищем адрес на карте…','loading');
+  try{
+    const fullQuery=/ташкент|tashkent|toshkent/i.test(query)?query:`Ташкент, ${query}`;
+    const result=await ymaps.geocode(fullQuery,{results:1});
+    if(requestId!==geocodeRequestId)return;
+    const geoObject=result.geoObjects.get(0);if(!geoObject)throw new Error('Адрес не найден');
+    const coords=geoObject.geometry.getCoordinates();
+    writeCoordinates(coords);refreshCoordMap(true);applyGeocoderFields(geocoderFields(geoObject),{force:true});
+    setGeoStatus('Адрес найден, точка на карте обновлена.','ok');
+  }catch(error){if(requestId===geocodeRequestId)setGeoStatus((error?.message||'Не удалось найти адрес')+'. Проверьте запрос и повторите.','error')}
 }
 function refreshCoordMap(recenter=false){
   if(!window.ymaps){toast('Карта ещё загружается','error');return}
   ymaps.ready(()=>{
-    const lat=Number($('lat').value)||41.3111,lng=Number($('lng').value)||69.2650;
-    const center=[lat,lng];
+    const center=readCoordinates(false)||[41.3111,69.2650];
     if(!coordMap){
       coordMap=new ymaps.Map('coordMap',{center,zoom:16,controls:['zoomControl']});
       coordPlacemark=new ymaps.Placemark(center,{},{
@@ -859,7 +986,7 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   editingOsmCandidateId=osmCandidateId;
   $('parkingForm').reset();$('formMsg').innerHTML='';$('id').value=p?.id||'';
   $('formTitle').textContent=p?'Редактирование парковки':'Новая парковка';
-  const defaults={district:'Юнусабадский',city:'Tashkent',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
+  const defaults={district:'Юнусабадский',city:'Ташкент',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
   const data={...defaults,...(p||{})};
   ['name','address','district','city','lat','lng','category','kind','price_type','price_hour','price_day','capacity','price_note','hours','height_limit','status','source','ev_operator','ev_ports','verified_at','source_ref','moderator_note'].forEach(k=>$(k).value=data[k]??'');
   $('ev_connectors').value=(data.ev_connectors||[]).join(', ');
@@ -869,6 +996,7 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   $('legal_note').value=data.legal_note||'Перед парковкой проверьте дорожные знаки и разметку.';
   $('streetSection').classList.toggle('hidden',data.category!=='STREET_ALLOWED');
   ['is_247','capacity_est','has_ev','has_cctv','has_disabled'].forEach(k=>$(k).checked=Boolean(data[k]));
+  geoDirty.address=false;geoDirty.district=false;geoDirty.city=false;setGeoStatus('');
   $('modal').classList.remove('hidden');
   lockBodyScroll();
   setTimeout(()=>refreshCoordMap(true),50);
@@ -892,11 +1020,13 @@ window.deleteParking=async id=>{
 
 $('parkingForm').addEventListener('submit',async e=>{
   e.preventDefault();formMessage($('formMsg'),'');
+  const coords=readCoordinates();
+  if(!coords){formMessage($('formMsg'),'Проверьте координаты парковки. Можно использовать точку или запятую.');return}
   let streetPath=null;
   try{streetPath=val('category')==='STREET_ALLOWED'?parseStreetPath():null}catch(error){formMessage($('formMsg'),error.message);return}
   const data={
-    id:val('id')||null,name:val('name'),address:val('address'),district:val('district'),city:val('city'),
-    lat:nullableNumber('lat'),lng:nullableNumber('lng'),category:val('category'),kind:val('kind'),
+    id:val('id')||null,name:val('name'),address:val('address'),district:normalizeDistrict(val('district')),city:normalizeCity(val('city')),
+    lat:coords[0],lng:coords[1],category:val('category'),kind:val('kind'),
     price_type:val('price_type'),price_hour:nullableNumber('price_hour'),price_day:nullableNumber('price_day'),
     price_note:val('price_note'),capacity:nullableNumber('capacity'),capacity_est:$('capacity_est').checked,
     hours:val('hours'),is_247:$('is_247').checked,height_limit:nullableNumber('height_limit'),
