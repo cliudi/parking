@@ -6,7 +6,7 @@
 <title>Parkly — панель управления</title>
 <meta name="theme-color" content="#0f172a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=be1856ef-50e1-40ed-abb7-80a23f99ddb3"></script>
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=4f9b7024-c973-42b5-b0b3-853f5c61c234"></script>
 <style>
 :root{
   --bg:#f5f7fb;--surface:#fff;--surface-2:#f8fafc;--text:#172033;--muted:#667085;
@@ -855,6 +855,14 @@ function normalizeCity(value){
 function setGeoStatus(textValue,state=''){
   const el=$('geocodeStatus');el.textContent=textValue;el.className='geo-status'+(state?' '+state:'');
 }
+function geocodeErrorText(error,action='определить адрес'){
+  const technical=String(error?.message||error?.name||'').trim();
+  if(/scriptError|script error|networkerror|failed to fetch/i.test(technical)){
+    return `Яндекс Карты не разрешили ${action}. Проверьте доступ геокодера для API-ключа и разрешённый домен cliudi.github.io`;
+  }
+  if(/timeout/i.test(technical))return `Яндекс Карты не успели ${action}. Повторите попытку`;
+  return technical&&!/error/i.test(technical)?technical:`Не удалось ${action}`;
+}
 function readCoordinates(showError=true){
   const lat=normalizedNumber(val('lat')),lng=normalizedNumber(val('lng'));
   if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat < -90||lat > 90||lng < -180||lng > 180){
@@ -912,7 +920,8 @@ async function reverseGeocode(coords,{force=false}={}){
     setGeoStatus(fullyApplied?'Адрес определён по точке на карте.':'Новая точка сохранена, ручной адрес оставлен без изменений.','ok');
   }catch(error){
     if(requestId!==geocodeRequestId)return;
-    setGeoStatus((error?.message||'Не удалось определить адрес')+'. Значения в форме сохранены — можно повторить.','error');
+    console.warn('Yandex reverse geocoding failed',error);
+    setGeoStatus(geocodeErrorText(error,'определить адрес')+'. Значения в форме сохранены — можно повторить.','error');
   }
 }
 function scheduleReverseGeocode(coords,options={}){
@@ -941,7 +950,10 @@ async function searchAddressOnMap(){
     const coords=geoObject.geometry.getCoordinates();
     writeCoordinates(coords);refreshCoordMap(true);applyGeocoderFields(geocoderFields(geoObject),{force:true});
     setGeoStatus('Адрес найден, точка на карте обновлена.','ok');
-  }catch(error){if(requestId===geocodeRequestId)setGeoStatus((error?.message||'Не удалось найти адрес')+'. Проверьте запрос и повторите.','error')}
+  }catch(error){
+    console.warn('Yandex direct geocoding failed',error);
+    if(requestId===geocodeRequestId)setGeoStatus(geocodeErrorText(error,'найти адрес')+'. Проверьте запрос и повторите.','error');
+  }
 }
 function refreshCoordMap(recenter=false){
   if(!window.ymaps){toast('Карта ещё загружается','error');return}
