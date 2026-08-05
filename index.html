@@ -564,7 +564,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
       <span class="si">🔍</span>
       <input id="search" aria-label="Поиск парковок и адресов" autocomplete="off">
       <button class="bell" id="themebtn" style="font-size:15px" aria-label="Переключить тему" title="Переключить тему">🌙</button>
-      <button class="bell" aria-label="Уведомления" title="Уведомления"><span class="dot"></span>🔔</button>
+      <button class="bell" id="notificationsBtn" aria-label="Уведомления" title="Уведомления" onclick="openNotifications()"><span class="dot" id="notificationsDot" style="display:none"></span>🔔</button>
     </div>
     <div class="qchips" id="qchips"></div>
   </div>
@@ -805,32 +805,49 @@ function fromDbRow(r){
   };
 }
 
-// Грузим парковки рядом с точкой (или центр Ташкента, если позиция ещё не известна)
+// Грузим парковки рядом с точкой (или центр Ташкента, если позиция ещё не известна).
+// Повторный запрос отменяет предыдущий: это заметно ускоряет старт, когда GPS
+// уточняет координаты сразу после первоначальной загрузки центра города.
+let parkingLoadController=null;
+let lastParkingLoadKey='';
+let lastParkingLoadAt=0;
 async function loadParkingsFromDB(lat, lng, radius){
+  const body = {
+    lat: lat||41.3111, lng: lng||69.2650,
+    radius_m: radius||30000,
+    only_free:false, only_ev:false, max_price:null, lim:500
+  };
+  const requestKey=[body.lat.toFixed(4),body.lng.toFixed(4),body.radius_m].join('|');
+  if(requestKey===lastParkingLoadKey&&Date.now()-lastParkingLoadAt<8000)return true;
+  if(parkingLoadController)parkingLoadController.abort();
+  parkingLoadController=new AbortController();
+  const controller=parkingLoadController;
+  const timeout=setTimeout(()=>controller.abort(),12000);
   try{
-    const body = {
-      lat: lat||41.3111, lng: lng||69.2650,
-      radius_m: radius||30000,       // с запасом на весь город на старте
-      only_free:false, only_ev:false, max_price:null, lim:500
-    };
-    const res = await fetch(SUPABASE_URL+'/rest/v1/rpc/parkings_nearby',{
-      method:'POST',
+    const parkingPromise=fetch(SUPABASE_URL+'/rest/v1/rpc/parkings_nearby',{
+      method:'POST',signal:controller.signal,
       headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
-      body: JSON.stringify(body)
+      body:JSON.stringify(body)
     });
-    if(!res.ok) throw new Error('db http '+res.status);
-    const rows = await res.json();
+    const [res]=await Promise.all([parkingPromise,loadStreetSegments()]);
+    if(!res.ok)throw new Error('db http '+res.status);
+    const rows=await res.json();
     if(!Array.isArray(rows))throw new Error('db response');
-    PARKINGS = rows.map(fromDbRow).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
-    await loadStreetSegments();
+    if(controller!==parkingLoadController)return false;
+    PARKINGS=rows.map(fromDbRow).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+    lastParkingLoadKey=requestKey;lastParkingLoadAt=Date.now();
     lastMarkerSignature='';
-    drawMarkers(true);
+    requestAnimationFrame(()=>{drawStreetSegments();drawMarkers(true)});
     if(activeTab==='fav')renderFav();
     return true;
   }catch(e){
-    console.warn('Supabase недоступен:', e);
+    if(e.name==='AbortError'&&controller!==parkingLoadController)return false;
+    console.warn('Supabase недоступен:',e);
     toast(t('networkErr'));
     return false;
+  }finally{
+    clearTimeout(timeout);
+    if(controller===parkingLoadController)parkingLoadController=null;
   }
 }
 
@@ -842,7 +859,6 @@ async function loadStreetSegments(){
     const rows=await res.json();
     streetSegments=(Array.isArray(rows)?rows:[]).filter(x=>Array.isArray(x.path)&&x.path.length>=2);
     streetSegmentIds=new Set(streetSegments.map(x=>String(x.parking_id)));
-    drawStreetSegments();
   }catch(e){console.warn('Уличные участки недоступны:',e)}
 }
 function drawStreetSegments(){
@@ -984,7 +1000,9 @@ function filteredParkings(){
 let objectManager=null;
 let visibleParkingMap=new Map();
 let markerDrawTimer=null;
+let markerDrawFrame=0;
 let lastMarkerSignature='';
+let lastMarkerZoomBucket='';
 
 /* Быстрые SVG-пины вместо тяжёлых HTML-макетов.
    По форме это аккуратная «капля», как в дизайн-референсе. */
@@ -1101,9 +1119,19 @@ function visibleParkings(){
   return list.slice(0,markerLimitByZoom(z));
 }
 
+function markerZoomBucket(){
+  const z=ymap?ymap.getZoom():13;
+  return z<12?'z11':z<13?'z12':z<14?'z13':z<15?'z14':z<16?'z15':'z16';
+}
 function scheduleMarkerDraw(){
   clearTimeout(markerDrawTimer);
-  markerDrawTimer=setTimeout(()=>drawMarkers(false),600);
+  if(markerDrawFrame)cancelAnimationFrame(markerDrawFrame);
+  markerDrawTimer=setTimeout(()=>{
+    markerDrawFrame=requestAnimationFrame(()=>{
+      markerDrawFrame=0;
+      drawMarkers(false);
+    });
+  },140);
 }
 function findNearestVisibleParking(coords,maxPx){
   if(!ymap||!coords)return null;
@@ -1137,7 +1165,8 @@ function drawMarkers(force){
   const wanted=visibleParkings().filter(p=>!streetSegmentIds.has(String(p.id)));
   visibleParkingMap=new Map(wanted.map(p=>[String(p.id),p]));
   const theme=document.documentElement.getAttribute('data-theme')||'light';
-  const signature=theme+'|'+String(selectedId||'')+'|'+wanted.map(p=>String(p.id)).join(',');
+  const zoomBucket=markerZoomBucket();
+  const signature=theme+'|'+zoomBucket+'|'+String(selectedId||'')+'|'+wanted.map(p=>String(p.id)).join(',');
   if(!force&&signature===lastMarkerSignature)return;
   lastMarkerSignature=signature;
 
@@ -1149,7 +1178,8 @@ function drawMarkers(force){
     options:markerOptions(p,String(p.id)===String(selectedId))
   }));
   objectManager.removeAll();
-  objectManager.add({type:'FeatureCollection',features});
+  if(features.length)objectManager.add({type:'FeatureCollection',features});
+  lastMarkerZoomBucket=zoomBucket;
 }
 let prevSelected=null;
 function updateSelection(id){
@@ -1759,7 +1789,7 @@ function renderProfile(){
     +'<div class="prof-list">'
     +profRow('📄','Мои заявки',submissionCount,'openMySubmissions()')
     +profRow('🛠','Мои исправления',reportCount,'openMyReports()')
-    +'<div class="prof-row"><span class="pri">🔔</span><span class="prl">'+t('notifs')+'</span><span class="toggle'+(notificationsOn?' on':'')+'" role="switch" aria-checked="'+notificationsOn+'" onclick="toggleNotifications(this)"></span></div>'
+    +profRow('🔔',t('notifs'),notificationUnreadCount()||'','openNotifications()')
     +profRow('💬',t('support'),'','openSupport()')
     +profRow('ⓘ',t('about'),'v1.0','openAbout()')
     +'</div>'
@@ -1774,6 +1804,67 @@ function toggleNotifications(el){
   el.setAttribute('aria-checked',String(enabled));
   localStorage.setItem('parkly-notifications',enabled?'on':'off');
   toast(enabled?'Уведомления включены':'Уведомления выключены');
+}
+function notificationSeenKey(){
+  return authSession?.user?.id?'parkly-notifications-seen-'+authSession.user.id:'parkly-notifications-seen-guest';
+}
+function notificationFingerprint(item){
+  return [item.kind,item.id,item.status,item.note||'',item.created_at||''].join('|');
+}
+function buildNotifications(){
+  if(!authSession)return [];
+  const items=[];
+  mySubmissions.forEach(s=>{
+    if(!s.status||s.status==='PENDING')return;
+    const label=submissionStatusLabels[s.status]||s.status;
+    const title=s.status==='NEEDS_INFO'?'Нужно уточнение по парковке':'Статус предложенной парковки';
+    items.push({kind:'submission',id:String(s.id),status:s.status,title,text:(cleanText(s.name)||'Парковка')+' — '+label,note:cleanText(s.admin_note),created_at:s.created_at});
+  });
+  myReports.forEach(r=>{
+    if((!r.status||r.status==='PENDING')&&!r.admin_note)return;
+    const label=reportStatusLabels[r.status]||r.status||'Получен ответ';
+    items.push({kind:'report',id:String(r.id),status:r.status||'ANSWERED',title:r.admin_note?'Ответ администратора':'Результат рассмотрения исправления',text:(reportReasonLabels[r.reason]||r.reason||'Сообщение об ошибке')+' — '+label,note:cleanText(r.admin_note),created_at:r.created_at});
+  });
+  return items.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+}
+function notificationSeenSet(){
+  try{return new Set(JSON.parse(localStorage.getItem(notificationSeenKey())||'[]'))}catch(e){return new Set()}
+}
+function notificationUnreadCount(){
+  const seen=notificationSeenSet();
+  return buildNotifications().filter(x=>!seen.has(notificationFingerprint(x))).length;
+}
+function updateNotificationBadge(){
+  const count=notificationUnreadCount();
+  const dot=document.getElementById('notificationsDot');
+  if(dot)dot.style.display=count?'block':'none';
+  const btn=document.getElementById('notificationsBtn');
+  if(btn)btn.setAttribute('aria-label',count?'Уведомления, новых: '+count:'Уведомления');
+}
+function markNotificationsSeen(items){
+  try{localStorage.setItem(notificationSeenKey(),JSON.stringify(items.map(notificationFingerprint).slice(0,200)))}catch(e){}
+  updateNotificationBadge();
+}
+async function openNotifications(){
+  if(!authSession){openAuth();return}
+  await Promise.all([loadMySubmissions(),loadMyReports()]);
+  const items=buildNotifications();
+  const enabled=localStorage.getItem('parkly-notifications')!=='off';
+  const list=items.length?items.map(n=>{
+    const tone=n.status==='APPROVED'||n.status==='RESOLVED'?'var(--green)':n.status==='REJECTED'?'var(--red)':'var(--amber)';
+    return '<div class="fav-item submission-card" style="align-items:flex-start">'
+      +'<div class="fav-ic" style="background:'+tone+'">'+(n.kind==='report'?'!':'P')+'</div>'
+      +'<div class="fav-txt"><b>'+cleanText(n.title)+'</b><span class="submission-address">'+cleanText(n.text)+'</span>'
+      +(n.note?'<span class="submission-note">'+cleanText(n.note)+'</span>':'')
+      +'</div></div>';
+  }).join(''):'<div class="empty-state"><div class="ei">🔔</div><b>Новых уведомлений нет</b><span>Здесь появятся статусы заявок, запросы уточнений и ответы администратора.</span></div>';
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>Уведомления</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="form-body" style="padding-bottom:8px"><div class="prof-row" style="border:1px solid var(--line);border-radius:14px"><span class="pri">🔔</span><span class="prl">Показывать внутренние уведомления</span><span class="toggle'+(enabled?' on':'')+'" role="switch" aria-checked="'+enabled+'" onclick="toggleNotifications(this)"></span></div></div>'
+    +'<div class="fav-list">'+list+'</div>';
+  openSheet(html);
+  markNotificationsSeen(items);
+  renderProfile();
 }
 function openSupport(){
   const html='<div class="grabber"><i></i></div>'
@@ -1845,7 +1936,7 @@ async function submitAuth(mode){
     }
     saveFav();
     await Promise.all([loadMySubmissions(),loadMyReports()]);
-    closeSheet();renderProfile();toast(mode==='signup'?'Аккаунт создан':'Вы вошли в аккаунт');
+    closeSheet();renderProfile();updateNotificationBadge();toast(mode==='signup'?'Аккаунт создан':'Вы вошли в аккаунт');
   }catch(e){
     message.style.color='var(--red)';
     message.textContent=e.message.includes('Invalid login')?'Неверная почта или пароль':e.message;
@@ -1859,19 +1950,21 @@ async function signOutUser(){
   try{
     if(token)await fetch(SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token}});
   }catch(e){}
-  saveAuthSession(null);mySubmissions=[];myReports=[];favorites=loadFav();renderProfile();toast('Вы вышли из аккаунта');
+  saveAuthSession(null);mySubmissions=[];myReports=[];favorites=loadFav();renderProfile();updateNotificationBadge();toast('Вы вышли из аккаунта');
 }
 async function loadMySubmissions(){
   if(!authSession){mySubmissions=[];return}
   try{
     mySubmissions=await userRest('/rest/v1/parking_submissions?select=id,name,address,status,admin_note,published_parking_id,created_at&order=created_at.desc')||[];
   }catch(e){console.warn(e);mySubmissions=[]}
+  updateNotificationBadge();
 }
 async function loadMyReports(){
   if(!authSession){myReports=[];return}
   try{
     myReports=await userRest('/rest/v1/parking_reports?select=id,parking_id,reason,comment,status,admin_note,created_at&order=created_at.desc')||[];
   }catch(e){console.warn(e);myReports=[]}
+  updateNotificationBadge();
 }
 const submissionStatusLabels={
   PENDING:'На модерации',APPROVED:'Одобрено',REJECTED:'Отклонено',NEEDS_INFO:'Нужны сведения'
@@ -1922,7 +2015,7 @@ function openLegend(){
     +'<div class="legend-item">'+pin('#9CA3AF','P')+'<div><b>'+t('lUnknown')+'</b></div></div>'
     +'<div class="legend-item"><div class="legend-mark">🚦</div><div><b>Пробки</b><span>Нажмите, чтобы включить слой пробок</span></div><button onclick="toggleTraffic()" style="margin-left:auto;padding:8px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font:700 12px Manrope;cursor:pointer">Слой</button></div>'
     +'</div>'
-    +'<div style="padding:0 18px 4px"><div class="legalnote" style="background:#EFF4FF;border-color:#CFE0FF;color:#1D4ED8">ℹ️<span>Зелёный цвет означает <b>бесплатную</b> парковку, а не наличие свободных мест. Занятость в реальном времени появится в следующем обновлении.</span></div></div>';
+    +'<div style="padding:0 18px 4px"><div class="legalnote" style="background:#EFF4FF;border-color:#CFE0FF;color:#1D4ED8">ℹ️<span>Зелёный цвет означает <b>бесплатную</b> парковку, а не наличие свободных мест. Parkly не отслеживает занятость и свободные места в реальном времени.</span></div></div>';
   openSheet(html);
 }
 document.getElementById('legendbtn').onclick=openLegend;
@@ -2014,11 +2107,10 @@ let isDark = (()=>{ try{return localStorage.getItem('pl-theme')==='dark'}catch(e
 applyTheme(isDark);
 document.getElementById('themebtn').onclick=()=>{isDark=!isDark;applyTheme(isDark)};
 
-loadYandex();buildQchips();buildNav();loadParkingsFromDB();
+loadYandex();buildQchips();buildNav();loadParkingsFromDB();updateNotificationBadge();
 if(authSession){
   loadRemoteFavorites();
-  loadMySubmissions();
-  loadMyReports();
+  Promise.all([loadMySubmissions(),loadMyReports()]).then(()=>{renderProfile();updateNotificationBadge()});
 }
 /* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
    Кэш показываем сразу, а системный запрос разрешения откладываем,
