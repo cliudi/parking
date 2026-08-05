@@ -120,6 +120,14 @@
   .mc-dist{font:800 13px 'Manrope';color:var(--blue);white-space:nowrap;display:flex;align-items:center;gap:3px}
   .mc-btn{width:100%;margin-top:12px;padding:13px;border-radius:12px;background:var(--blue);color:#fff;border:0;font:800 14px 'Manrope';cursor:pointer}
   .mc-btn:active{background:var(--blue-d)}
+  .mc-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 46px;gap:8px;margin-top:13px}
+  .mc-actions .mc-btn{margin:0;min-width:0;padding:11px 9px;white-space:nowrap}
+  .mc-btn.secondary{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+  .mc-btn.icon{padding:0;font-size:17px}.mc-kicker{font:800 10px Manrope;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+  .mc-place-details{margin-top:10px;padding:10px 12px;border-radius:13px;background:var(--bg);font:600 11.5px Manrope;color:var(--ink2);line-height:1.45}
+  .mc-dismiss{width:34px;height:34px;flex:0 0 34px;border:0;border-radius:11px;background:var(--bg);color:var(--ink2);font-size:15px;cursor:pointer}
+  .mc-main-actions{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;margin-top:12px}.mc-main-actions .mc-btn{margin:0;padding:11px 8px}
+  .mc-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.mc-tools .mc-btn{margin:0;padding:9px 6px;min-height:40px;background:var(--bg);color:var(--ink);border:1px solid var(--line);font-size:12px}
 
   /* ─────────── НИЖНЯЯ НАВИГАЦИЯ ─────────── */
   .bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:65;height:calc(var(--nav) + var(--bot));
@@ -689,6 +697,7 @@ const t=k=>I18N[lang][k]||k;
    нельзя выдавать за реальные парковки при ошибке сети. */
 let PARKINGS=[];
 const cleanText=value=>String(value??'').replace(/[<>]/g,'').trim();
+const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 function safePhotoUrl(value){
   try{
     const url=new URL(String(value||''));
@@ -908,7 +917,7 @@ function catIcon(p){
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 let ymap=null, markers={}, meMark=null, meCircle=null, traffic=null,selectedPointMark=null;
 let mePos=null, watchId=null, activeTab='map', selectedId=null;
-let selectedStart=null;
+let selectedStart=null,selectedDestination=null,selectedPointRequest=0;
 let quickFilter='all';
 let favorites=loadFav();
 let advFilters={price:'all', types:[], e247:false, cctv:false, disabled:false, wash:false, priceMax:100000};
@@ -1012,21 +1021,31 @@ function scheduleViewportLoad(){
 }
 function clearSelectedPoint(){
   if(selectedPointMark&&ymap)ymap.geoObjects.remove(selectedPointMark);
-  selectedPointMark=null;selectedStart=null;document.getElementById('minicard').classList.remove('on');
+  selectedPointMark=null;selectedStart=null;selectedDestination=null;selectedPointRequest++;document.getElementById('minicard').classList.remove('on');
 }
-function setSelectedPoint(coords,label){
+async function setSelectedPoint(coords,label){
   if(!ymap||!coords)return;
   selectedId=null;updateSelection(null);clearSelectedPoint();
-  selectedStart={lat:Number(coords[0]),lng:Number(coords[1]),label:cleanText(label)||t('selectedPoint')};
-  selectedPointMark=new ymaps.Placemark(coords,{hintContent:selectedStart.label},{preset:'islands#blueCircleDotIcon',zIndex:850});
+  const requestId=++selectedPointRequest;
+  selectedDestination={lat:Number(coords[0]),lng:Number(coords[1]),label:cleanText(label)||t('selectedPoint'),name:cleanText(label)||t('selectedPoint'),description:'',kind:'',loading:!label,isMapPoint:true,id:'map-point'};
+  selectedPointMark=new ymaps.Placemark(coords,{hintContent:selectedDestination.label},{preset:'islands#blueCircleDotIcon',zIndex:850,draggable:true});
   selectedPointMark.events.add('click',showSelectedPointCard);ymap.geoObjects.add(selectedPointMark);showSelectedPointCard();
+  selectedPointMark.events.add('dragend',()=>{const next=selectedPointMark.geometry.getCoordinates();setSelectedPoint(next)});
+  if(!label){
+    try{const details=await geocodeAddressHttp(selectedDestination.lng+','+selectedDestination.lat);if(requestId!==selectedPointRequest||!selectedDestination)return;
+      if(details){selectedDestination.label=cleanText(details.label)||t('selectedPoint');selectedDestination.name=selectedDestination.label;selectedDestination.description=cleanText(details.description||details.fullText);selectedDestination.kind=cleanText(details.kind);selectedPointMark.properties.set('hintContent',selectedDestination.label)}}catch(error){console.warn('Reverse geocoding failed',error)}
+    if(requestId===selectedPointRequest&&selectedDestination){selectedDestination.loading=false;showSelectedPointCard()}
+  }
 }
 function showSelectedPointCard(){
-  if(!selectedStart)return;const el=document.getElementById('minicard');
-  el.innerHTML='<div class="mc-head"><div class="mc-ic" style="background:var(--blue)">⌖</div><div class="mc-body"><h3>'+selectedStart.label+'</h3><div class="mc-sub">'+selectedStart.lat.toFixed(5)+', '+selectedStart.lng.toFixed(5)+'</div></div></div>'
-    +'<div style="display:flex;gap:7px"><button class="mc-btn" style="flex:1" onclick="toast(t(\'useAsStart\'))">'+t('useAsStart')+'</button><button class="mc-btn" style="flex:1" onclick="sharePoint(selectedStart)">↗ Поделиться</button><button class="mc-btn" onclick="clearSelectedPoint()">✕</button></div>';
+  if(!selectedDestination)return;const el=document.getElementById('minicard'),p=selectedDestination;
+  const subtitle=p.loading?'Определяю место…':(p.description||'Точка, выбранная на карте');
+  el.innerHTML='<div class="mc-head"><div class="mc-ic" style="background:var(--blue)">⌖</div><div class="mc-body"><div class="mc-kicker">Место на карте</div><h3>'+escapeHtml(p.label)+'</h3><div class="mc-sub">'+escapeHtml(subtitle)+'</div></div></div>'
+    +'<div class="mc-place-details">Координаты: '+p.lat.toFixed(5)+', '+p.lng.toFixed(5)+(p.kind?' · '+escapeHtml(placeKindLabel(p.kind)):'')+'<br>Метка перемещается долгим нажатием и перетаскиванием.</div>'
+    +'<div class="mc-actions"><button class="mc-btn" onclick="routeToSelectedPoint()">➤ Маршрут сюда</button><button class="mc-btn secondary" onclick="sharePoint(selectedDestination)">↗ Поделиться</button><button class="mc-btn secondary icon" aria-label="Закрыть" onclick="clearSelectedPoint()">✕</button></div>';
   el.classList.add('on');
 }
+function placeKindLabel(kind){return({house:'здание',street:'улица',metro:'метро',district:'район',locality:'населённый пункт',vegetation:'парк',hydro:'водоём',route:'дорога'})[kind]||'объект'}
 function sharePoint(point){
   if(!point)return;const url='https://yandex.uz/maps/?pt='+point.lng+','+point.lat;
   if(navigator.share)navigator.share({title:point.label||t('selectedPoint'),url}).catch(()=>{});else{navigator.clipboard&&navigator.clipboard.writeText(url);toast('Ссылка скопирована')}
@@ -1269,18 +1288,19 @@ function showMiniCard(id){
   el.innerHTML=
     '<div class="mc-head">'
     +'<div class="mc-ic" style="background:'+markerColor(p)+'">'+catIcon(p)+'</div>'
-    +'<div class="mc-body"><h3>'+p.name+'</h3>'
+    +'<div class="mc-body"><h3>'+escapeHtml(p.name)+'</h3>'
     +'<div class="mc-sub">'+priceLabel(p)+' · '+(p.cap?(p.cap_est?t('approx').toLowerCase()+' ':'')+p.cap+' '+t('places'):t('capUnknown'))+'</div>'
     +'<div class="mc-meta" style="color:'+(p.is247?'var(--green)':'var(--ink2)')+'">'+(p.is247?'● '+t('open247'):'○ '+p.hours)+'</div>'
     +'</div>'
     +(d?'<div class="mc-dist">➤ '+d+'</div>':'')
+    +'<button class="mc-dismiss" aria-label="Закрыть" onclick="closeMiniCard()">✕</button>'
     +'</div>'
-    +'<div style="display:flex;gap:7px"><button class="mc-btn" style="flex:1" onclick="openFullCard(\''+p.id+'\')">'+t('showDetails')+'</button>'
-    +'<button class="mc-btn" style="flex:1" onclick="routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button>'
-    +'<button class="mc-btn" aria-label="Избранное" onclick="toggleFav(\''+p.id+'\',this)">'+(favorites.includes(p.id)?'★':'☆')+'</button>'
-    +'<button class="mc-btn" aria-label="Поделиться" onclick="shareParking(\''+p.id+'\')">↗</button><button class="mc-btn" aria-label="Сообщить об ошибке" onclick="openReport(\''+p.id+'\')">⚑</button></div>';
+    +'<div class="mc-main-actions"><button class="mc-btn" onclick="routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button><button class="mc-btn secondary" onclick="openFullCard(\''+p.id+'\')">'+t('showDetails')+'</button></div>'
+    +'<div class="mc-tools"><button class="mc-btn" aria-label="Избранное" onclick="toggleFav(\''+p.id+'\',this)">'+(favorites.includes(p.id)?'★ В избранном':'☆ Избранное')+'</button>'
+    +'<button class="mc-btn" aria-label="Поделиться" onclick="shareParking(\''+p.id+'\')">↗ Поделиться</button><button class="mc-btn" aria-label="Сообщить об ошибке" onclick="openReport(\''+p.id+'\')">⚑ Ошибка</button></div>';
   el.classList.add('on');
 }
+function closeMiniCard(){selectedId=null;updateSelection(null);document.getElementById('minicard').classList.remove('on')}
 
 /* ═══════════ ПОЛНАЯ КАРТОЧКА ═══════════ */
 function typeLabel(pt){return t(pt==='street'?'tStreet':pt==='open'?'tOpen':pt==='covered'?'tCovered':pt==='underground'?'tUnderground':'tOfficial')}
@@ -1653,7 +1673,7 @@ document.getElementById('filtbtn').onclick=openFilters;
 let route=null,routeTarget=null,routeMode='auto',routeInfo=null,routeAlternative=0;
 let routeGuidanceActive=false,lastRouteRefreshAt=0,lastRouteOrigin=null,routeRequestAbort=null,lastRouteDeviationToast=0;
 const routeCache=new Map(),ROUTE_CACHE_MS=5*60*1000;
-function routeOrigin(){return selectedStart||mePos}
+function routeOrigin(){return mePos}
 function routeCacheKey(origin,target,mode){return [mode,origin.lat.toFixed(5),origin.lng.toFixed(5),target.lat.toFixed(5),target.lng.toFixed(5)].join(':')}
 function formatRouteDistance(m){return m<1000?Math.round(m)+' м':(m/1000).toFixed(m<10000?1:0)+' км'}
 function formatRouteDuration(s){const min=Math.max(1,Math.round(s/60));return min<60?min+' мин':Math.floor(min/60)+' ч '+(min%60?min%60+' мин':'')}
@@ -1681,7 +1701,10 @@ function drawRoadRoutes(routes,active){
   }
 }
 async function routeTo(id,mode){
-  const p=PARKINGS.find(x=>x.id===id);if(!p||!ymap)return;
+  const p=PARKINGS.find(x=>x.id===id);if(!p||!ymap)return;return buildRouteToTarget(p,mode);
+}
+function routeToSelectedPoint(mode){if(!selectedDestination||!ymap)return;return buildRouteToTarget({...selectedDestination},mode)}
+async function buildRouteToTarget(p,mode){
   if(!routeOrigin()){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!routeOrigin()){toast(t('geoDeny'));return}}
   routeTarget=p;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');clearRoute();drawRoutePanel(null);
   const origin=routeOrigin();lastRouteOrigin={lat:origin.lat,lng:origin.lng};routeAlternative=0;
@@ -1707,10 +1730,11 @@ function updateRouteGuidance(){
   const periodicRefresh=now-lastRouteRefreshAt>45000&&moved>.2;
   if((offRoute&&now-lastRouteRefreshAt>10000)||periodicRefresh){
     if(offRoute&&now-lastRouteDeviationToast>15000){toast('Перестраиваю маршрут');lastRouteDeviationToast=now}
-    lastRouteRefreshAt=now;routeTo(routeTarget.id,routeMode);return;
+    lastRouteRefreshAt=now;retryActiveRoute();return;
   }
   drawRoutePanel(Object.assign({},routeInfo,{progress:left<1?Math.round(left*1000)+' м':left.toFixed(1)+' км'}));if(!userPanned&&ymap)ymap.panTo([mePos.lat,mePos.lng],{duration:220});
 }
+function retryActiveRoute(){if(!routeTarget)return;return routeTarget.isMapPoint?buildRouteToTarget({...routeTarget},routeMode):routeTo(routeTarget.id,routeMode)}
 function routeProgressState(){
   const geometry=route&&route.alternatives&&route.alternatives[routeAlternative]&&route.alternatives[routeAlternative].geometry;if(!geometry||!geometry.length){const direct=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng);return{remaining:direct,deviation:0}}
   let nearest=0,best=Infinity;geometry.forEach((c,i)=>{const d=dist(mePos.lat,mePos.lng,c[1],c[0]);if(d<best){best=d;nearest=i}});let km=best;
@@ -1721,12 +1745,12 @@ function drawRoutePanel(info){
   const p=routeTarget;if(!p)return;let rp=document.getElementById('routepanel');if(!rp){rp=document.createElement('div');rp.id='routepanel';document.getElementById('screen-map').appendChild(rp)}
   const altCount=Math.min(3,Number(info&&info.alternatives||0));
   const alternatives=altCount>1?'<div class="route-alts">'+Array.from({length:altCount},(_,i)=>'<button class="route-alt'+(i===routeAlternative?' on':'')+'" onclick="selectRouteAlternative('+i+')">'+t('routeAlt')+' '+(i+1)+'</button>').join('')+'</div>':'';
-  const routeStatus=info&&info.error?t('routeUnavailable'):priceLabel(p);
-  const routeActions=info&&info.error?'<div class="route-actions"><button class="route-action primary" onclick="routeTo(\''+p.id+'\',routeMode)">↻ '+t('routeRetry')+'</button></div>':!info?'<div class="route-actions"><button class="route-action primary" disabled>'+t('buildRoute')+'</button></div>':'<div class="route-actions"><button class="route-action '+(routeGuidanceActive?'stop':'primary')+'" onclick="'+(routeGuidanceActive?'stopRouteGuidance()':'startRouteGuidance()')+'">'+(routeGuidanceActive?'■ '+t('stopGuide'):'▶ '+t('startGuide'))+'</button></div>';
-  rp.innerHTML='<div class="route-head"><div class="mc-ic" style="background:'+markerColor(p)+';width:40px;height:40px">'+catIcon(p)+'</div>'
-    +'<div class="route-summary"><b>'+p.name+'</b><span>'+routeStatus+'</span></div>'
+  const routeStatus=info&&info.error?t('routeUnavailable'):(p.isMapPoint?'Выбранное место':priceLabel(p));
+  const routeActions=info&&info.error?'<div class="route-actions"><button class="route-action primary" onclick="retryActiveRoute()">↻ '+t('routeRetry')+'</button></div>':!info?'<div class="route-actions"><button class="route-action primary" disabled>'+t('buildRoute')+'</button></div>':'<div class="route-actions"><button class="route-action '+(routeGuidanceActive?'stop':'primary')+'" onclick="'+(routeGuidanceActive?'stopRouteGuidance()':'startRouteGuidance()')+'">'+(routeGuidanceActive?'■ '+t('stopGuide'):'▶ '+t('startGuide'))+'</button></div>';
+  rp.innerHTML='<div class="route-head"><div class="mc-ic" style="background:'+(p.isMapPoint?'var(--blue)':markerColor(p))+';width:40px;height:40px">'+(p.isMapPoint?'⌖':catIcon(p))+'</div>'
+    +'<div class="route-summary"><b>'+escapeHtml(p.name||p.label||t('selectedPoint'))+'</b><span>'+routeStatus+'</span></div>'
     +'<div class="route-metrics"><b>'+(info?info.time:'…')+'</b><span>'+(info?info.dist:t('buildRoute'))+'</span></div><button class="route-close" onclick="closeRoute()">✕</button></div>'
-    +'<div class="route-modes"><button class="route-mode'+(routeMode==='auto'?' on':'')+'" onclick="routeTo(\''+p.id+'\',\'auto\')">🚗 '+t('byCar')+'</button><button class="route-mode'+(routeMode==='pedestrian'?' on':'')+'" onclick="routeTo(\''+p.id+'\',\'pedestrian\')">🚶 '+t('onFoot')+'</button></div>'
+    +'<div class="route-modes"><button class="route-mode'+(routeMode==='auto'?' on':'')+'" onclick="buildRouteToTarget(routeTarget,\'auto\')">🚗 '+t('byCar')+'</button><button class="route-mode'+(routeMode==='pedestrian'?' on':'')+'" onclick="buildRouteToTarget(routeTarget,\'pedestrian\')">🚶 '+t('onFoot')+'</button></div>'
     +alternatives+routeActions
     +(routeGuidanceActive?'<div class="route-progress"><span>'+t('routeFollowing')+'</span><b>'+t('routeLeft')+': '+(info&&info.progress?info.progress:(info?info.dist:'…'))+'</b></div>':'')
     +'<div class="route-attribution">Маршрут: openrouteservice · © OpenStreetMap</div>';
@@ -2168,7 +2192,8 @@ async function geocodeAddressHttp(query){
   if(!object)return null;
   const position=String(object?.Point?.pos||'').trim().split(/\s+/).map(Number);
   if(position.length!==2||!position.every(Number.isFinite))return null;
-  return {coords:[position[1],position[0]],label:object?.name||object?.metaDataProperty?.GeocoderMetaData?.text||query};
+  const meta=object?.metaDataProperty?.GeocoderMetaData||{};
+  return {coords:[position[1],position[0]],label:object?.name||meta?.text||query,description:object?.description||meta?.Address?.formatted||meta?.text||'',fullText:meta?.text||'',kind:meta?.kind||''};
 }
 document.getElementById('search').addEventListener('input',e=>{
   const q=e.target.value.toLowerCase().trim();
