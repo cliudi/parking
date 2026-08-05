@@ -173,6 +173,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
     <nav class="nav">
       <button class="nav-item active" id="parkingsNav">▦ Все парковки</button>
       <button class="nav-item" id="pendingNav">◷ Парковки на модерации</button>
+      <button class="nav-item" id="draftNav">◫ Черновики</button>
       <button class="nav-item" id="approvedNav">✓ Опубликованные</button>
       <button class="nav-item" id="submissionsNav">＋ Заявки пользователей</button>
       <button class="nav-item" id="reportsNav">⚑ Сообщения об ошибках</button>
@@ -456,6 +457,7 @@ $('resetFilters').onclick=()=>{$('search').value='';$('statusFilter').value='';$
 $('refreshBtn').onclick=loadParkings;
 $('parkingsNav').onclick=()=>showSection('parkings');
 $('pendingNav').onclick=()=>{showSection('parkings');$('statusFilter').value='PENDING';renderRows()};
+$('draftNav').onclick=()=>{showSection('parkings');$('statusFilter').value='DRAFT';renderRows()};
 $('approvedNav').onclick=()=>{showSection('parkings');$('statusFilter').value='APPROVED';renderRows()};
 $('submissionsNav').onclick=()=>showSection('submissions');
 $('reportsNav').onclick=()=>showSection('reports');
@@ -552,7 +554,7 @@ function renderRows(){
     <td data-label="Стоимость">${escapeHtml(priceText(p))}</td><td data-label="Места">${p.capacity??'—'}</td>
     <td data-label="Статус"><span class="badge ${statusClass(p.status)}">${escapeHtml(labels.status[p.status]||p.status)}</span></td>
     <td data-label="Обновлено">${p.updated_at?new Date(p.updated_at).toLocaleDateString('ru-RU'):'—'}</td>
-    <td data-label="Действия"><div class="actions"><button class="btn btn-secondary table-btn" onclick="editParking('${p.id}')">Изменить</button><button class="btn btn-danger table-btn" onclick="deleteParking('${p.id}')">Удалить</button></div></td>
+    <td data-label="Действия"><div class="actions">${p.status==='DRAFT'?`<button class="btn btn-primary table-btn" onclick="confirmParking('${p.id}')">Подтвердить</button>`:''}<button class="btn btn-secondary table-btn" onclick="editParking('${p.id}')">Изменить</button><button class="btn btn-danger table-btn" onclick="deleteParking('${p.id}')">Удалить</button></div></td>
   </tr>`).join('');
 }
 
@@ -873,6 +875,13 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
 }
 function closeForm(){$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
 window.editParking=id=>openForm(records.find(x=>x.id===id));
+window.confirmParking=async id=>{
+  const p=records.find(x=>x.id===id);
+  if(!confirm(`Подтвердить парковку «${p?.name||''}» и показать её пользователям?`))return;
+  const {error}=await sb.rpc('admin_confirm_parking',{p_id:id});
+  if(error){toast(error.message,'error');return}
+  toast('Парковка подтверждена и опубликована');await loadParkings();
+};
 window.deleteParking=async id=>{
   const p=records.find(x=>x.id===id);
   if(!confirm(`Удалить парковку «${p?.name||''}»? Это действие нельзя отменить.`))return;
