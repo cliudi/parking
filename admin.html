@@ -344,6 +344,40 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           </div>
         </section>
 
+        <section class="form-section">
+          <div class="section-title">Доступ и тариф</div>
+          <div class="check-grid">
+            <label class="check-card"><input id="has_barrier" type="checkbox"> На парковке есть шлагбаум</label>
+            <label class="check-card"><input id="has_free_period" type="checkbox"> Есть ограниченный бесплатный период</label>
+          </div>
+          <div id="barrierFields" class="hidden" style="margin-top:14px">
+            <div class="check-grid">
+              <label class="check-card"><input id="barrier_at_entry" type="checkbox"> Шлагбаум на въезде</label>
+              <label class="check-card"><input id="barrier_at_exit" type="checkbox"> Шлагбаум на выезде</label>
+              <label class="check-card"><input id="requires_ticket" type="checkbox"> Нужен парковочный билет</label>
+            </div>
+            <div class="grid" style="margin-top:14px">
+              <div class="field"><label>Правила въезда</label><textarea id="entry_rules" class="control" placeholder="Например: получите билет у шлагбаума"></textarea></div>
+              <div class="field"><label>Правила выезда</label><textarea id="exit_rules" class="control" placeholder="Например: оплатите парковку перед выездом"></textarea></div>
+            </div>
+          </div>
+          <div id="freePeriodFields" class="hidden" style="margin-top:14px">
+            <div class="grid">
+              <div class="field"><label>Бесплатный период, минут *</label><input id="free_period_minutes" class="control" type="number" min="1" step="1" placeholder="60"></div>
+              <div class="field"><label>Цена после периода, сум</label><input id="price_after_free_period" class="control" type="number" min="0" step="1"></div>
+              <div class="field"><label>Как рассчитывается цена</label><select id="price_after_free_period_unit" class="control"><option value="unknown">Схема неизвестна</option><option value="hour">За полный час</option><option value="started_hour">За начатый час</option><option value="entry">Фиксированно после периода</option><option value="day">За сутки</option><option value="custom">Сложный тариф</option></select></div>
+              <div class="field"><label>Дата проверки тарифа</label><input id="tariff_verified_at" class="control" type="date"></div>
+              <div class="field full"><label>Источник тарифа</label><input id="tariff_source_ref" class="control" placeholder="Официальная ссылка, документ или фотография тарифа"></div>
+            </div>
+            <div class="check-grid" style="margin-top:14px">
+              <label class="check-card"><input id="requires_purchase" type="checkbox"> Бесплатный период действует при покупке</label>
+              <label class="check-card"><input id="requires_receipt" type="checkbox"> Требуется чек</label>
+            </div>
+          </div>
+          <div class="field" style="margin-top:14px"><label>Дополнительное примечание к тарифу</label><textarea id="tariff_note" class="control" placeholder="Только подтверждённые условия, без предположений"></textarea></div>
+          <small>Точную цену после бесплатного периода можно публиковать только с источником и датой проверки.</small>
+        </section>
+
         <section id="streetSection" class="form-section hidden">
           <div class="section-title">Разрешённый участок вдоль дороги</div>
           <div class="field">
@@ -793,6 +827,12 @@ $('searchAddressMap').onclick=searchAddressOnMap;
 ['lat','lng'].forEach(id=>$(id).addEventListener('change',syncManualCoordinates));
 $('address').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchAddressOnMap()}});
 $('category').onchange=()=>$('streetSection').classList.toggle('hidden',val('category')!=='STREET_ALLOWED');
+function updateAccessTariffFields(){
+  $('barrierFields').classList.toggle('hidden',!$('has_barrier').checked);
+  $('freePeriodFields').classList.toggle('hidden',!$('has_free_period').checked);
+}
+$('has_barrier').addEventListener('change',updateAccessTariffFields);
+$('has_free_period').addEventListener('change',updateAccessTariffFields);
 $('addStreetPoint').onclick=()=>{
   const lat=val('lat'),lng=val('lng');if(!lat||!lng){toast('Сначала выберите точку на карте','error');return}
   $('street_path').value+=($('street_path').value.trim()?'\n':'')+lat+', '+lng;
@@ -1031,20 +1071,27 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   const defaults={district:'Юнусабадский',city:'Ташкент',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
   const data={...defaults,...(p||{})};
   ['name','address','district','city','lat','lng','category','kind','price_type','price_hour','price_day','capacity','price_note','hours','height_limit','status','source','ev_operator','ev_ports','verified_at','source_ref','moderator_note'].forEach(k=>$(k).value=data[k]??'');
+  ['free_period_minutes','price_after_free_period','price_after_free_period_unit','entry_rules','exit_rules','tariff_note','tariff_verified_at','tariff_source_ref'].forEach(k=>$(k).value=data[k]??(k==='price_after_free_period_unit'?'unknown':''));
   $('ev_connectors').value=(data.ev_connectors||[]).join(', ');
   $('payment_methods').value=(data.payment_methods||[]).join(', ');
   $('photos').value=(data.photos||[]).join('\n');
   $('street_path').value=(data.street_path||[]).map(point=>point.join(', ')).join('\n');
   $('legal_note').value=data.legal_note||'Перед парковкой проверьте дорожные знаки и разметку.';
   $('streetSection').classList.toggle('hidden',data.category!=='STREET_ALLOWED');
-  ['is_247','capacity_est','has_ev','has_cctv','has_disabled'].forEach(k=>$(k).checked=Boolean(data[k]));
+  ['is_247','capacity_est','has_ev','has_cctv','has_disabled','has_barrier','barrier_at_entry','barrier_at_exit','requires_ticket','has_free_period','requires_purchase','requires_receipt'].forEach(k=>$(k).checked=Boolean(data[k]));
+  updateAccessTariffFields();
   geoDirty.address=false;geoDirty.district=false;geoDirty.city=false;setGeoStatus('');
   $('modal').classList.remove('hidden');
   lockBodyScroll();
   setTimeout(()=>refreshCoordMap(true),50);
 }
 function closeForm(){$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
-window.editParking=id=>openForm(records.find(x=>x.id===id));
+window.editParking=async id=>{
+  const parking=records.find(x=>x.id===id);if(!parking)return;
+  const {data,error}=await sb.rpc('admin_get_parking_access',{p_id:id});
+  if(error){toast('Не удалось загрузить условия доступа: '+error.message,'error');return}
+  openForm({...parking,...(data||{})});
+};
 window.confirmParking=async id=>{
   const p=records.find(x=>x.id===id);
   if(!confirm(`Подтвердить парковку «${p?.name||''}» и показать её пользователям?`))return;
@@ -1066,6 +1113,21 @@ $('parkingForm').addEventListener('submit',async e=>{
   if(!coords){formMessage($('formMsg'),'Проверьте координаты парковки. Можно использовать точку или запятую.');return}
   let streetPath=null;
   try{streetPath=val('category')==='STREET_ALLOWED'?parseStreetPath():null}catch(error){formMessage($('formMsg'),error.message);return}
+  const accessData={
+    has_barrier:$('has_barrier').checked,barrier_at_entry:$('barrier_at_entry').checked,
+    barrier_at_exit:$('barrier_at_exit').checked,requires_ticket:$('requires_ticket').checked,
+    has_free_period:$('has_free_period').checked,free_period_minutes:nullableNumber('free_period_minutes'),
+    price_after_free_period:nullableNumber('price_after_free_period'),price_after_free_period_unit:val('price_after_free_period_unit')||'unknown',
+    requires_purchase:$('requires_purchase').checked,requires_receipt:$('requires_receipt').checked,
+    entry_rules:val('entry_rules'),exit_rules:val('exit_rules'),tariff_note:val('tariff_note'),
+    tariff_verified_at:val('tariff_verified_at')||null,tariff_source_ref:val('tariff_source_ref')
+  };
+  if(accessData.has_free_period&&(!accessData.free_period_minutes||accessData.free_period_minutes<1)){
+    formMessage($('formMsg'),'Укажите продолжительность бесплатного периода в минутах.');return
+  }
+  if(val('status')==='APPROVED'&&accessData.price_after_free_period!=null&&(!accessData.tariff_verified_at||!accessData.tariff_source_ref)){
+    formMessage($('formMsg'),'Точную цену после бесплатного периода нельзя опубликовать без источника и даты проверки тарифа.');return
+  }
   const data={
     id:val('id')||null,name:val('name'),address:val('address'),district:normalizeDistrict(val('district')),city:normalizeCity(val('city')),
     lat:coords[0],lng:coords[1],category:val('category'),kind:val('kind'),
@@ -1078,16 +1140,25 @@ $('parkingForm').addEventListener('submit',async e=>{
     source_ref:val('source_ref'),verified_at:val('verified_at')||null,status:val('status'),
     moderator_note:val('moderator_note')
   };
+  const requestedStatus=data.status;
+  const stagedApproval=!data.id&&requestedStatus==='APPROVED';
+  if(stagedApproval)data.status='DRAFT';
   const submissionId=editingSubmissionId;
   const osmCandidateId=editingOsmCandidateId;
   const {data:saved,error}=await sb.rpc('admin_save_parking',{p_data:data});
   if(error){formMessage($('formMsg'),error.message);return}
   const savedParkingId=typeof saved==='string'?saved:(saved&&saved.id?saved.id:data.id);
   if(savedParkingId){
+    const {error:accessError}=await sb.rpc('admin_save_parking_access',{p_id:savedParkingId,p_data:accessData});
+    if(accessError){formMessage($('formMsg'),'Основные данные сохранены, но условия доступа не сохранены: '+accessError.message);return}
     const {error:pathError}=await sb.rpc('admin_set_parking_street_path',{
       p_parking_id:savedParkingId,p_path:streetPath,p_legal_note:val('legal_note')||null
     });
     if(pathError){formMessage($('formMsg'),'Парковка сохранена, но линия участка не сохранена: '+pathError.message);return}
+    if(stagedApproval){
+      const {error:confirmError}=await sb.rpc('admin_confirm_parking',{p_id:savedParkingId});
+      if(confirmError){formMessage($('formMsg'),'Парковка сохранена как черновик, но не опубликована: '+confirmError.message);return}
+    }
   }
   if(submissionId){
     const {error:reviewError}=await sb.rpc('admin_review_submission',{
