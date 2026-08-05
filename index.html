@@ -102,6 +102,13 @@
   #minicard{position:fixed;left:12px;right:12px;bottom:calc(var(--nav) + 10px + var(--bot));z-index:58;
     background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:14px 16px;display:none}
   #minicard.on{display:block;animation:slideUp .28s cubic-bezier(.2,.8,.3,1)}
+  #routepanel{position:fixed;left:12px;right:12px;bottom:calc(var(--nav) + 10px + var(--bot));z-index:59;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--sh);padding:14px 16px}
+  .route-head{display:flex;align-items:center;gap:11px}.route-summary{flex:1;min-width:0}.route-summary b{font:700 14px Manrope;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .route-summary span,.route-progress{font:600 12px Manrope;color:var(--ink2)}.route-metrics{text-align:right}.route-metrics b{font:800 17px Manrope;color:var(--blue);display:block}.route-metrics span{font:700 11px Manrope;color:var(--ink2)}
+  .route-close{width:34px;height:34px;border-radius:11px;background:var(--bg);border:0;font-size:15px;cursor:pointer}.route-modes,.route-actions,.route-alts{display:flex;gap:7px;margin-top:10px}
+  .route-mode,.route-action,.route-alt{flex:1;padding:9px;border-radius:11px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:700 12px Manrope;cursor:pointer}
+  .route-mode.on,.route-alt.on{border-color:var(--ink);background:var(--ink);color:#fff}.route-action.primary{background:var(--blue);border-color:var(--blue);color:#fff}.route-action.stop{background:#EF4444;border-color:#EF4444;color:#fff}
+  .route-progress{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
   @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
   .mc-head{display:flex;align-items:flex-start;gap:12px}
   .mc-ic{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
@@ -527,14 +534,16 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
   .qchip{padding-left:12px;padding-right:12px}
   .sidefabs{right:8px}
   .legendbtn{left:8px}
-  #minicard{left:8px;right:8px}
+    #minicard{left:8px;right:8px}
+    #routepanel{left:8px;right:8px;padding:12px}.route-head{gap:7px}.route-mode,.route-action,.route-alt{padding:8px 5px;font-size:11px}
   .fc-grid{grid-template-columns:1fr}
   .field-row{flex-direction:column;gap:0}
 }
 @media(min-width:768px){
   .sheet{max-width:680px;margin:0 auto}
   .mask{justify-content:center}
-  #minicard{max-width:520px;left:50%;right:auto;width:calc(100% - 32px);transform:translateX(-50%)}
+    #minicard{max-width:520px;left:50%;right:auto;width:calc(100% - 32px);transform:translateX(-50%)}
+    #routepanel{max-width:520px;left:50%;right:auto;width:calc(100% - 32px);transform:translateX(-50%)}
   #minicard.on{animation:slideUpCentered .28s cubic-bezier(.2,.8,.3,1)}
   @keyframes slideUpCentered{
     from{transform:translate(-50%,30px);opacity:0}
@@ -662,7 +671,7 @@ const I18N={
   geoUnav:'Включите GPS', geoTime:'Не удалось определить. Попробуйте на улице',
   geoNo:'Геолокация не поддерживается', geoHttp:'Геолокация работает только на HTTPS',
   needGeoRoute:'Определяю ваше местоположение для маршрута…',
-  buildRoute:'строю…', min:'мин', roughR:'примерно', openNav:'Открыть в Навигаторе →', backToList:'✕ Закрыть маршрут',
+  buildRoute:'строю…', min:'мин', roughR:'примерно', startGuide:'Начать сопровождение', stopGuide:'Остановить', routeFollowing:'Сопровождение по маршруту', routeAlt:'Вариант', routeLeft:'Осталось', routeArrived:'Вы прибыли к парковке', useAsStart:'Начать отсюда', selectedPoint:'Выбранная точка', currentPosition:'Ваше местоположение', clearPoint:'Убрать точку',
   byCar:'На машине', onFoot:'Пешком',
   noParkArea:'В этой области парковки пока не добавлены',
   mapErr:'Карта не загрузилась', mapErrP:'Проверьте интернет или домен в кабинете Яндекс API.',
@@ -851,7 +860,7 @@ async function loadParkingsFromDB(lat, lng, radius){
   }
 }
 
-let streetSegments=[],streetLines=[],streetSegmentIds=new Set();
+let streetSegments=[],streetLines=new Map(),streetSegmentIds=new Set();
 async function loadStreetSegments(){
   try{
     const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/street_parking_segments',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},body:'{}'});
@@ -863,14 +872,19 @@ async function loadStreetSegments(){
 }
 function drawStreetSegments(){
   if(!ymap||!window.ymaps)return;
-  streetLines.forEach(line=>ymap.geoObjects.remove(line));streetLines=[];
+  const wanted=new Set();
   streetSegments.forEach(segment=>{
+    const key=String(segment.parking_id);wanted.add(key);
     const parking=PARKINGS.find(p=>String(p.id)===String(segment.parking_id));
     const color=parking?markerColor(parking):'#2563EB';
+    const signature=color+'|'+JSON.stringify(segment.path),existing=streetLines.get(key);
+    if(existing&&existing.signature===signature)return;
+    if(existing)ymap.geoObjects.remove(existing.line);
     const line=new ymaps.Polyline(segment.path,{hintContent:parking?.name||'Разрешённая уличная парковка'},{strokeColor:color,strokeWidth:7,strokeOpacity:.86});
     line.events.add('click',()=>selectParking(String(segment.parking_id)));
-    ymap.geoObjects.add(line);streetLines.push(line);
+    ymap.geoObjects.add(line);streetLines.set(key,{line,signature});
   });
+  streetLines.forEach((entry,key)=>{if(!wanted.has(key)){ymap.geoObjects.remove(entry.line);streetLines.delete(key)}});
 }
 
 /* цвет/иконка маркера по типу (ПДД разд.7.3: зелёный=бесплатно, синий=платно, серый=неизвестно) */
@@ -890,8 +904,9 @@ function catIcon(p){
 }
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
-let ymap=null, markers={}, meMark=null, meCircle=null, traffic=null;
+let ymap=null, markers={}, meMark=null, meCircle=null, traffic=null,selectedPointMark=null;
 let mePos=null, watchId=null, activeTab='map', selectedId=null;
+let selectedStart=null;
 let quickFilter='all';
 let favorites=loadFav();
 let advFilters={price:'all', types:[], e247:false, cctv:false, disabled:false, wash:false, priceMax:100000};
@@ -965,6 +980,7 @@ function initMap(){
   drawStreetSegments();
   trackPan();
   ymap.events.add('boundschange',scheduleMarkerDraw);
+  ymap.events.add('actionend',scheduleViewportLoad);
   initHeading();
   // позиция могла прийти раньше карты — показываем её сразу
   if(pendingCenter){
@@ -978,8 +994,40 @@ function initMap(){
        Это страхует маленькие экраны и частично перекрывающиеся метки. */
     const hit=findNearestVisibleParking(e.get('coords'),28);
     if(hit){selectParking(hit.id);return}
-    selectedId=null;document.getElementById('minicard').classList.remove('on');updateSelection(null);
+    setSelectedPoint(e.get('coords'));
   });
+}
+
+let viewportLoadTimer=null;
+function scheduleViewportLoad(){
+  clearTimeout(viewportLoadTimer);
+  viewportLoadTimer=setTimeout(()=>{
+    if(!ymap||routeGuidanceActive)return;
+    const b=ymap.getBounds(),c=ymap.getCenter();if(!b||!c)return;
+    const radius=Math.min(50000,Math.max(2000,Math.ceil(dist(b[0][0],b[0][1],b[1][0],b[1][1])*650)));
+    loadParkingsFromDB(c[0],c[1],radius);
+  },650);
+}
+function clearSelectedPoint(){
+  if(selectedPointMark&&ymap)ymap.geoObjects.remove(selectedPointMark);
+  selectedPointMark=null;selectedStart=null;document.getElementById('minicard').classList.remove('on');
+}
+function setSelectedPoint(coords,label){
+  if(!ymap||!coords)return;
+  selectedId=null;updateSelection(null);clearSelectedPoint();
+  selectedStart={lat:Number(coords[0]),lng:Number(coords[1]),label:cleanText(label)||t('selectedPoint')};
+  selectedPointMark=new ymaps.Placemark(coords,{hintContent:selectedStart.label},{preset:'islands#blueCircleDotIcon',zIndex:850});
+  selectedPointMark.events.add('click',showSelectedPointCard);ymap.geoObjects.add(selectedPointMark);showSelectedPointCard();
+}
+function showSelectedPointCard(){
+  if(!selectedStart)return;const el=document.getElementById('minicard');
+  el.innerHTML='<div class="mc-head"><div class="mc-ic" style="background:var(--blue)">⌖</div><div class="mc-body"><h3>'+selectedStart.label+'</h3><div class="mc-sub">'+selectedStart.lat.toFixed(5)+', '+selectedStart.lng.toFixed(5)+'</div></div></div>'
+    +'<div style="display:flex;gap:7px"><button class="mc-btn" style="flex:1" onclick="toast(t(\'useAsStart\'))">'+t('useAsStart')+'</button><button class="mc-btn" style="flex:1" onclick="sharePoint(selectedStart)">↗ Поделиться</button><button class="mc-btn" onclick="clearSelectedPoint()">✕</button></div>';
+  el.classList.add('on');
+}
+function sharePoint(point){
+  if(!point)return;const url='https://yandex.uz/maps/?pt='+point.lng+','+point.lat;
+  if(navigator.share)navigator.share({title:point.label||t('selectedPoint'),url}).catch(()=>{});else{navigator.clipboard&&navigator.clipboard.writeText(url);toast('Ссылка скопирована')}
 }
 function filteredParkings(){
   let v=PARKINGS.slice();
@@ -1177,8 +1225,15 @@ function drawMarkers(force){
     properties:{parkingId:String(p.id)},
     options:markerOptions(p,String(p.id)===String(selectedId))
   }));
-  objectManager.removeAll();
-  if(features.length)objectManager.add({type:'FeatureCollection',features});
+  const wantedIds=new Set(features.map(f=>String(f.id))),current=[];
+  objectManager.objects.each(obj=>current.push(String(obj.id)));
+  const removals=current.filter(id=>!wantedIds.has(id));if(removals.length)objectManager.remove(removals);
+  const additions=[];
+  features.forEach(feature=>{
+    const old=objectManager.objects.getById(feature.id);
+    if(!old)additions.push(feature);else objectManager.objects.setObjectOptions(feature.id,feature.options);
+  });
+  if(additions.length)objectManager.add({type:'FeatureCollection',features:additions});
   lastMarkerZoomBucket=zoomBucket;
 }
 let prevSelected=null;
@@ -1218,7 +1273,10 @@ function showMiniCard(id){
     +'</div>'
     +(d?'<div class="mc-dist">➤ '+d+'</div>':'')
     +'</div>'
-    +'<button class="mc-btn" onclick="openFullCard(\''+p.id+'\')">'+t('showDetails')+'</button>';
+    +'<div style="display:flex;gap:7px"><button class="mc-btn" style="flex:1" onclick="openFullCard(\''+p.id+'\')">'+t('showDetails')+'</button>'
+    +'<button class="mc-btn" style="flex:1" onclick="routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button>'
+    +'<button class="mc-btn" aria-label="Избранное" onclick="toggleFav(\''+p.id+'\',this)">'+(favorites.includes(p.id)?'★':'☆')+'</button>'
+    +'<button class="mc-btn" aria-label="Поделиться" onclick="shareParking(\''+p.id+'\')">↗</button><button class="mc-btn" aria-label="Сообщить об ошибке" onclick="openReport(\''+p.id+'\')">⚑</button></div>';
   el.classList.add('on');
 }
 
@@ -1257,6 +1315,7 @@ function openFullCard(id){
     +'<div class="fc-actions">'
       +'<button class="btn-primary" onclick="closeSheet();routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button>'
       +'<button id="favActionBtn" class="btn-outline'+(isFav?' fav-active':'')+'" onclick="toggleFav(\''+p.id+'\',this)">'+(isFav?'★ '+t('inFav'):'☆ '+t('addFav'))+'</button>'
+      +'<button class="btn-outline" onclick="shareParking(\''+p.id+'\')">↗ Поделиться</button>'
       +'<button class="btn-report" onclick="openReport(\''+p.id+'\')">⚑ '+t('report')+'</button>'
     +'</div>'
     +'</div>';
@@ -1360,19 +1419,25 @@ let pendingCenter=null;
 function putMe(lat,lng,acc,rough){
   mePos={lat,lng};meAcc=acc||0;
   if(!ymap){pendingCenter={lat,lng,acc,rough};return}   // карта ещё грузится — применим позже
-  if(meMark)ymap.geoObjects.remove(meMark);if(meCircle)ymap.geoObjects.remove(meCircle);
   const isRough = rough || (acc||0)>ROUGH_OVER;
-  meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},
+  if(!meCircle){meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},
     isRough?{fillColor:'#F5A62322',strokeColor:'#F5A623aa',strokeWidth:1,strokeStyle:'shortdash'}
-           :{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});
+           :{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeWidth:1});ymap.geoObjects.add(meCircle)}
+  else{meCircle.geometry.setCoordinates([lat,lng]);meCircle.geometry.setRadius(Math.max(acc||30,20));meCircle.options.set(isRough?{fillColor:'#F5A62322',strokeColor:'#F5A623aa',strokeStyle:'shortdash'}:{fillColor:'#2563EB22',strokeColor:'#2563EB55',strokeStyle:'solid'})}
   const cone = meHeading!=null
     ? '<div class="me-cone" style="transform:rotate('+Math.round(meHeading)+'deg)"></div>' : '';
   const L=ymaps.templateLayoutFactory.createClass(
     '<div class="me-wrap">'+cone
     +'<div class="me-pulse'+(isRough?' rough':'')+'"></div>'
     +'<div class="me-dot'+(isRough?' rough':'')+'"></div></div>');
-  meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-11,-11],zIndex:900});
-  ymap.geoObjects.add(meCircle);ymap.geoObjects.add(meMark);
+  if(!meMark){meMark=new ymaps.Placemark([lat,lng],{},{iconLayout:L,iconOffset:[-11,-11],zIndex:900});meMark.events.add('click',showCurrentPositionCard);ymap.geoObjects.add(meMark)}
+  else{meMark.geometry.setCoordinates([lat,lng]);meMark.options.set('iconLayout',L)}
+}
+function showCurrentPositionCard(){
+  if(!mePos)return;const el=document.getElementById('minicard');
+  el.innerHTML='<div class="mc-head"><div class="mc-ic" style="background:var(--blue)">●</div><div class="mc-body"><h3>'+t('currentPosition')+'</h3><div class="mc-sub">Точность ±'+Math.round(meAcc||0)+' м</div></div></div>'
+    +'<div style="display:flex;gap:7px"><button class="mc-btn" style="flex:1" onclick="selectedStart={lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')};toast(t(\'useAsStart\'))">'+t('useAsStart')+'</button><button class="mc-btn" style="flex:1" onclick="sharePoint({lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')})">↗ Поделиться</button></div>';
+  el.classList.add('on');
 }
 
 /* применяем координату, если она лучше текущей */
@@ -1397,6 +1462,7 @@ function applyFix(lat,lng,acc,label,precise){
   // переезжаем, если пользователь сам карту не двигал
   if(!userPanned&&(jumped||precise)) ymap&&ymap.setCenter([lat,lng],zoomFor(acc),{duration:450});
   if(label)toast(label+(acc>ROUGH_OVER?' · '+t('approxTilde'):'')+' · ±'+(acc>1000?Math.round(acc/1000)+' км':Math.round(acc)+' м'));
+  updateRouteGuidance();
   return true;
 }
 
@@ -1575,53 +1641,51 @@ document.getElementById('zin').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()+1,{
 document.getElementById('zout').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()-1,{duration:200});
 document.getElementById('filtbtn').onclick=openFilters;
 
-/* ═══════════ МАРШРУТ ═══════════ */
-let route=null,routeTarget=null,routeMode='auto';
+/* ═══════════ МАРШРУТ ВНУТРИ PARKLY ═══════════ */
+let route=null,routeTarget=null,routeMode='auto',routeInfo=null,routeAlternative=0;
+let routeGuidanceActive=false,lastRouteRefreshAt=0,lastRouteOrigin=null;
+function routeOrigin(){return selectedStart||mePos}
 async function routeTo(id,mode){
   const p=PARKINGS.find(x=>x.id===id);if(!p||!ymap)return;
-  if(!mePos){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok){toast(t('geoDeny'));return}}
-  routeTarget=p;routeMode=mode||routeMode;
-  document.getElementById('minicard').classList.remove('on');
-  clearRoute();drawRoutePanel(null);
-  route=new ymaps.multiRouter.MultiRoute({referencePoints:[[mePos.lat,mePos.lng],[p.lat,p.lng]],params:{routingMode:routeMode,results:1,avoidTrafficJams:true}},
-    {boundsAutoApply:true,zoomMargin:[120,40,220,40],wayPointVisible:false,pinVisible:false,routeActiveStrokeWidth:6,routeActiveStrokeColor:'2563EB',routeActivePedestrianSegmentStrokeColor:'1FA84C',routeStrokeWidth:4,routeStrokeColor:'8FA3AE88'});
-  route.model.events.add('requestsuccess',()=>{const a=route.getActiveRoute();if(!a){fallbackRoute(p);return}
-    const d=a.properties.get('distance'),dur=a.properties.get('durationInTraffic')||a.properties.get('duration');
-    drawRoutePanel({dist:d&&d.text,time:dur&&dur.text})});
-  route.model.events.add('requestfail',()=>fallbackRoute(p));
-  ymap.geoObjects.add(route);
+  if(!routeOrigin()){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!routeOrigin()){toast(t('geoDeny'));return}}
+  routeTarget=p;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');clearRoute();drawRoutePanel(null);
+  const origin=routeOrigin();lastRouteOrigin={lat:origin.lat,lng:origin.lng};routeAlternative=0;
+  route=new ymaps.multiRouter.MultiRoute({referencePoints:[[origin.lat,origin.lng],[p.lat,p.lng]],params:{routingMode:routeMode,results:3,avoidTrafficJams:routeMode==='auto'}},
+    {boundsAutoApply:!routeGuidanceActive,zoomMargin:[120,40,270,40],wayPointVisible:true,pinVisible:false,routeActiveStrokeWidth:7,routeActiveStrokeColor:'#2563EB',routeActivePedestrianSegmentStrokeColor:'#16A34A',routeStrokeWidth:4,routeStrokeColor:'#94A3B888'});
+  route.model.events.add('requestsuccess',()=>{const a=route.getActiveRoute();if(!a){fallbackRoute(p);return}const d=a.properties.get('distance'),dur=a.properties.get('durationInTraffic')||a.properties.get('duration');routeInfo={dist:d&&d.text,time:dur&&dur.text,alternatives:route.getRoutes().getLength()};drawRoutePanel(routeInfo)});
+  route.model.events.add('requestfail',()=>fallbackRoute(p));ymap.geoObjects.add(route);
 }
 function fallbackRoute(p){
-  clearRoute();
-  route=new ymaps.Polyline([[mePos.lat,mePos.lng],[p.lat,p.lng]],{},{strokeColor:'#2563EB',strokeWidth:4,strokeStyle:'shortdash'});
-  ymap.geoObjects.add(route);
-  ymap.setBounds([[Math.min(mePos.lat,p.lat),Math.min(mePos.lng,p.lng)],[Math.max(mePos.lat,p.lat),Math.max(mePos.lng,p.lng)]],{checkZoomRange:true,zoomMargin:[120,40,220,40]});
-  const km=dist(mePos.lat,mePos.lng,p.lat,p.lng),sp=routeMode==='pedestrian'?4.5:22;
-  drawRoutePanel({dist:km.toFixed(1)+' км',time:Math.max(1,Math.round(km/sp*60))+' '+t('min'),rough:true});
+  clearRoute();const origin=routeOrigin();
+  route=new ymaps.Polyline([[origin.lat,origin.lng],[p.lat,p.lng]],{},{strokeColor:'#2563EB',strokeWidth:4,strokeStyle:'shortdash'});ymap.geoObjects.add(route);
+  ymap.setBounds([[Math.min(origin.lat,p.lat),Math.min(origin.lng,p.lng)],[Math.max(origin.lat,p.lat),Math.max(origin.lng,p.lng)]],{checkZoomRange:true,zoomMargin:[120,40,220,40]});
+  const km=dist(origin.lat,origin.lng,p.lat,p.lng),sp=routeMode==='pedestrian'?4.5:22;routeInfo={dist:km.toFixed(1)+' км',time:Math.max(1,Math.round(km/sp*60))+' '+t('min'),rough:true,alternatives:1};drawRoutePanel(routeInfo);
 }
 function clearRoute(){if(route&&ymap){ymap.geoObjects.remove(route);route=null}}
-function closeRoute(){clearRoute();routeTarget=null;document.getElementById('minicard').classList.remove('on');
-  const rp=document.getElementById('routepanel');if(rp)rp.remove()}
+function closeRoute(){stopRouteGuidance(true);clearRoute();routeTarget=null;routeInfo=null;document.getElementById('minicard').classList.remove('on');const rp=document.getElementById('routepanel');if(rp)rp.remove()}
+function selectRouteAlternative(index){
+  if(!route||!route.getRoutes)return;const r=route.getRoutes().get(index);if(!r)return;route.setActiveRoute(r);routeAlternative=index;
+  const d=r.properties.get('distance'),dur=r.properties.get('durationInTraffic')||r.properties.get('duration');routeInfo={dist:d&&d.text,time:dur&&dur.text,alternatives:route.getRoutes().getLength()};drawRoutePanel(routeInfo);
+}
+async function startRouteGuidance(){if(!routeTarget)return;if(!mePos){toast(t('needGeoRoute'));await locate(true);if(!mePos)return}routeGuidanceActive=true;selectedStart=null;lastRouteRefreshAt=0;await startPreciseWatch();ymap.setCenter([mePos.lat,mePos.lng],Math.max(16,ymap.getZoom()),{duration:300});drawRoutePanel(routeInfo)}
+function stopRouteGuidance(silent){routeGuidanceActive=false;if(!silent)toast('Сопровождение остановлено');if(routeTarget)drawRoutePanel(routeInfo)}
+function updateRouteGuidance(){
+  if(!routeGuidanceActive||!routeTarget||!mePos)return;const left=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng);
+  if(left<0.04){toast(t('routeArrived'));stopRouteGuidance(true)}
+  const now=Date.now(),moved=lastRouteOrigin?dist(lastRouteOrigin.lat,lastRouteOrigin.lng,mePos.lat,mePos.lng):1;
+  if(now-lastRouteRefreshAt>7000&&moved>0.04){lastRouteRefreshAt=now;routeTo(routeTarget.id,routeMode);return}
+  drawRoutePanel(Object.assign({},routeInfo,{progress:left<1?Math.round(left*1000)+' м':left.toFixed(1)+' км'}));if(!userPanned&&ymap)ymap.panTo([mePos.lat,mePos.lng],{duration:250});
+}
 function drawRoutePanel(info){
-  const p=routeTarget;if(!p)return;
-  let rp=document.getElementById('routepanel');
-  if(!rp){rp=document.createElement('div');rp.id='routepanel';
-    rp.style.cssText='position:fixed;left:12px;right:12px;bottom:calc(var(--nav) + 10px + var(--bot));z-index:59;background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:14px 16px';
-    document.getElementById('screen-map').appendChild(rp)}
-  rp.innerHTML=
-    '<div style="display:flex;align-items:center;gap:11px">'
-    +'<div class="mc-ic" style="background:'+markerColor(p)+';width:40px;height:40px">'+catIcon(p)+'</div>'
-    +'<div style="flex:1;min-width:0"><b style="font:700 14px Manrope;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</b>'
-      +'<span style="font:600 12px Manrope;color:var(--ink2)">'+priceLabel(p)+(info&&info.rough?' · '+t('roughR'):'')+'</span></div>'
-    +'<div style="text-align:right"><b style="font:800 17px Manrope;color:var(--blue);display:block">'+(info?info.time:'…')+'</b>'
-      +'<span style="font:700 11px Manrope;color:var(--ink2)">'+(info?info.dist:t('buildRoute'))+'</span></div>'
-    +'<button onclick="closeRoute()" style="width:34px;height:34px;border-radius:11px;background:var(--bg);border:0;font-size:15px;cursor:pointer;margin-left:4px">✕</button>'
-    +'</div>'
-    +'<div style="display:flex;gap:7px;margin-top:11px">'
-    +'<button onclick="routeTo(\''+p.id+'\',\'auto\')" style="flex:1;padding:9px;border-radius:11px;border:1.5px solid '+(routeMode==='auto'?'var(--ink)':'var(--line)')+';background:'+(routeMode==='auto'?'var(--ink)':'var(--card)')+';color:'+(routeMode==='auto'?'#fff':'var(--ink)')+';font:700 12px Manrope;cursor:pointer">🚗 '+t('byCar')+'</button>'
-    +'<button onclick="routeTo(\''+p.id+'\',\'pedestrian\')" style="flex:1;padding:9px;border-radius:11px;border:1.5px solid '+(routeMode==='pedestrian'?'var(--ink)':'var(--line)')+';background:'+(routeMode==='pedestrian'?'var(--ink)':'var(--card)')+';color:'+(routeMode==='pedestrian'?'#fff':'var(--ink)')+';font:700 12px Manrope;cursor:pointer">🚶 '+t('onFoot')+'</button>'
-    +'</div>'
-    +'<a href="https://yandex.uz/maps/?rtext='+mePos.lat+','+mePos.lng+'~'+p.lat+','+p.lng+'&rtt='+(routeMode==='pedestrian'?'pd':'auto')+'" target="_blank" style="display:block;text-align:center;margin-top:8px;padding:12px;border-radius:12px;background:var(--blue);color:#fff;font:800 12.5px Manrope;text-decoration:none">'+t('openNav')+'</a>';
+  const p=routeTarget;if(!p)return;let rp=document.getElementById('routepanel');if(!rp){rp=document.createElement('div');rp.id='routepanel';document.getElementById('screen-map').appendChild(rp)}
+  const altCount=Math.min(3,Number(info&&info.alternatives||0));
+  const alternatives=altCount>1?'<div class="route-alts">'+Array.from({length:altCount},(_,i)=>'<button class="route-alt'+(i===routeAlternative?' on':'')+'" onclick="selectRouteAlternative('+i+')">'+t('routeAlt')+' '+(i+1)+'</button>').join('')+'</div>':'';
+  rp.innerHTML='<div class="route-head"><div class="mc-ic" style="background:'+markerColor(p)+';width:40px;height:40px">'+catIcon(p)+'</div>'
+    +'<div class="route-summary"><b>'+p.name+'</b><span>'+priceLabel(p)+(info&&info.rough?' · '+t('roughR'):'')+'</span></div>'
+    +'<div class="route-metrics"><b>'+(info?info.time:'…')+'</b><span>'+(info?info.dist:t('buildRoute'))+'</span></div><button class="route-close" onclick="closeRoute()">✕</button></div>'
+    +'<div class="route-modes"><button class="route-mode'+(routeMode==='auto'?' on':'')+'" onclick="routeTo(\''+p.id+'\',\'auto\')">🚗 '+t('byCar')+'</button><button class="route-mode'+(routeMode==='pedestrian'?' on':'')+'" onclick="routeTo(\''+p.id+'\',\'pedestrian\')">🚶 '+t('onFoot')+'</button></div>'
+    +alternatives+'<div class="route-actions"><button class="route-action '+(routeGuidanceActive?'stop':'primary')+'" onclick="'+(routeGuidanceActive?'stopRouteGuidance()':'startRouteGuidance()')+'">'+(routeGuidanceActive?'■ '+t('stopGuide'):'▶ '+t('startGuide'))+'</button></div>'
+    +(routeGuidanceActive?'<div class="route-progress"><span>'+t('routeFollowing')+'</span><b>'+t('routeLeft')+': '+(info&&info.progress?info.progress:(info?info.dist:'…'))+'</b></div>':'');
 }
 
 /* ═══════════ ПРОБКИ (в этом дизайне вызывается из легенды-меню — оставим на fab позже) ═══════════ */
@@ -2064,9 +2128,8 @@ document.getElementById('search').addEventListener('change',async e=>{
       if(!object){toast(t('noParkArea'));return}
       const coords=object.geometry.getCoordinates();
       ymap.setCenter(coords,16,{duration:400});
-      selectedId=null;
-      document.getElementById('minicard').classList.remove('on');
-      drawMarkers(true);
+      const label=cleanText(object.properties.get('name')||object.properties.get('text')||q);
+      setSelectedPoint(coords,label);drawMarkers(true);
     }catch(err){console.warn(err);toast(t('noParkArea'))}
   }
 });
