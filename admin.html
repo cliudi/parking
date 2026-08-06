@@ -472,7 +472,10 @@ const labels={
 };
 function escapeHtml(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function val(id){return $(id).value.trim()}
-function normalizedNumber(value){return Number(String(value??'').trim().replace(',','.'))}
+function normalizedNumber(value){
+  const text=String(value??'').trim().replace(',','.');
+  return text===''?Number.NaN:Number(text);
+}
 function nullableNumber(id){return val(id)===''?null:normalizedNumber(val(id))}
 function arr(v){return String(v||'').split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}
 function toast(text,type='ok'){const el=$('toast');el.textContent=text;el.className='toast '+type;setTimeout(()=>el.classList.add('hidden'),3000)}
