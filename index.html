@@ -15,6 +15,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Parkly — парковки Ташкента</title>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css" rel="stylesheet">
 <style>
   :root{
     /* ── фирменная палитра (дизайн 3) ── */
@@ -110,6 +111,17 @@
   .route-mode.on,.route-alt.on{border-color:var(--ink);background:var(--ink);color:#fff}.route-action.primary{background:var(--blue);border-color:var(--blue);color:#fff}.route-action.stop{background:#EF4444;border-color:#EF4444;color:#fff}
   .route-action:disabled{opacity:.55;cursor:wait}.route-attribution{margin-top:7px;text-align:right;font:600 9px Manrope;color:var(--ink2)}
   .route-progress{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+  #routeBetaScreen{position:fixed;inset:0;z-index:120;background:#e8edf0;display:none}
+  #routeBetaScreen.on{display:block}
+  #routeBetaMap{position:absolute;inset:0}
+  .route-beta-head{position:absolute;left:12px;right:12px;top:calc(10px + var(--top));z-index:3;display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:15px;background:var(--card);box-shadow:var(--sh)}
+  .route-beta-head button{width:38px;height:38px;border:0;border-radius:11px;background:var(--bg);color:var(--ink);font-size:18px}
+  .route-beta-title{min-width:0;flex:1}.route-beta-title small{display:block;color:var(--blue);font:800 9px Manrope;text-transform:uppercase}.route-beta-title b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:800 14px Manrope}
+  #routeBetaPanel{position:absolute;left:12px;right:12px;bottom:calc(12px + var(--bot));z-index:3;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--sh);padding:14px 16px}
+  .route-provider-list{display:grid;gap:9px;margin-top:14px}.route-provider{display:flex;align-items:center;gap:12px;width:100%;padding:13px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);text-align:left;font:700 13px Manrope}.route-provider strong{display:block}.route-provider small{display:block;margin-top:2px;color:var(--ink2);font:600 10px Manrope}.route-provider .provider-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:var(--bg);font-size:19px}.route-provider.beta{border-color:#93b4ff;background:#eff6ff}.route-choice-check{display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--ink2);font:650 11px Manrope}
+  .route-beta-marker{width:30px;height:30px;border:4px solid #fff;border-radius:50%;box-shadow:0 3px 12px rgba(15,23,42,.3)}
+  .route-beta-marker.start{background:#2563eb}.route-beta-marker.end{background:#16a34a;border-radius:50% 50% 50% 4px;transform:rotate(-45deg)}
+  @media(min-width:760px){#routeBetaPanel{max-width:520px;left:50%;right:auto;width:calc(100% - 32px);transform:translateX(-50%)}.route-beta-head{max-width:620px;left:50%;right:auto;width:calc(100% - 32px);transform:translateX(-50%)}}
   @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
   .mc-head{display:flex;align-items:flex-start;gap:12px}
   .mc-ic{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
@@ -649,6 +661,17 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
   <div id="prof-content"></div>
 </div>
 
+<!-- Отдельная OSM/MapLibre-карта для внутреннего маршрута. Она не смешивается с Яндекс Картой. -->
+<section id="routeBetaScreen" aria-hidden="true">
+  <div id="routeBetaMap"></div>
+  <header class="route-beta-head">
+    <button type="button" onclick="closeRoute()" aria-label="Закрыть маршрут">←</button>
+    <div class="route-beta-title"><small>Parkly Route Beta</small><b id="routeBetaDestination">Маршрут к парковке</b></div>
+    <button type="button" onclick="centerRouteBetaOnUser()" aria-label="Центрировать на мне">⌖</button>
+  </header>
+  <div id="routeBetaPanel"></div>
+</section>
+
 <!-- ═══════════ НИЖНЯЯ НАВИГАЦИЯ ═══════════ -->
 <nav class="bottomnav" id="bottomnav" aria-label="Основная навигация"></nav>
 
@@ -656,6 +679,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 <div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
 
+<script src="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js"></script>
 <script>
 const YANDEX_API_KEY='be1856ef-50e1-40ed-abb7-80a23f99ddb3';
 const YANDEX_GEOCODER_API_KEY='4f9b7024-c973-42b5-b0b3-853f5c61c234';
@@ -1877,6 +1901,9 @@ document.getElementById('filtbtn').onclick=openFilters;
 /* ═══════════ МАРШРУТ ВНУТРИ PARKLY ═══════════ */
 let route=null,routeTarget=null,routeMode='auto',routeInfo=null,routeAlternative=0;
 let routeGuidanceActive=false,lastRouteRefreshAt=0,lastRouteOrigin=null,routeRequestAbort=null,lastRouteDeviationToast=0;
+let routeBetaMap=null,routeBetaStartMarker=null,routeBetaEndMarker=null,routeBetaUserMarker=null;
+const NAVIGATION_CONFIG={external:true,ors:true,osrm:false,valhalla:false};
+const ROUTE_TILE_STYLE={version:8,sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© OpenStreetMap contributors, ODbL'}},layers:[{id:'osm',type:'raster',source:'osm'}]};
 const routeCache=new Map(),ROUTE_CACHE_MS=5*60*1000;
 function routeOrigin(){return mePos}
 function routeCacheKey(origin,target,mode){return [mode,origin.lat.toFixed(5),origin.lng.toFixed(5),target.lat.toFixed(5),target.lng.toFixed(5)].join(':')}
@@ -1896,19 +1923,58 @@ async function fetchRoadRoutes(origin,target,mode){
   routeCache.set(key,{at:Date.now(),data:body});return body;
 }
 function drawRoadRoutes(routes,active){
-  clearRoute();const objects=[];
-  routes.forEach((item,index)=>{const coords=item.geometry.map(c=>[c[1],c[0]]);const line=new ymaps.Polyline(coords,{},index===active?
-    {strokeColor:routeMode==='pedestrian'?'#16A34A':'#2563EB',strokeWidth:7,strokeOpacity:.95,zIndex:410}:
-    {strokeColor:'#94A3B8',strokeWidth:4,strokeOpacity:.7,zIndex:400});ymap.geoObjects.add(line);objects.push(line)});
-  route={objects,alternatives:routes};
+  clearRoute();if(!routeBetaMap)return;route={alternatives:routes};
+  routes.map((item,index)=>({item,index})).sort((a,b)=>(a.index===active?1:0)-(b.index===active?1:0)).forEach(({item,index})=>{
+    const id='parkly-route-'+index,activeLine=index===active;
+    routeBetaMap.addSource(id,{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:item.geometry}}});
+    routeBetaMap.addLayer({id,type:'line',source:id,layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':activeLine?(routeMode==='pedestrian'?'#16A34A':'#2563EB'):'#94A3B8','line-width':activeLine?7:4,'line-opacity':activeLine?0.96:0.64}});
+  });
   const activeCoords=routes[active]&&routes[active].geometry;if(activeCoords&&activeCoords.length&&!routeGuidanceActive){
-    ymap.setBounds(activeCoords.reduce((b,c)=>{b[0][0]=Math.min(b[0][0],c[1]);b[0][1]=Math.min(b[0][1],c[0]);b[1][0]=Math.max(b[1][0],c[1]);b[1][1]=Math.max(b[1][1],c[0]);return b},[[90,180],[-90,-180]]),{checkZoomRange:true,zoomMargin:[120,40,270,40]});
+    const bounds=activeCoords.reduce((b,c)=>b.extend(c),new maplibregl.LngLatBounds(activeCoords[0],activeCoords[0]));routeBetaMap.fitBounds(bounds,{padding:{top:90,bottom:260,left:35,right:35},duration:500,maxZoom:17});
   }
 }
-async function routeTo(id,mode){
-  const p=PARKINGS.find(x=>x.id===id);if(!p||!ymap)return;return buildRouteToTarget(p,mode);
+async function initRouteBetaMap(target){
+  if(!window.maplibregl)throw new Error('MapLibre не загрузился');
+  if(!routeBetaMap){routeBetaMap=new maplibregl.Map({container:'routeBetaMap',style:ROUTE_TILE_STYLE,center:[target.lng,target.lat],zoom:13,attributionControl:true});routeBetaMap.addControl(new maplibregl.NavigationControl({showCompass:true}),'top-right');routeBetaMap.on('dragstart',()=>{userPanned=true});await new Promise((resolve,reject)=>{routeBetaMap.once('load',resolve);routeBetaMap.once('error',event=>reject(event.error||new Error('Карта маршрута не загрузилась')))})}
+  routeBetaStartMarker?.remove();routeBetaEndMarker?.remove();routeBetaUserMarker?.remove();
+  const start=document.createElement('div');start.className='route-beta-marker start';const end=document.createElement('div');end.className='route-beta-marker end';
+  routeBetaStartMarker=new maplibregl.Marker({element:start}).setLngLat([mePos.lng,mePos.lat]).addTo(routeBetaMap);
+  routeBetaEndMarker=new maplibregl.Marker({element:end}).setLngLat([target.lng,target.lat]).addTo(routeBetaMap);
 }
-function routeToSelectedPoint(mode){if(!selectedDestination||!ymap)return;return buildRouteToTarget({...selectedDestination},mode)}
+async function openRouteBeta(target,mode){
+  if(!target)return;if(!mePos){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!mePos){toast(t('geoDeny'));return}}
+  routeTarget=target;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');
+  const screen=document.getElementById('routeBetaScreen');screen.classList.add('on');screen.setAttribute('aria-hidden','false');document.getElementById('bottomnav').classList.add('hidden');document.getElementById('routeBetaDestination').textContent=target.name||target.label||'Маршрут к парковке';
+  try{await initRouteBetaMap(target);setTimeout(()=>routeBetaMap.resize(),0);await buildRouteToTarget(target,routeMode)}catch(error){console.warn('Route Beta init failed',error);routeFailed(target)}
+}
+function centerRouteBetaOnUser(){userPanned=false;if(routeBetaMap&&mePos)routeBetaMap.easeTo({center:[mePos.lng,mePos.lat],zoom:17,duration:300})}
+async function routeTo(id){const p=PARKINGS.find(x=>x.id===id);if(p)requestNavigation(p)}
+function routeToSelectedPoint(){if(selectedDestination)requestNavigation({...selectedDestination})}
+function requestNavigation(target){const preferred=localStorage.getItem('parkly_navigation_provider');if(preferred)launchNavigationProvider(preferred,target);else openNavigationChooser(target)}
+function isAppleDevice(){return /iPad|iPhone|iPod|Macintosh/i.test(navigator.userAgent)}
+function navigationUrl(provider,target,mode='auto'){
+  const destination=`${Number(target.lat).toFixed(6)},${Number(target.lng).toFixed(6)}`,origin=mePos?`${mePos.lat.toFixed(6)},${mePos.lng.toFixed(6)}`:'';
+  if(provider==='google'){const q=new URLSearchParams({api:'1',destination,travelmode:mode==='pedestrian'?'walking':'driving',dir_action:'navigate'});if(origin)q.set('origin',origin);return 'https://www.google.com/maps/dir/?'+q}
+  if(provider==='apple'){const q=new URLSearchParams({daddr:destination,dirflg:mode==='pedestrian'?'w':'d'});if(origin)q.set('saddr',origin);return 'https://maps.apple.com/?'+q}
+  const points=origin?`${origin}~${destination}`:destination;return `https://yandex.com/maps/?rtext=${encodeURIComponent(points)}&rtt=${mode==='pedestrian'?'pd':'auto'}`;
+}
+function openNavigationChooser(target){
+  routeTarget=target;const preferred=localStorage.getItem('parkly_navigation_provider')||'external-yandex';
+  document.getElementById('mask').classList.add('open');const s=document.getElementById('sheet');
+  s.innerHTML='<div class="grabber"><i></i></div><div class="filt-head"><h2>Как построить маршрут?</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="route-provider-list">'
+    +(NAVIGATION_CONFIG.ors?'<button class="route-provider beta" onclick="chooseNavigationProvider(\'ors\')"><span class="provider-icon">➤</span><span><strong>Внутри Parkly — Beta</strong><small>Маршрут без пробок на отдельной карте OpenStreetMap</small></span></button>':'')
+    +'<button class="route-provider" onclick="chooseNavigationProvider(\'external-yandex\')"><span class="provider-icon">Я</span><span><strong>Яндекс Навигатор</strong><small>Пробки, голосовые подсказки и перестроение</small></span></button>'
+    +'<button class="route-provider" onclick="chooseNavigationProvider(\'google\')"><span class="provider-icon">G</span><span><strong>Google Maps</strong><small>Открыть маршрут во внешней карте</small></span></button>'
+    +(isAppleDevice()?'<button class="route-provider" onclick="chooseNavigationProvider(\'apple\')"><span class="provider-icon"></span><span><strong>Apple Maps</strong><small>Доступно на устройствах Apple</small></span></button>':'')+'</div>'
+    +'<label class="route-choice-check"><input id="rememberNavProvider" type="checkbox" '+(preferred?'checked':'')+'> Использовать выбранный вариант по умолчанию</label>'
+    +'<div class="mc-place-note">Конечная точка — координаты выбранной парковки. Внутренний Beta-маршрут не показывает пробки и не заменяет полноценный навигатор.</div>';
+}
+function chooseNavigationProvider(provider){
+  const remember=document.getElementById('rememberNavProvider')?.checked;if(remember)localStorage.setItem('parkly_navigation_provider',provider);else localStorage.removeItem('parkly_navigation_provider');
+  closeSheet();launchNavigationProvider(provider,routeTarget);
+}
+function launchNavigationProvider(provider,target){if(provider==='ors')openRouteBeta(target,routeMode);else{window.open(navigationUrl(provider,target,routeMode),'_blank','noopener');toast('Маршрут открыт во внешнем навигаторе')}}
 async function buildRouteToTarget(p,mode){
   if(!routeOrigin()){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!routeOrigin()){toast(t('geoDeny'));return}}
   routeTarget=p;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');clearRoute();drawRoutePanel(null);
@@ -1919,47 +1985,57 @@ async function buildRouteToTarget(p,mode){
 function routeFailed(p){
   clearRoute();routeInfo={error:true,dist:'—',time:'—',alternatives:0};drawRoutePanel(routeInfo);toast(t('routeUnavailable'));
 }
-function clearRoute(){if(route&&ymap){(route.objects||[]).forEach(x=>ymap.geoObjects.remove(x));route=null}}
-function closeRoute(){stopRouteGuidance(true);clearRoute();routeTarget=null;routeInfo=null;document.getElementById('minicard').classList.remove('on');const rp=document.getElementById('routepanel');if(rp)rp.remove()}
+function clearRoute(){
+  if(routeBetaMap&&route){route.alternatives.forEach((_,index)=>{const id='parkly-route-'+index;if(routeBetaMap.getLayer(id))routeBetaMap.removeLayer(id);if(routeBetaMap.getSource(id))routeBetaMap.removeSource(id)});if(routeBetaMap.getLayer('parkly-route-done'))routeBetaMap.removeLayer('parkly-route-done');if(routeBetaMap.getSource('parkly-route-done'))routeBetaMap.removeSource('parkly-route-done')}
+  route=null;
+}
+function closeRoute(){stopRouteGuidance(true);clearRoute();routeTarget=null;routeInfo=null;routeBetaStartMarker?.remove();routeBetaEndMarker?.remove();routeBetaUserMarker?.remove();routeBetaStartMarker=routeBetaEndMarker=routeBetaUserMarker=null;document.getElementById('minicard').classList.remove('on');document.getElementById('routeBetaScreen').classList.remove('on');document.getElementById('routeBetaScreen').setAttribute('aria-hidden','true');document.getElementById('bottomnav').classList.remove('hidden')}
 function selectRouteAlternative(index){
   if(!route||!route.alternatives||!route.alternatives[index])return;const alternatives=route.alternatives;routeAlternative=index;drawRoadRoutes(alternatives,index);
   const r=alternatives[index];routeInfo={dist:formatRouteDistance(r.distance),time:formatRouteDuration(r.duration),alternatives:alternatives.length};drawRoutePanel(routeInfo);
 }
-async function startRouteGuidance(){if(!routeTarget||!routeInfo||routeInfo.error)return;if(!mePos){toast(t('needGeoRoute'));await locate(true);if(!mePos)return}routeGuidanceActive=true;selectedStart=null;userPanned=false;lastRouteRefreshAt=Date.now();lastRouteOrigin={lat:mePos.lat,lng:mePos.lng};initHeading();await startPreciseWatch();ymap.setCenter([mePos.lat,mePos.lng],Math.max(17,ymap.getZoom()),{duration:300});drawRoutePanel(routeInfo)}
+async function startRouteGuidance(){if(!routeTarget||!routeInfo||routeInfo.error)return;if(!mePos){toast(t('needGeoRoute'));await locate(true);if(!mePos)return}routeGuidanceActive=true;selectedStart=null;userPanned=false;lastRouteRefreshAt=Date.now();lastRouteOrigin={lat:mePos.lat,lng:mePos.lng};initHeading();await startPreciseWatch();centerRouteBetaOnUser();drawRoutePanel(routeInfo)}
 function stopRouteGuidance(silent){routeGuidanceActive=false;if(!silent)toast('Сопровождение остановлено');if(routeTarget)drawRoutePanel(routeInfo)}
 function updateRouteGuidance(){
   if(!routeGuidanceActive||!routeTarget||!mePos)return;const directLeft=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng),progress=routeProgressState(),left=progress.remaining;
   if(directLeft<0.04){toast(t('routeArrived'));stopRouteGuidance(true)}
-  const now=Date.now(),moved=lastRouteOrigin?dist(lastRouteOrigin.lat,lastRouteOrigin.lng,mePos.lat,mePos.lng):1;
+  const now=Date.now();
   const offRoute=progress.deviation>Math.max(.045,(meAcc||30)/1000*1.5);
-  const periodicRefresh=now-lastRouteRefreshAt>45000&&moved>.2;
-  if((offRoute&&now-lastRouteRefreshAt>10000)||periodicRefresh){
+  if(offRoute&&now-lastRouteRefreshAt>15000){
     if(offRoute&&now-lastRouteDeviationToast>15000){toast('Перестраиваю маршрут');lastRouteDeviationToast=now}
     lastRouteRefreshAt=now;retryActiveRoute();return;
   }
-  drawRoutePanel(Object.assign({},routeInfo,{progress:left<1?Math.round(left*1000)+' м':left.toFixed(1)+' км'}));if(!userPanned&&ymap)ymap.panTo([mePos.lat,mePos.lng],{duration:220});
+  updateRouteBetaProgress(progress.nearest||0);drawRoutePanel(Object.assign({},routeInfo,{progress:left<1?Math.round(left*1000)+' м':left.toFixed(1)+' км'}));if(!userPanned&&routeBetaMap)routeBetaMap.easeTo({center:[mePos.lng,mePos.lat],duration:220});
 }
-function retryActiveRoute(){if(!routeTarget)return;return routeTarget.isMapPoint?buildRouteToTarget({...routeTarget},routeMode):routeTo(routeTarget.id,routeMode)}
+function retryActiveRoute(){if(!routeTarget)return;return buildRouteToTarget({...routeTarget},routeMode)}
 function routeProgressState(){
   const geometry=route&&route.alternatives&&route.alternatives[routeAlternative]&&route.alternatives[routeAlternative].geometry;if(!geometry||!geometry.length){const direct=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng);return{remaining:direct,deviation:0}}
   let nearest=0,best=Infinity;geometry.forEach((c,i)=>{const d=dist(mePos.lat,mePos.lng,c[1],c[0]);if(d<best){best=d;nearest=i}});let km=best;
-  for(let i=nearest;i<geometry.length-1;i++)km+=dist(geometry[i][1],geometry[i][0],geometry[i+1][1],geometry[i+1][0]);return{remaining:km,deviation:best};
+  for(let i=nearest;i<geometry.length-1;i++)km+=dist(geometry[i][1],geometry[i][0],geometry[i+1][1],geometry[i+1][0]);return{remaining:km,deviation:best,nearest};
+}
+function updateRouteBetaProgress(nearest){
+  if(!routeBetaMap||!route?.alternatives?.[routeAlternative]||!mePos)return;const geometry=route.alternatives[routeAlternative].geometry,done=geometry.slice(0,nearest+1);done.push([mePos.lng,mePos.lat]);
+  const data={type:'Feature',properties:{},geometry:{type:'LineString',coordinates:done}};
+  const source=routeBetaMap.getSource('parkly-route-done');if(source)source.setData(data);else{routeBetaMap.addSource('parkly-route-done',{type:'geojson',data});routeBetaMap.addLayer({id:'parkly-route-done',type:'line',source:'parkly-route-done',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#94A3B8','line-width':7,'line-opacity':.9}})}
+  if(!routeBetaUserMarker){const el=document.createElement('div');el.className='route-beta-marker start';routeBetaUserMarker=new maplibregl.Marker({element:el}).setLngLat([mePos.lng,mePos.lat]).addTo(routeBetaMap)}else routeBetaUserMarker.setLngLat([mePos.lng,mePos.lat]);
 }
 function routeRemainingDistance(){return routeProgressState().remaining}
 function drawRoutePanel(info){
-  const p=routeTarget;if(!p)return;let rp=document.getElementById('routepanel');if(!rp){rp=document.createElement('div');rp.id='routepanel';document.getElementById('screen-map').appendChild(rp)}
+  const p=routeTarget;if(!p)return;const rp=document.getElementById('routeBetaPanel');
   const altCount=Math.min(3,Number(info&&info.alternatives||0));
   const alternatives=altCount>1?'<div class="route-alts">'+Array.from({length:altCount},(_,i)=>'<button class="route-alt'+(i===routeAlternative?' on':'')+'" onclick="selectRouteAlternative('+i+')">'+t('routeAlt')+' '+(i+1)+'</button>').join('')+'</div>':'';
   const routeStatus=info&&info.error?t('routeUnavailable'):(p.isMapPoint?'Выбранное место':priceLabel(p));
-  const routeActions=info&&info.error?'<div class="route-actions"><button class="route-action primary" onclick="retryActiveRoute()">↻ '+t('routeRetry')+'</button></div>':!info?'<div class="route-actions"><button class="route-action primary" disabled>'+t('buildRoute')+'</button></div>':'<div class="route-actions"><button class="route-action '+(routeGuidanceActive?'stop':'primary')+'" onclick="'+(routeGuidanceActive?'stopRouteGuidance()':'startRouteGuidance()')+'">'+(routeGuidanceActive?'■ '+t('stopGuide'):'▶ '+t('startGuide'))+'</button></div>';
+  const routeActions=info&&info.error?'<div class="route-actions"><button class="route-action primary" onclick="retryActiveRoute()">↻ '+t('routeRetry')+'</button><button class="route-action" onclick="openExternalNavigationFromBeta()">Открыть Яндекс</button></div>':!info?'<div class="route-actions"><button class="route-action primary" disabled>'+t('buildRoute')+'</button></div>':'<div class="route-actions"><button class="route-action '+(routeGuidanceActive?'stop':'primary')+'" onclick="'+(routeGuidanceActive?'stopRouteGuidance()':'startRouteGuidance()')+'">'+(routeGuidanceActive?'■ '+t('stopGuide'):'▶ '+t('startGuide'))+'</button><button class="route-action" onclick="retryActiveRoute()">↻ Перестроить</button></div>';
   rp.innerHTML='<div class="route-head"><div class="mc-ic" style="background:'+(p.isMapPoint?'var(--blue)':markerColor(p))+';width:40px;height:40px">'+(p.isMapPoint?'⌖':catIcon(p))+'</div>'
     +'<div class="route-summary"><b>'+escapeHtml(p.name||p.label||t('selectedPoint'))+'</b><span>'+routeStatus+'</span></div>'
     +'<div class="route-metrics"><b>'+(info?info.time:'…')+'</b><span>'+(info?info.dist:t('buildRoute'))+'</span></div><button class="route-close" onclick="closeRoute()">✕</button></div>'
     +'<div class="route-modes"><button class="route-mode'+(routeMode==='auto'?' on':'')+'" onclick="buildRouteToTarget(routeTarget,\'auto\')">🚗 '+t('byCar')+'</button><button class="route-mode'+(routeMode==='pedestrian'?' on':'')+'" onclick="buildRouteToTarget(routeTarget,\'pedestrian\')">🚶 '+t('onFoot')+'</button></div>'
     +alternatives+routeActions
-    +(routeGuidanceActive?'<div class="route-progress"><span>'+t('routeFollowing')+'</span><b>'+t('routeLeft')+': '+(info&&info.progress?info.progress:(info?info.dist:'…'))+'</b></div>':'')
-    +'<div class="route-attribution">Маршрут: openrouteservice · © OpenStreetMap</div>';
+    +(routeGuidanceActive?'<div class="route-progress"><span>Следуйте по выделенному маршруту</span><b>'+t('routeLeft')+': '+(info&&info.progress?info.progress:(info?info.dist:'…'))+'</b></div>':'')
+    +'<div class="route-actions"><button class="route-action" onclick="openExternalNavigationFromBeta()">Внешний навигатор</button><button class="route-action" onclick="closeRoute()">Остановить маршрут</button></div>'
+    +'<div class="route-attribution">Маршрут: openrouteservice · карта и дороги © OpenStreetMap contributors, ODbL · без пробок</div>';
 }
+function openExternalNavigationFromBeta(){if(routeTarget)window.open(navigationUrl('external-yandex',routeTarget,routeMode),'_blank','noopener')}
 
 /* ═══════════ ПРОБКИ (в этом дизайне вызывается из легенды-меню — оставим на fab позже) ═══════════ */
 function toggleTraffic(){
@@ -2196,6 +2272,7 @@ function renderProfile(){
     +profRow('📄','Мои заявки',submissionCount,'openMySubmissions()')
     +profRow('🛠','Мои исправления',reportCount,'openMyReports()')
     +profRow('🔔',t('notifs'),notificationUnreadCount()||'','openNotifications()')
+    +profRow('➤','Маршруты',navigationProviderLabel(localStorage.getItem('parkly_navigation_provider')),'openNavigationSettings()')
     +profRow('💬',t('support'),'','openSupport()')
     +profRow('ⓘ',t('about'),'v1.0','openAbout()')
     +'</div>'
@@ -2204,6 +2281,15 @@ function renderProfile(){
 function profRow(ic,label,val,action){
   return '<div class="prof-row" onclick="'+action+'"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val!==''?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
 }
+function navigationProviderLabel(provider){return ({ors:'Parkly Beta','external-yandex':'Яндекс',google:'Google Maps',apple:'Apple Maps'})[provider]||'Спрашивать'}
+function openNavigationSettings(){
+  const selected=localStorage.getItem('parkly_navigation_provider')||'';
+  const options=[['','Спрашивать каждый раз'],['external-yandex','Яндекс Навигатор'],['google','Google Maps'],...(isAppleDevice()?[['apple','Apple Maps']]:[]),['ors','Внутри Parkly — Beta']];
+  const html='<div class="grabber"><i></i></div><div class="filt-head"><h2>Маршруты</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="filt-body"><p class="mc-place-note" style="margin-bottom:12px">Выберите вариант по умолчанию. Его можно изменить в любое время.</p>'
+    +options.map(([value,label])=>'<label class="radio-row"><span class="rl">'+label+'</span><input type="radio" name="navProvider" value="'+value+'" '+(selected===value?'checked':'')+' onchange="saveNavigationProvider(this.value)"></label>').join('')+'</div>';
+  openSheet(html);
+}
+function saveNavigationProvider(provider){if(provider)localStorage.setItem('parkly_navigation_provider',provider);else localStorage.removeItem('parkly_navigation_provider');toast('Способ маршрута сохранён');renderProfile()}
 function toggleNotifications(el){
   const enabled=!el.classList.contains('on');
   el.classList.toggle('on',enabled);
