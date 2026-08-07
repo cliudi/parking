@@ -461,6 +461,7 @@ let coordPlacemark=null;
 let coordPlacemarkAdded=false;
 let geocodeRequestId=0;
 let geocodeTimer=null;
+let newParkingLocationRequestId=0;
 let fillingGeoFields=false;
 const geoDirty={address:false,district:false,city:false};
 
@@ -1054,6 +1055,28 @@ function refreshCoordMap(recenter=false){
     }
   });
 }
+function locateNewParkingFromDevice(requestId){
+  if(!navigator.geolocation){
+    setGeoStatus('Геолокация недоступна. Выберите точку на карте или введите адрес.','error');return
+  }
+  setGeoStatus('Определяем ваше местоположение для новой парковки…','loading');
+  navigator.geolocation.getCurrentPosition(position=>{
+    if(requestId!==newParkingLocationRequestId||$('id').value!==''||$('modal').classList.contains('hidden'))return;
+    const lat=Number(position.coords.latitude),lng=Number(position.coords.longitude);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)){
+      setGeoStatus('Не удалось получить корректные координаты. Выберите точку вручную.','error');return
+    }
+    setCoordinates([lat,lng],{recenter:true,geocode:true});
+    const accuracy=Number(position.coords.accuracy);
+    setGeoStatus('Точка установлена по вашей геолокации'+(Number.isFinite(accuracy)?` · точность около ${Math.round(accuracy)} м`:'')+'.','ok');
+  },error=>{
+    if(requestId!==newParkingLocationRequestId||$('modal').classList.contains('hidden'))return;
+    const message=error.code===1
+      ?'Доступ к геолокации не разрешён. Выберите точку на карте или введите адрес.'
+      :'Не удалось определить ваше местоположение. Выберите точку на карте или повторите попытку.';
+    setGeoStatus(message,'error');
+  },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+}
 let savedScrollY=0;
 function lockBodyScroll(){
   savedScrollY=window.scrollY||window.pageYOffset||0;
@@ -1074,6 +1097,7 @@ function parseStreetPath(){
   return points;
 }
 function openForm(p=null,submissionId=null,osmCandidateId=null){
+  const locationRequestId=++newParkingLocationRequestId;
   editingSubmissionId=submissionId;
   editingOsmCandidateId=osmCandidateId;
   $('parkingForm').reset();$('formMsg').innerHTML='';$('id').value=p?.id||'';
@@ -1093,9 +1117,12 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   geoDirty.address=false;geoDirty.district=false;geoDirty.city=false;setGeoStatus('');
   $('modal').classList.remove('hidden');
   lockBodyScroll();
-  setTimeout(()=>refreshCoordMap(true),50);
+  setTimeout(()=>{
+    refreshCoordMap(true);
+    if(!p)locateNewParkingFromDevice(locationRequestId);
+  },50);
 }
-function closeForm(){$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
+function closeForm(){newParkingLocationRequestId++;$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
 window.editParking=async id=>{
   const parking=records.find(x=>x.id===id);if(!parking)return;
   const {data,error}=await sb.rpc('admin_get_parking_access',{p_id:id});
