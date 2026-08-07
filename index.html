@@ -138,6 +138,20 @@
   .mc-place-fact small{display:block;font:700 9px Manrope;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
   .mc-place-fact b{display:block;font:750 11.5px Manrope;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mc-place-note{margin-top:9px;font:600 10.5px Manrope;color:var(--ink2);line-height:1.4}
+  .parking-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .parking-badge{display:inline-flex;align-items:center;min-height:25px;padding:4px 9px;border-radius:999px;
+    background:var(--soft);border:1px solid var(--line);color:var(--ink);font:700 10.5px Manrope;line-height:1.2}
+  .parking-badge.primary{background:#EFF6FF;border-color:#BFDBFE;color:#1D4ED8}
+  .parking-badge.warn{background:#FFFBEB;border-color:#FDE68A;color:#92400E}
+  [data-theme="dark"] .parking-badge.primary{background:#172554;border-color:#1E40AF;color:#BFDBFE}
+  [data-theme="dark"] .parking-badge.warn{background:#422006;border-color:#854D0E;color:#FDE68A}
+  .parking-terms{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--soft)}
+  .parking-terms h3{margin:0 0 8px;font:800 13px Manrope}
+  .parking-term-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--line);font:600 12px Manrope}
+  .parking-term-row:first-of-type{border-top:0}.parking-term-row span{color:var(--ink2)}
+  .parking-term-note{margin-top:7px;color:var(--ink2);font:600 11px/1.45 Manrope;overflow-wrap:anywhere}
+  .fav-access{display:flex!important;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .fav-access .parking-badge{min-height:20px;padding:2px 6px;font-size:9.5px}
   .mc-dismiss{width:34px;height:34px;flex:0 0 34px;border:0;border-radius:11px;background:var(--bg);color:var(--ink2);font-size:15px;cursor:pointer}
   .mc-main-actions{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;margin-top:12px}.mc-main-actions .mc-btn{margin:0;padding:11px 8px}
   .mc-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.mc-tools .mc-btn{margin:0;padding:9px 6px;min-height:40px;background:var(--bg);color:var(--ink);border:1px solid var(--line);font-size:12px}
@@ -836,19 +850,27 @@ function fromDbRow(r){
     verified: cleanText(r.verified_at), source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parkly':cleanText(r.source)||'Источник не указан'),
     legal: r.category==='STREET_ALLOWED',
     has_barrier: !!r.has_barrier,
+    barrier_at_entry: !!r.barrier_at_entry,
+    barrier_at_exit: !!r.barrier_at_exit,
+    requires_ticket: !!r.requires_ticket,
+    entry_rules: cleanText(r.entry_rules),
+    exit_rules: cleanText(r.exit_rules),
     has_free_period: !!r.has_free_period,
     free_period_minutes: r.free_period_minutes==null?null:Number(r.free_period_minutes),
     price_after_free_period: r.price_after_free_period==null?null:Number(r.price_after_free_period),
     price_after_free_period_unit: cleanText(r.price_after_free_period_unit)||'unknown',
     requires_purchase: !!r.requires_purchase,
-    requires_receipt: !!r.requires_receipt
+    requires_receipt: !!r.requires_receipt,
+    tariff_note: cleanText(r.tariff_note),
+    tariff_verified_at: cleanText(r.tariff_verified_at),
+    tariff_source_ref: cleanText(r.tariff_source_ref)
   };
 }
 
 async function loadParkingAccess(rows,signal){
   const ids=(rows||[]).map(row=>String(row.id)).filter(Boolean);
   if(!ids.length)return new Map();
-  const select='id,has_barrier,has_free_period,free_period_minutes,price_after_free_period,price_after_free_period_unit,requires_purchase,requires_receipt';
+  const select='id,has_barrier,barrier_at_entry,barrier_at_exit,requires_ticket,entry_rules,exit_rules,has_free_period,free_period_minutes,price_after_free_period,price_after_free_period_unit,requires_purchase,requires_receipt,tariff_note,tariff_verified_at,tariff_source_ref';
   const filter='in.('+ids.join(',')+')';
   try{
     const res=await fetch(SUPABASE_URL+'/rest/v1/parkings?select='+encodeURIComponent(select)+'&id='+encodeURIComponent(filter),{
@@ -895,6 +917,7 @@ async function loadParkingsFromDB(lat, lng, radius){
     const accessById=await loadParkingAccess(rows,controller.signal);
     if(controller!==parkingLoadController)return false;
     PARKINGS=rows.map(row=>fromDbRow({...row,...(accessById.get(String(row.id))||{})})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+    rememberFavoriteTermsChanges();
     lastParkingLoadKey=requestKey;lastParkingLoadAt=Date.now();
     lastMarkerSignature='';
     requestAnimationFrame(()=>{drawStreetSegments();drawMarkers(true)});
@@ -960,7 +983,7 @@ let mePos=null, watchId=null, activeTab='map', selectedId=null;
 let selectedStart=null,selectedDestination=null,selectedPointRequest=0;
 let quickFilter='all';
 let favorites=loadFav();
-let advFilters={price:'all', types:[], e247:false, cctv:false, disabled:false, wash:false, priceMax:100000};
+let advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,barrier:false,freePeriod:false,priceMax:100000};
 const PARKING_MARKER_ASSETS={
   barrier:{small:'assets/markers/barrier-parking-small.png',normal:'assets/markers/barrier-parking.png',selected:'assets/markers/barrier-parking-selected.png'},
   freePeriod:{small:'assets/markers/limited-free-parking-small.png',normal:'assets/markers/limited-free-parking.png',selected:'assets/markers/limited-free-parking-selected.png'}
@@ -988,12 +1011,59 @@ function loadFav(){
   }catch(e){return[]}
 }
 function saveFav(){localStorage.setItem(favoriteStorageKey(),JSON.stringify(favorites))}
+function favoriteTermsSnapshotKey(){
+  return authSession?.user?.id?'parkly-favorite-terms-'+authSession.user.id:'parkly-favorite-terms-guest';
+}
+function favoriteTermsEventsKey(){
+  return authSession?.user?.id?'parkly-favorite-terms-events-'+authSession.user.id:'parkly-favorite-terms-events-guest';
+}
+function parkingTermsSignature(p){
+  return JSON.stringify({
+    barrier:!!p.has_barrier,entry:!!p.barrier_at_entry,exit:!!p.barrier_at_exit,ticket:!!p.requires_ticket,
+    free:!!p.has_free_period,minutes:p.free_period_minutes??null,after:p.price_after_free_period??null,
+    unit:p.price_after_free_period_unit||'unknown',purchase:!!p.requires_purchase,receipt:!!p.requires_receipt,
+    entryRules:cleanText(p.entry_rules),exitRules:cleanText(p.exit_rules),note:cleanText(p.tariff_note)
+  });
+}
+function parkingTermsSummary(p){
+  const parts=[];
+  if(p.has_barrier)parts.push('есть шлагбаум');
+  if(p.has_free_period)parts.push(freePeriodLabel(p.free_period_minutes).toLowerCase());
+  const after=afterFreePeriodLabel(p);if(after)parts.push(after.toLowerCase());
+  if(p.requires_purchase)parts.push('нужна покупка');
+  if(p.requires_receipt)parts.push('нужен чек');
+  return parts.join(' · ')||'особые условия не указаны';
+}
+function loadFavoriteTermsEvents(){
+  try{return JSON.parse(localStorage.getItem(favoriteTermsEventsKey())||'[]')}catch(e){return[]}
+}
+function rememberFavoriteTermsChanges(){
+  let previous={};
+  try{previous=JSON.parse(localStorage.getItem(favoriteTermsSnapshotKey())||'{}')}catch(e){}
+  const next={...previous};
+  const events=loadFavoriteTermsEvents();
+  let changed=false;
+  PARKINGS.filter(p=>favorites.includes(p.id)).forEach(p=>{
+    const signature=parkingTermsSignature(p);
+    if(previous[p.id]&&previous[p.id].signature!==signature){
+      events.unshift({kind:'favorite-terms',id:p.id,status:'UPDATED',title:'Изменились условия парковки',text:p.name+' — '+parkingTermsSummary(p),note:'Проверьте актуальные условия перед поездкой.',created_at:new Date().toISOString()});
+      changed=true;
+    }
+    next[p.id]={signature,name:p.name};
+  });
+  try{
+    localStorage.setItem(favoriteTermsSnapshotKey(),JSON.stringify(next));
+    if(changed)localStorage.setItem(favoriteTermsEventsKey(),JSON.stringify(events.slice(0,100)));
+  }catch(e){}
+  if(changed)updateNotificationBadge();
+}
 async function loadRemoteFavorites(){
   if(!authSession)return;
   try{
     const rows=await userRest('/rest/v1/user_favorites?select=parking_id&order=created_at.asc');
     favorites=(rows||[]).map(x=>String(x.parking_id));
     saveFav();
+    rememberFavoriteTermsChanges();
     if(activeTab==='fav')renderFav();
   }catch(e){console.warn(e)}
 }
@@ -1129,6 +1199,8 @@ function filteredParkings(){
   if(advFilters.cctv)v=v.filter(p=>p.cctv);
   if(advFilters.disabled)v=v.filter(p=>p.disabled);
   if(advFilters.wash)v=v.filter(p=>p.wash);
+  if(advFilters.barrier)v=v.filter(p=>p.has_barrier);
+  if(advFilters.freePeriod)v=v.filter(p=>p.has_free_period);
   if(advFilters.priceMax<100000)v=v.filter(p=>(p.price_val||0)<=advFilters.priceMax);
   return v;
 }
@@ -1187,7 +1259,9 @@ function specialParkingMarker(p,selected){
   if(!parkingMarkerAssetsReady||(!p.has_free_period&&!p.has_barrier))return null;
   const family=p.has_free_period?PARKING_MARKER_ASSETS.freePeriod:PARKING_MARKER_ASSETS.barrier;
   const variant=selected?'selected':((ymap?ymap.getZoom():13)<13?'small':'normal');
-  const size=variant==='selected'?[46,58]:variant==='small'?[30,38]:[38,48];
+  /* Все семейства меток используют одну шкалу размеров. Раньше специальные
+     PNG-метки были заметно меньше обычных SVG-меток на том же масштабе. */
+  const size=markerSizeByZoom(selected);
   return {href:family[variant],size};
 }
 function markerOptions(p,selected){
@@ -1360,6 +1434,51 @@ function selectParking(id){
 
 /* ═══════════ МИНИ-КАРТОЧКА ═══════════ */
 function priceLabel(p){return p.price_type==='free'?t('free'):(p.price_text||'—')}
+function freePeriodLabel(minutes){
+  const value=Number(minutes);
+  if(!Number.isFinite(value)||value<=0)return 'Бесплатный период';
+  const hours=Math.floor(value/60),mins=value%60;
+  const duration=(hours?hours+' ч':'')+(hours&&mins?' ':'')+(mins?mins+' мин':'');
+  return duration+' бесплатно';
+}
+function afterFreePeriodLabel(p){
+  const value=Number(p.price_after_free_period);
+  if(p.price_after_free_period==null||!Number.isFinite(value))return '';
+  const units={hour:'за час',started_hour:'за начатый час',entry:'после периода',day:'за сутки',custom:'по условиям парковки'};
+  const unit=units[p.price_after_free_period_unit]||'';
+  return 'После — '+value.toLocaleString('ru-RU')+' сум'+(unit?' '+unit:'');
+}
+function parkingBadgesHtml(p,compact=false){
+  const badges=[];
+  if(p.has_barrier)badges.push(['primary','🚧 Шлагбаум']);
+  if(p.has_free_period)badges.push(['primary','🕐 '+freePeriodLabel(p.free_period_minutes)]);
+  if(p.requires_purchase)badges.push(['warn','Покупка обязательна']);
+  if(p.requires_receipt)badges.push(['warn','Нужен чек']);
+  const after=afterFreePeriodLabel(p);if(after&&!compact)badges.push(['warn',after]);
+  return badges.length?'<div class="parking-badges'+(compact?' fav-access':'')+'">'+badges.map(x=>'<span class="parking-badge '+x[0]+'">'+escapeHtml(x[1])+'</span>').join('')+'</div>':'';
+}
+function parkingTermsHtml(p){
+  if(!p.has_barrier&&!p.has_free_period&&!p.requires_purchase&&!p.requires_receipt)return '';
+  const rows=[];
+  if(p.has_barrier){
+    const positions=[];if(p.barrier_at_entry)positions.push('на въезде');if(p.barrier_at_exit)positions.push('на выезде');
+    rows.push(['Доступ','Шлагбаум'+(positions.length?' '+positions.join(' и '):'')]);
+  }
+  if(p.has_free_period)rows.push(['Бесплатный период',freePeriodLabel(p.free_period_minutes).replace(' бесплатно','')]);
+  const after=afterFreePeriodLabel(p);if(after)rows.push(['Дальнейший тариф',after.replace('После — ','')]);
+  if(p.requires_purchase)rows.push(['Условие','Требуется покупка']);
+  if(p.requires_receipt)rows.push(['Подтверждение','Требуется чек']);
+  if(p.requires_ticket)rows.push(['Въезд/выезд','Требуется парковочный билет']);
+  const notes=[];
+  if(p.entry_rules)notes.push('Въезд: '+p.entry_rules);
+  if(p.exit_rules)notes.push('Выезд: '+p.exit_rules);
+  if(p.tariff_note)notes.push(p.tariff_note);
+  if(p.tariff_verified_at)notes.push('Тариф проверен: '+p.tariff_verified_at);
+  if(p.tariff_source_ref)notes.push('Источник: '+p.tariff_source_ref);
+  return '<div class="parking-terms"><h3>Условия парковки</h3>'
+    +rows.map(row=>'<div class="parking-term-row"><span>'+escapeHtml(row[0])+'</span><b>'+escapeHtml(row[1])+'</b></div>').join('')
+    +notes.map(note=>'<div class="parking-term-note">'+escapeHtml(note)+'</div>').join('')+'</div>';
+}
 function statusLabel(p){
   if(p.is247)return t('open247');
   return p.hours;
@@ -1372,6 +1491,7 @@ function showMiniCard(id){
   const hours=p.is247?t('open247'):(p.hours||'Время работы не указано');
   const kind=p.ev?'Парковка с зарядкой':(p.ptype==='street'?'Уличная парковка':'Парковка');
   el.innerHTML='<div class="mc-place-card"><div class="mc-place-hero '+(p.ev?'ev':'parking')+'"><div class="mc-ic">'+catIcon(p)+'</div><div class="mc-body"><div class="mc-kicker">'+escapeHtml(kind)+'</div><h3>'+escapeHtml(p.name)+'</h3><div class="mc-sub">'+escapeHtml(p.addr||'Адрес не указан')+'</div></div><button class="mc-dismiss" aria-label="Закрыть" onclick="closeMiniCard()">✕</button></div>'
+    +parkingBadgesHtml(p)
     +'<div class="mc-place-facts"><div class="mc-place-fact"><small>Стоимость</small><b>'+escapeHtml(priceLabel(p))+'</b></div><div class="mc-place-fact"><small>Расстояние</small><b>'+escapeHtml(d)+'</b></div><div class="mc-place-fact"><small>Вместимость</small><b>'+escapeHtml(cap)+'</b></div><div class="mc-place-fact"><small>Режим работы</small><b>'+escapeHtml(hours)+'</b></div></div>'
     +'<div class="mc-main-actions"><button class="mc-btn" onclick="routeTo(\''+p.id+'\')">➤ '+t('goRoute')+'</button><button class="mc-btn secondary" onclick="openFullCard(\''+p.id+'\')">'+t('showDetails')+'</button></div>'
     +'<div class="mc-tools"><button class="mc-btn" aria-label="Избранное" onclick="toggleFav(\''+p.id+'\',this)">'+(favorites.includes(p.id)?'★ В избранном':'☆ Избранное')+'</button>'
@@ -1400,6 +1520,7 @@ function openFullCard(id){
     +'<div class="fc-addr">📍 '+p.addr+'</div>'
     +'<div class="fc-status" style="color:'+(p.is247?'var(--green)':'var(--ink)')+'">'
       +'🕐 '+statusLabel(p)+(distText(p)?'<span class="dist">➤ '+distText(p)+'</span>':'')+'</div>'
+    +parkingBadgesHtml(p)
     +'<div class="fc-grid">'
       +'<div class="fc-cell"><div class="lbl">'+t('cost')+'</div><div class="val'+(p.price_type==='free'?' free':'')+'">'
         +(p.price_type==='free'?t('free'):(p.price_text||'—'))+'</div>'
@@ -1411,6 +1532,7 @@ function openFullCard(id){
         +(p.ev&&p.ev_details?'<div class="lbl" style="margin-top:3px;text-transform:none">'+p.ev_details+'</div>':'')+'</div>'
       +'<div class="fc-cell"><div class="lbl">'+t('payment')+'</div><div class="val sm">'+(p.payment==='—'?'—':p.payment)+'</div></div>'
     +'</div>'
+    +parkingTermsHtml(p)
     +(p.legal?'<div class="legalnote">⚠️<span>'+t('legalStreet')+'</span></div>':'')
     +'<div class="verify">✓ '+t('verified')+' · '+p.verified+' · '+p.source+'</div>'
     +'<div class="fc-actions">'
@@ -1427,6 +1549,7 @@ async function toggleFav(id,btn){
   if(i>=0){favorites.splice(i,1);toast(t('removed'))}
   else{favorites.push(id);toast('★ '+t('inFav'))}
   saveFav();
+  if(favorites.includes(id))rememberFavoriteTermsChanges();
 
   // Кнопка в карточке сразу показывает актуальное состояние.
   const added=favorites.includes(id);
@@ -1465,6 +1588,8 @@ function openFilters(){
     +'</div>'
     +'<div class="filt-group"><h3>'+t('filtExtra')+'</h3>'
     +[['e247','e247'],['cctv','eCctv'],['disabled','eDisabled'],['wash','eWash']].map(([k,l])=>'<div class="check-row" onclick="toggleFiltExtra(\''+k+'\')"><span class="rl" style="flex:1;font:700 14.5px Manrope">'+t(l)+'</span><span class="toggle'+(advFilters[k]?' on':'')+'"></span></div>').join('')
+    +'<div class="check-row" onclick="toggleFiltExtra(\'barrier\')"><span class="rl" style="flex:1;font:700 14.5px Manrope">🚧 Со шлагбаумом</span><span class="toggle'+(advFilters.barrier?' on':'')+'"></span></div>'
+    +'<div class="check-row" onclick="toggleFiltExtra(\'freePeriod\')"><span class="rl" style="flex:1;font:700 14.5px Manrope">🕐 Есть бесплатный период</span><span class="toggle'+(advFilters.freePeriod?' on':'')+'"></span></div>'
     +'</div>'
     +'<div class="filt-group"><h3>'+t('filtPrice')+'</h3>'
     +'<div class="price-row"><span>0 сум</span><span id="priceVal">'+(advFilters.priceMax>=100000?t('anyPrice'):advFilters.priceMax.toLocaleString('ru')+' сум')+'</span></div>'
@@ -1482,7 +1607,7 @@ function toggleFiltType(k){const i=advFilters.types.indexOf(k);if(i>=0)advFilter
 function toggleFiltExtra(k){advFilters[k]=!advFilters[k];openFilters()}
 function applyFilters(){closeSheet();drawMarkers();
   const n=filteredParkings().length;toast(n?('Найдено: '+n):t('noParkArea'))}
-function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,priceMax:100000};openFilters()}
+function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,barrier:false,freePeriod:false,priceMax:100000};openFilters()}
 
 /* ═══════════ ГЕОЛОКАЦИЯ (параллельная: сеть + GPS одновременно) ═══════════ */
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -1858,6 +1983,17 @@ function openAdd(){
     +'<div class="field"><label>'+t('fCat')+' <span class="req">*</span></label><select id="a_cat"><option value="OFFICIAL">'+t('catOfficial')+'</option><option value="STREET_ALLOWED">'+t('catStreet')+'</option><option value="EV">'+t('catEv')+'</option></select></div>'
     +'<div class="field"><label>'+t('fCost')+' <span class="req">*</span></label><select id="a_cost"><option value="free">'+t('costFree')+'</option><option value="paid">'+t('costPaid')+'</option><option value="unknown">'+t('costUnknown')+'</option></select></div>'
     +'<div class="field"><label>'+t('fRate')+'</label><input id="a_rate" placeholder="'+t('phRate')+'"></div>'
+    +'<div class="field"><label>Условия въезда и тарифа</label>'
+      +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">🚧 Есть шлагбаум</span><input id="a_barrier" type="checkbox" onchange="updateSubmissionAccessFields()"></label>'
+      +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">🕐 Есть бесплатный период</span><input id="a_free_period" type="checkbox" onchange="updateSubmissionAccessFields()"></label>'
+    +'</div>'
+    +'<div id="a_access_fields" style="display:none">'
+      +'<div class="field-row"><div class="field"><label>Бесплатно, минут</label><input id="a_free_minutes" type="number" min="1" inputmode="numeric" placeholder="60"></div>'
+      +'<div class="field"><label>После периода, сум</label><input id="a_after_price" type="number" min="0" inputmode="numeric" placeholder="Если известно"></div></div>'
+      +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">Бесплатно только при покупке</span><input id="a_purchase" type="checkbox"></label>'
+      +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">Требуется чек</span><input id="a_receipt" type="checkbox"></label>'
+      +'<div class="field"><label>Источник или пояснение условий</label><input id="a_tariff_source" placeholder="Фото тарифа, официальный источник или описание на месте"></div>'
+    +'</div>'
     +'<div class="field-row">'
       +'<div class="field"><label>'+t('fCap')+'</label><input id="a_cap" type="number" inputmode="numeric" placeholder="'+t('phCap')+'"></div>'
       +'<div class="field"><label>'+t('fType')+' <span class="req">*</span></label><select id="a_type"><option value="open">'+t('tOpen')+'</option><option value="covered">'+t('tCovered')+'</option><option value="underground">'+t('tUnderground')+'</option><option value="street">'+t('tStreet')+'</option></select></div>'
@@ -1873,6 +2009,12 @@ function openAdd(){
     +'<div class="field"><label>'+t('fNote')+'</label><textarea id="a_note" placeholder="'+t('phNote')+'"></textarea></div>'
     +'</div>';
   openSheet(html);
+}
+function updateSubmissionAccessFields(){
+  const box=document.getElementById('a_access_fields');if(!box)return;
+  const barrier=Boolean(document.getElementById('a_barrier')?.checked);
+  const freePeriod=Boolean(document.getElementById('a_free_period')?.checked);
+  box.style.display=(barrier||freePeriod)?'block':'none';
 }
 async function prepareSubmissionImage(file){
   if(file.size>5*1024*1024)throw new Error('Фотография больше 5 МБ');
@@ -1917,6 +2059,20 @@ async function submitAdd(){
   if(btn){btn.disabled=true;btn.textContent=t('sending')}
   const category=document.getElementById('a_cat').value;
   const capacity=Number(document.getElementById('a_cap').value);
+  const hasBarrier=Boolean(document.getElementById('a_barrier')?.checked);
+  const hasFreePeriod=Boolean(document.getElementById('a_free_period')?.checked);
+  const freeMinutes=Number(document.getElementById('a_free_minutes')?.value);
+  const afterPrice=Number(document.getElementById('a_after_price')?.value);
+  if(hasFreePeriod&&(!Number.isFinite(freeMinutes)||freeMinutes<1)){toast('Укажите продолжительность бесплатного периода');if(btn){btn.disabled=false;btn.textContent=t('done')}return}
+  const accessNotes=[];
+  if(hasBarrier)accessNotes.push('Есть шлагбаум');
+  if(hasFreePeriod)accessNotes.push('Бесплатный период: '+freeMinutes+' мин');
+  if(hasFreePeriod&&document.getElementById('a_after_price')?.value.trim()!=='')accessNotes.push('После периода: '+afterPrice.toLocaleString('ru-RU')+' сум');
+  if(document.getElementById('a_purchase')?.checked)accessNotes.push('Требуется покупка');
+  if(document.getElementById('a_receipt')?.checked)accessNotes.push('Требуется чек');
+  const tariffSource=cleanText(document.getElementById('a_tariff_source')?.value);
+  if(tariffSource)accessNotes.push('Источник/пояснение: '+tariffSource);
+  const userNote=cleanText(document.getElementById('a_note').value);
   const payload={
     client_id:clientId(),
     name:cleanText(document.getElementById('a_name').value)||'Парковка',
@@ -1930,7 +2086,14 @@ async function submitAdd(){
     kind:document.getElementById('a_type').value,
     hours:cleanText(document.getElementById('a_hours').value),
     has_ev:document.getElementById('a_ev').value==='yes',
-    moderator_note:cleanText(document.getElementById('a_note').value)
+    has_barrier:hasBarrier,
+    has_free_period:hasFreePeriod,
+    free_period_minutes:hasFreePeriod?freeMinutes:null,
+    price_after_free_period:hasFreePeriod&&document.getElementById('a_after_price')?.value.trim()!==''?afterPrice:null,
+    requires_purchase:hasFreePeriod&&Boolean(document.getElementById('a_purchase')?.checked),
+    requires_receipt:hasFreePeriod&&Boolean(document.getElementById('a_receipt')?.checked),
+    tariff_source_ref:tariffSource||null,
+    moderator_note:[userNote,accessNotes.length?'Условия парковки: '+accessNotes.join(' · '):''].filter(Boolean).join('\n')
   };
   try{
     const photoUrls=await uploadSubmissionPhotos(photoFiles);
@@ -1952,13 +2115,44 @@ function openReport(id){
   const html='<div class="grabber" onclick="closeSheet()"><i></i></div>'
     +'<div class="filt-head"><h2>'+t('reportTitle')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="filt-body">'
+    +'<div class="radio-row" onclick="openAccessReport(\''+id+'\')"><span class="rl">🚧 Исправить шлагбаум или бесплатный период</span><span style="color:var(--grey)">›</span></div>'
     +reasons.map(([k,l])=>'<div class="radio-row" onclick="sendReport(\''+id+'\',\''+k+'\')"><span class="rl">'+t(l)+'</span><span style="color:var(--grey)">›</span></div>').join('')
     +'<div class="field" style="margin-top:14px"><label>Комментарий (необязательно)</label><textarea id="report_comment" placeholder="Что именно нужно исправить?"></textarea></div>'
     +'</div><div style="height:'+'20px"></div>';
   openSheet(html);
 }
-async function sendReport(id,reason){
-  const comment=cleanText(document.getElementById('report_comment')?.value);
+function openAccessReport(id){
+  const p=PARKINGS.find(x=>String(x.id)===String(id));if(!p)return;
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>Исправить условия</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="filt-body">'
+    +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">🚧 Есть шлагбаум</span><input id="r_barrier" type="checkbox" '+(p.has_barrier?'checked':'')+'></label>'
+    +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">🕐 Есть бесплатный период</span><input id="r_free_period" type="checkbox" '+(p.has_free_period?'checked':'')+'></label>'
+    +'<div class="field"><label>Бесплатно, минут</label><input id="r_free_minutes" type="number" min="1" value="'+(p.free_period_minutes||'')+'" placeholder="Если известно"></div>'
+    +'<div class="field"><label>Цена после периода, сум</label><input id="r_after_price" type="number" min="0" value="'+(p.price_after_free_period??'')+'" placeholder="Если известно"></div>'
+    +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">Требуется покупка</span><input id="r_purchase" type="checkbox" '+(p.requires_purchase?'checked':'')+'></label>'
+    +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">Требуется чек</span><input id="r_receipt" type="checkbox" '+(p.requires_receipt?'checked':'')+'></label>'
+    +'<div class="field"><label>Источник или пояснение</label><textarea id="r_access_note" placeholder="Что изменилось и откуда получены сведения?"></textarea></div>'
+    +'<button class="btn-primary" onclick="sendAccessReport(\''+id+'\')">Отправить исправление</button>'
+    +'</div>';
+  openSheet(html);
+}
+function sendAccessReport(id){
+  const freePeriod=Boolean(document.getElementById('r_free_period')?.checked);
+  const minutes=cleanText(document.getElementById('r_free_minutes')?.value);
+  if(freePeriod&&(!Number(minutes)||Number(minutes)<1)){toast('Укажите бесплатный период в минутах');return}
+  const lines=[
+    'Шлагбаум: '+(document.getElementById('r_barrier')?.checked?'да':'нет'),
+    'Бесплатный период: '+(freePeriod?(minutes+' мин'):'нет'),
+    'Цена после периода: '+(cleanText(document.getElementById('r_after_price')?.value)||'неизвестна'),
+    'Требуется покупка: '+(document.getElementById('r_purchase')?.checked?'да':'нет'),
+    'Требуется чек: '+(document.getElementById('r_receipt')?.checked?'да':'нет')
+  ];
+  const note=cleanText(document.getElementById('r_access_note')?.value);if(note)lines.push('Источник/пояснение: '+note);
+  return sendReport(id,'other',lines.join('\n'));
+}
+async function sendReport(id,reason,providedComment){
+  const comment=cleanText(providedComment??document.getElementById('report_comment')?.value);
   try{
     await supabaseRpc('submit_parking_report',{p_parking_id:id,p_reason:reason,p_comment:comment||null,p_client_id:clientId()});
     if(authSession)await loadMyReports();
@@ -1979,7 +2173,7 @@ function renderFav(){
   cont.innerHTML='<div class="fav-list">'+items.map(p=>
     '<div class="fav-item" onclick="switchTab(\'map\');selectParking(\''+p.id+'\')">'
     +'<div class="fav-ic" style="background:'+markerColor(p)+'">'+catIcon(p)+'</div>'
-    +'<div class="fav-txt"><b>'+p.name+'</b><span>'+(p.is247?t('open247'):p.hours)+'</span></div>'
+    +'<div class="fav-txt"><b>'+p.name+'</b><span>'+(p.is247?t('open247'):p.hours)+'</span>'+parkingBadgesHtml(p,true)+'</div>'
     +'<div class="fav-right"><div class="fav-dist">'+(distText(p)||'')+'</div>'
       +'<div style="font:700 12px Manrope;color:var(--ink2);margin-top:2px">'+priceLabel(p)+'</div></div>'
     +'<span class="fav-more" onclick="event.stopPropagation();toggleFav(\''+p.id+'\',null);renderFav()">✕</span>'
@@ -2025,7 +2219,7 @@ function notificationFingerprint(item){
 }
 function buildNotifications(){
   if(!authSession)return [];
-  const items=[];
+  const items=loadFavoriteTermsEvents();
   mySubmissions.forEach(s=>{
     if(!s.status||s.status==='PENDING')return;
     const label=submissionStatusLabels[s.status]||s.status;

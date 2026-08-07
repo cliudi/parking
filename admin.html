@@ -458,6 +458,7 @@ let editingSubmissionId=null;
 let editingOsmCandidateId=null;
 let coordMap=null;
 let coordPlacemark=null;
+let coordPlacemarkAdded=false;
 let geocodeRequestId=0;
 let geocodeTimer=null;
 let fillingGeoFields=false;
@@ -919,7 +920,10 @@ function readCoordinates(showError=true){
 }
 function writeCoordinates(coords){
   $('lat').value=Number(coords[0]).toFixed(6);$('lng').value=Number(coords[1]).toFixed(6);
-  if(coordPlacemark)coordPlacemark.geometry.setCoordinates(coords);
+  if(coordPlacemark){
+    coordPlacemark.geometry.setCoordinates(coords);
+    if(coordMap&&!coordPlacemarkAdded){coordMap.geoObjects.add(coordPlacemark);coordPlacemarkAdded=true}
+  }
 }
 function componentValue(components,kinds){
   const item=components.find(component=>kinds.includes(component.kind));
@@ -985,7 +989,8 @@ async function reverseGeocode(coords,{force=false}={}){
   const requestId=++geocodeRequestId;
   setGeoStatus('Определяем адрес по точке…','loading');
   try{
-    const result=await requestYandexGeocoder(coords,{kind:'house'});
+    let result=await requestYandexGeocoder(coords,{kind:'house'});
+    if(!result||(!result.fields.address&&!result.fields.district))result=await requestYandexGeocoder(coords);
     if(requestId!==geocodeRequestId)return;
     if(!result)throw new Error('Адрес для этой точки не найден');
     const fields=result.fields;
@@ -1031,7 +1036,8 @@ async function searchAddressOnMap(){
 function refreshCoordMap(recenter=false){
   if(!window.ymaps){toast('Карта ещё загружается','error');return}
   ymaps.ready(()=>{
-    const center=readCoordinates(false)||[41.3111,69.2650];
+    const savedCoords=readCoordinates(false);
+    const center=savedCoords||[41.3111,69.2650];
     if(!coordMap){
       coordMap=new ymaps.Map('coordMap',{center,zoom:16,controls:['zoomControl']});
       coordPlacemark=new ymaps.Placemark(center,{},{
@@ -1039,11 +1045,12 @@ function refreshCoordMap(recenter=false){
       });
       coordPlacemark.events.add('dragend',()=>setCoordinates(coordPlacemark.geometry.getCoordinates()));
       coordMap.events.add('click',event=>setCoordinates(event.get('coords')));
-      coordMap.geoObjects.add(coordPlacemark);
+      if(savedCoords){coordMap.geoObjects.add(coordPlacemark);coordPlacemarkAdded=true}
     }else{
       coordMap.container.fitToViewport();
       if(recenter)coordMap.setCenter(center,16);
-      coordPlacemark.geometry.setCoordinates(center);
+      if(savedCoords)writeCoordinates(savedCoords);
+      else if(coordPlacemarkAdded){coordMap.geoObjects.remove(coordPlacemark);coordPlacemarkAdded=false}
     }
   });
 }
@@ -1095,9 +1102,24 @@ window.editParking=async id=>{
   if(error){toast('Не удалось загрузить условия доступа: '+error.message,'error');return}
   openForm({...parking,...(data||{})});
 };
+function publicationValidationMessage(parking,access){
+  if(access.has_free_period&&(!access.free_period_minutes||Number(access.free_period_minutes)<1))return 'Укажите продолжительность бесплатного периода.';
+  if(access.price_after_free_period!=null&&(!access.tariff_verified_at||!String(access.tariff_source_ref||'').trim()))return 'Для точной цены после бесплатного периода нужны источник и дата проверки тарифа.';
+  const hasExactBaseTariff=parking.price_hour!=null||parking.price_day!=null;
+  if(hasExactBaseTariff&&(!parking.verified_at||!String(parking.source_ref||'').trim()))return 'Для точного тарифа нужны источник и дата проверки парковки.';
+  return '';
+}
+function barrierPublicationWarning(access){
+  return access.has_barrier&&!access.barrier_at_entry&&!access.barrier_at_exit&&!String(access.entry_rules||'').trim()&&!String(access.exit_rules||'').trim();
+}
 window.confirmParking=async id=>{
-  const p=records.find(x=>x.id===id);
-  if(!confirm(`Подтвердить парковку «${p?.name||''}» и показать её пользователям?`))return;
+  const p=records.find(x=>x.id===id);if(!p)return;
+  const {data:access,error:accessError}=await sb.rpc('admin_get_parking_access',{p_id:id});
+  if(accessError){toast('Не удалось проверить условия доступа: '+accessError.message,'error');return}
+  const validation=publicationValidationMessage(p,access||{});
+  if(validation){toast(validation,'error');return}
+  if(barrierPublicationWarning(access||{})&&!confirm('Шлагбаум отмечен, но место и правила въезда/выезда не указаны. Всё равно продолжить?'))return;
+  if(!confirm(`Подтвердить парковку «${p.name||''}» и показать её пользователям?`))return;
   const {error}=await sb.rpc('admin_confirm_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
   toast('Парковка подтверждена и опубликована');await loadParkings();
@@ -1143,6 +1165,11 @@ $('parkingForm').addEventListener('submit',async e=>{
     source_ref:val('source_ref'),verified_at:val('verified_at')||null,status:val('status'),
     moderator_note:val('moderator_note')
   };
+  if(data.status==='APPROVED'){
+    const validation=publicationValidationMessage(data,accessData);
+    if(validation){formMessage($('formMsg'),validation);return}
+    if(barrierPublicationWarning(accessData)&&!confirm('Шлагбаум отмечен, но место и правила въезда/выезда не указаны. Всё равно опубликовать?'))return;
+  }
   const requestedStatus=data.status;
   const stagedApproval=!data.id&&requestedStatus==='APPROVED';
   if(stagedApproval)data.status='DRAFT';
