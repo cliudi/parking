@@ -462,6 +462,8 @@ let coordPlacemarkAdded=false;
 let geocodeRequestId=0;
 let geocodeTimer=null;
 let newParkingLocationRequestId=0;
+let newParkingWatchId=null;
+let newParkingLocationTimer=null;
 let fillingGeoFields=false;
 const geoDirty={address:false,district:false,city:false};
 
@@ -985,12 +987,24 @@ function applyGeocoderFields(fields,{force=false}={}){
   }finally{fillingGeoFields=false}
   return !protectedFields.length||overwrite;
 }
-async function reverseGeocode(coords,{force=false}={}){
+async function reverseGeocode(coords,{force=false,preferStreet=false}={}){
   if(!window.ymaps){setGeoStatus('Карта ещё загружается. Повторите попытку.','error');return}
   const requestId=++geocodeRequestId;
   setGeoStatus('Определяем адрес по точке…','loading');
   try{
-    let result=await requestYandexGeocoder(coords,{kind:'house'});
+    let result;
+    if(preferStreet){
+      const [street,house]=await Promise.all([
+        requestYandexGeocoder(coords,{kind:'street'}).catch(()=>null),
+        requestYandexGeocoder(coords,{kind:'house'}).catch(()=>null)
+      ]);
+      if(street||house){
+        result={
+          ...(house||street),
+          fields:{...(house?.fields||{}),...(street?.fields||{}),address:street?.fields?.address||house?.fields?.address||''}
+        };
+      }
+    }else result=await requestYandexGeocoder(coords,{kind:'house'});
     if(!result||(!result.fields.address&&!result.fields.district))result=await requestYandexGeocoder(coords);
     if(requestId!==geocodeRequestId)return;
     if(!result)throw new Error('Адрес для этой точки не найден');
@@ -1007,10 +1021,10 @@ async function reverseGeocode(coords,{force=false}={}){
 function scheduleReverseGeocode(coords,options={}){
   clearTimeout(geocodeTimer);geocodeTimer=setTimeout(()=>reverseGeocode(coords,options),180);
 }
-function setCoordinates(coords,{recenter=false,geocode=true,force=false}={}){
+function setCoordinates(coords,{recenter=false,geocode=true,force=false,preferStreet=false}={}){
   writeCoordinates(coords);
   if(recenter&&coordMap)coordMap.setCenter(coords,16);
-  if(geocode)scheduleReverseGeocode(coords,{force});
+  if(geocode)scheduleReverseGeocode(coords,{force,preferStreet});
 }
 function syncManualCoordinates(){
   const coords=readCoordinates();if(!coords)return;
@@ -1055,27 +1069,52 @@ function refreshCoordMap(recenter=false){
     }
   });
 }
+function stopNewParkingLocationWatch(){
+  if(newParkingWatchId!=null&&navigator.geolocation)navigator.geolocation.clearWatch(newParkingWatchId);
+  newParkingWatchId=null;
+  clearTimeout(newParkingLocationTimer);newParkingLocationTimer=null;
+}
 function locateNewParkingFromDevice(requestId){
   if(!navigator.geolocation){
     setGeoStatus('Геолокация недоступна. Выберите точку на карте или введите адрес.','error');return
   }
-  setGeoStatus('Определяем ваше местоположение для новой парковки…','loading');
-  navigator.geolocation.getCurrentPosition(position=>{
-    if(requestId!==newParkingLocationRequestId||$('id').value!==''||$('modal').classList.contains('hidden'))return;
+  stopNewParkingLocationWatch();
+  let best=null;
+  const active=()=>requestId===newParkingLocationRequestId&&$('id').value===''&&!$('modal').classList.contains('hidden');
+  const finish=()=>{
+    stopNewParkingLocationWatch();
+    if(!active()||!best)return;
+    const coords=[best.lat,best.lng];
+    setCoordinates(coords,{recenter:true,geocode:false});
+    reverseGeocode(coords,{preferStreet:true});
+  };
+  setGeoStatus('Уточняем ваше местоположение по GPS…','loading');
+  newParkingWatchId=navigator.geolocation.watchPosition(position=>{
+    if(!active()){stopNewParkingLocationWatch();return}
     const lat=Number(position.coords.latitude),lng=Number(position.coords.longitude);
-    if(!Number.isFinite(lat)||!Number.isFinite(lng)){
-      setGeoStatus('Не удалось получить корректные координаты. Выберите точку вручную.','error');return
-    }
-    setCoordinates([lat,lng],{recenter:true,geocode:true});
     const accuracy=Number(position.coords.accuracy);
-    setGeoStatus('Точка установлена по вашей геолокации'+(Number.isFinite(accuracy)?` · точность около ${Math.round(accuracy)} м`:'')+'.','ok');
+    if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
+    if(best&&Number.isFinite(best.accuracy)&&(!Number.isFinite(accuracy)||accuracy>=best.accuracy))return;
+    best={lat,lng,accuracy};
+    setCoordinates([lat,lng],{recenter:true,geocode:false});
+    setGeoStatus('GPS уточняет точку'+(Number.isFinite(accuracy)?` · точность около ${Math.round(accuracy)} м`:'')+'…','loading');
+    if(Number.isFinite(accuracy)&&accuracy<=25)finish();
   },error=>{
-    if(requestId!==newParkingLocationRequestId||$('modal').classList.contains('hidden'))return;
-    const message=error.code===1
-      ?'Доступ к геолокации не разрешён. Выберите точку на карте или введите адрес.'
-      :'Не удалось определить ваше местоположение. Выберите точку на карте или повторите попытку.';
-    setGeoStatus(message,'error');
-  },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+    if(!active())return;
+    if(error.code===1){
+      stopNewParkingLocationWatch();
+      setGeoStatus('Доступ к геолокации не разрешён. Выберите точку на карте или введите адрес.','error');
+    }else if(!best){
+      setGeoStatus('GPS пока не определил точку. Ожидаем или выберите место вручную.','loading');
+    }
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+  newParkingLocationTimer=setTimeout(()=>{
+    if(best)finish();
+    else{
+      stopNewParkingLocationWatch();
+      if(active())setGeoStatus('Не удалось точно определить местоположение. Выберите точку на карте вручную.','error');
+    }
+  },12000);
 }
 let savedScrollY=0;
 function lockBodyScroll(){
@@ -1122,7 +1161,7 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
     if(!p)locateNewParkingFromDevice(locationRequestId);
   },50);
 }
-function closeForm(){newParkingLocationRequestId++;$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
+function closeForm(){stopNewParkingLocationWatch();newParkingLocationRequestId++;$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
 window.editParking=async id=>{
   const parking=records.find(x=>x.id===id);if(!parking)return;
   const {data,error}=await sb.rpc('admin_get_parking_access',{p_id:id});
