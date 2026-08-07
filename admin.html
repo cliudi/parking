@@ -504,6 +504,7 @@ const draftMapMarkerSignatures=new Map();
 let draftMapSelectedId=null;
 let draftMapCompareIds=new Set();
 let draftMapMoveState=null;
+let draftMapMoveSaving=false;
 let draftMapRenderTimer=null;
 let draftMapRenderFrame=null;
 let draftMapMoveFrame=null;
@@ -842,14 +843,34 @@ window.cancelDraftMapMove=()=>{
   if(!draftMapMoveState)return;const marker=draftMapMarkers.get(draftMapMoveState.id),parking=records.find(p=>String(p.id)===draftMapMoveState.id);
   if(marker){marker.geometry.setCoordinates(draftMapMoveState.original);marker.options.set('draggable',false);draftMapMarkerSignatures.delete(draftMapMoveState.id)}draftMapMoveState=null;if(parking)renderDraftMapCard(parking);renderDraftMap();
 };
-function parkingAdminPayload(p,coords){
-  return {id:p.id,name:p.name,address:p.address,district:p.district,city:p.city,lat:coords[0],lng:coords[1],category:p.category,kind:p.kind,price_type:p.price_type,price_hour:p.price_hour,price_day:p.price_day,price_note:p.price_note,capacity:p.capacity,capacity_est:p.capacity_est,hours:p.hours,is_247:p.is_247,height_limit:p.height_limit,has_cctv:p.has_cctv,has_disabled:p.has_disabled,payment_methods:p.payment_methods||[],has_ev:p.has_ev,ev_operator:p.ev_operator,ev_ports:p.ev_ports,ev_connectors:p.ev_connectors||[],photos:p.photos||[],source:p.source,source_ref:p.source_ref,verified_at:p.verified_at,status:p.status,moderator_note:p.moderator_note};
+function parkingAdminPayload(p,coords,geoFields={}){
+  return {id:p.id,name:p.name,address:geoFields.address??p.address,district:geoFields.district??p.district,city:geoFields.city??p.city,lat:coords[0],lng:coords[1],category:p.category,kind:p.kind,price_type:p.price_type,price_hour:p.price_hour,price_day:p.price_day,price_note:p.price_note,capacity:p.capacity,capacity_est:p.capacity_est,hours:p.hours,is_247:p.is_247,height_limit:p.height_limit,has_cctv:p.has_cctv,has_disabled:p.has_disabled,payment_methods:p.payment_methods||[],has_ev:p.has_ev,ev_operator:p.ev_operator,ev_ports:p.ev_ports,ev_connectors:p.ev_connectors||[],photos:p.photos||[],source:p.source,source_ref:p.source_ref,verified_at:p.verified_at,status:p.status,moderator_note:p.moderator_note};
+}
+async function draftMapMoveAddressChoice(parking,coords){
+  toast('Определяем адрес новой точки…');
+  try{
+    let result=await requestYandexGeocoder(coords,{kind:'house'}).catch(()=>null);
+    if(!result||(!result.fields.address&&!result.fields.district))result=await requestYandexGeocoder(coords);
+    const fields=result?.fields||{};
+    if(!fields.address&&!fields.district&&!fields.city)throw new Error('Адрес для этой точки не найден');
+    const details=[fields.address,fields.district,fields.city].filter(Boolean).join('\n');
+    const changed=fields.address!==parking.address||fields.district!==parking.district||fields.city!==parking.city;
+    if(!changed)return {proceed:true,fields:{}};
+    const update=confirm(`Для новой точки найден адрес:\n\n${details}\n\nОбновить адрес, район и город?\n\n«Отмена» — сохранить новые координаты, оставив прежний адрес.`);
+    return {proceed:true,fields:update?fields:{}};
+  }catch(error){
+    console.warn('Draft map reverse geocoding failed',error);
+    const proceed=confirm(`${geocodeErrorText(error,'определить адрес новой точки')}.\n\nСохранить только новые координаты, не меняя адрес?`);
+    return {proceed,fields:{}};
+  }
 }
 window.saveDraftMapMove=async()=>{
-  if(!draftMapMoveState)return;const state={...draftMapMoveState},parking=records.find(p=>String(p.id)===state.id);if(!parking)return;
+  if(!draftMapMoveState||draftMapMoveSaving)return;const state={...draftMapMoveState},parking=records.find(p=>String(p.id)===state.id);if(!parking)return;
   if(parkingDistanceMeters({lat:state.original[0],lng:state.original[1]},{lat:state.pending[0],lng:state.pending[1]})<.5){toast('Точка не перемещена','error');return}
-  const {error}=await sb.rpc('admin_save_parking',{p_data:parkingAdminPayload(parking,state.pending)});
-  if(error){toast(error.message,'error');return}draftMapMoveState=null;toast('Новые координаты сохранены');await loadParkings();openDraftMapCard(state.id);
+  draftMapMoveSaving=true;
+  const choice=await draftMapMoveAddressChoice(parking,state.pending);if(!choice.proceed){draftMapMoveSaving=false;return}
+  const {error}=await sb.rpc('admin_save_parking',{p_data:parkingAdminPayload(parking,state.pending,choice.fields)});
+  if(error){draftMapMoveSaving=false;toast(error.message,'error');return}draftMapMoveState=null;draftMapMoveSaving=false;toast('Новые координаты и выбранные адресные данные сохранены');await loadParkings();openDraftMapCard(state.id);
 };
 
 async function loadSubmissions(){
