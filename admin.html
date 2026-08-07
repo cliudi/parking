@@ -60,6 +60,17 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 .actions{display:flex;gap:7px} .table-btn{padding:7px 9px;font-size:12px}
 .osm-summary{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
 .osm-summary .badge{font-size:11px}.pager{padding:13px 16px;display:flex;align-items:center;justify-content:center;gap:12px;border-top:1px solid var(--line)}
+.draft-map-toolbar{padding:14px;display:grid;grid-template-columns:minmax(220px,1fr) repeat(3,minmax(150px,190px)) auto;gap:9px;border-bottom:1px solid var(--line)}
+.draft-map-flags{padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.draft-map-flags label{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;font-weight:700}
+.draft-map-counts{padding:10px 14px;display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.draft-map-wrap{position:relative;height:min(68vh,720px);min-height:480px;background:#eaf0f7;overflow:hidden;border-radius:0 0 var(--radius) var(--radius)}
+#draftMap{position:absolute;inset:0}.draft-map-hint{position:absolute;left:14px;bottom:14px;z-index:4;padding:8px 11px;border-radius:10px;background:rgba(15,23,42,.82);color:#fff;font-size:12px}
+.draft-map-card{position:absolute;right:14px;top:14px;z-index:5;width:min(380px,calc(100% - 28px));max-height:calc(100% - 28px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 46px rgba(15,23,42,.22);padding:16px}
+.draft-map-card h3{margin:0 32px 4px 0;font-size:18px}.draft-map-card .close-card{position:absolute;right:10px;top:10px;border:0;background:var(--surface-2);width:32px;height:32px;border-radius:9px}
+.draft-map-meta{display:grid;gap:6px;margin:12px 0;font-size:12px;color:var(--muted)}.draft-map-meta b{color:var(--text)}
+.draft-map-warning{padding:9px 10px;margin:8px 0;border-radius:10px;background:#fff7d6;color:#854d0e;font-size:12px;font-weight:700}
+.draft-map-actions{display:flex;gap:7px;flex-wrap:wrap}.draft-map-actions .btn{flex:1 1 145px;font-size:12px;padding:9px}
 .empty{padding:55px 20px;text-align:center;color:var(--muted)} .empty strong{display:block;color:#344054;font-size:17px;margin-bottom:6px}
 .toast{position:fixed;right:22px;bottom:22px;z-index:300;max-width:380px;padding:13px 15px;border-radius:12px;color:#fff;box-shadow:0 14px 32px rgba(15,23,42,.24)}
 .toast.ok{background:#15803d} .toast.error{background:#b42318}
@@ -93,6 +104,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   .main{padding:16px;max-width:100vw} .mobile-only{display:inline-flex} .topbar h1{font-size:23px} .topbar p{display:none} .topbar-actions .hide-mobile{display:none}
   .filters,.filters[style]{grid-template-columns:1fr!important} .stats{grid-template-columns:1fr 1fr} .grid{grid-template-columns:1fr} .field.full{grid-column:auto}
   .check-grid{grid-template-columns:1fr 1fr} .login-page{grid-template-columns:1fr} .login-visual{display:none}
+  .draft-map-toolbar{grid-template-columns:1fr 1fr}.draft-map-toolbar .search-wrap{grid-column:1/-1}.draft-map-wrap{height:68vh;min-height:430px}
   .table-wrap{overflow:visible;padding:12px;background:var(--surface-2)}
   table{display:block;width:100%;min-width:0} thead{display:none} tbody{display:grid;gap:12px}
   tbody tr{display:block;border:1px solid var(--line);border-radius:15px;background:var(--surface);overflow:hidden;box-shadow:0 3px 12px rgba(15,23,42,.04)}
@@ -119,6 +131,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   tbody td{grid-template-columns:88px minmax(0,1fr);padding:10px 11px;font-size:13px}
   .category,.badge{white-space:normal;line-height:1.25}
   .check-grid{grid-template-columns:1fr}
+  .draft-map-toolbar{grid-template-columns:1fr}.draft-map-toolbar .search-wrap{grid-column:auto}.draft-map-card{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:58%}
   .modal{padding:0;align-items:stretch;overflow:hidden}
   .dialog{width:100%;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;margin:0;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
   #parkingForm{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -178,6 +191,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <button class="nav-item active" id="parkingsNav">▦ Все парковки</button>
       <button class="nav-item" id="pendingNav">◷ Парковки на модерации</button>
       <button class="nav-item" id="draftNav">◫ Черновики</button>
+      <button class="nav-item" id="draftMapNav">⌖ Карта черновиков</button>
       <button class="nav-item" id="approvedNav">✓ Опубликованные</button>
       <button class="nav-item" id="submissionsNav">＋ Заявки пользователей</button>
       <button class="nav-item" id="reportsNav">⚑ Сообщения об ошибках</button>
@@ -228,6 +242,31 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         </table>
       </div>
       <div id="empty" class="empty hidden"><strong>Ничего не найдено</strong>Измените параметры поиска или добавьте новую парковку.</div>
+    </section>
+
+    <section id="draftMapPanel" class="panel hidden">
+      <div class="draft-map-toolbar">
+        <div class="search-wrap"><span>⌕</span><input id="draftMapSearch" class="control" placeholder="Название, адрес, UUID, источник или координаты"></div>
+        <select id="draftMapStatus" class="control"><option value="DRAFT">Только черновики</option><option value="APPROVED">Только опубликованные</option><option value="ALL">Черновики и опубликованные</option></select>
+        <select id="draftMapSource" class="control"><option value="">Все источники</option><option value="OSM">OSM</option><option value="ADMIN">ADMIN</option><option value="USER">USER</option></select>
+        <select id="draftMapPrice" class="control"><option value="">Любая стоимость</option><option value="free">Бесплатные</option><option value="paid">Платные</option><option value="unknown">Тариф неизвестен</option></select>
+        <button id="draftMapReset" class="btn btn-secondary">Сбросить</button>
+      </div>
+      <div class="draft-map-flags">
+        <label><input id="draftMapBarrier" type="checkbox"> Шлагбаум</label>
+        <label><input id="draftMapFreePeriod" type="checkbox"> Бесплатный период</label>
+        <label><input id="draftMapEv" type="checkbox"> EV</label>
+        <label><input id="draftMapNoAddress" type="checkbox"> Нет адреса</label>
+        <label><input id="draftMapNoSource" type="checkbox"> Нет источника</label>
+        <label><input id="draftMapNoVerified" type="checkbox"> Нет даты проверки</label>
+        <label><input id="draftMapDuplicates" type="checkbox"> Возможный дубль</label>
+      </div>
+      <div id="draftMapCounts" class="draft-map-counts"></div>
+      <div class="draft-map-wrap">
+        <div id="draftMap"></div>
+        <div id="draftMapHint" class="draft-map-hint">Приблизьте карту, чтобы проверить расположение черновиков.</div>
+        <article id="draftMapCard" class="draft-map-card hidden"></article>
+      </div>
     </section>
 
     <section id="submissionsPanel" class="panel hidden">
@@ -459,6 +498,12 @@ let editingOsmCandidateId=null;
 let coordMap=null;
 let coordPlacemark=null;
 let coordPlacemarkAdded=false;
+let draftMap=null;
+const draftMapMarkers=new Map();
+let draftMapSelectedId=null;
+let draftMapCompareIds=new Set();
+let draftMapMoveState=null;
+let draftMapRenderTimer=null;
 let geocodeRequestId=0;
 let geocodeTimer=null;
 let newParkingLocationRequestId=0;
@@ -514,6 +559,7 @@ $('refreshBtn').onclick=loadParkings;
 $('parkingsNav').onclick=()=>showSection('parkings');
 $('pendingNav').onclick=()=>{showSection('parkings');$('statusFilter').value='PENDING';renderRows()};
 $('draftNav').onclick=()=>{showSection('parkings');$('statusFilter').value='DRAFT';renderRows()};
+$('draftMapNav').onclick=()=>showSection('draft-map');
 $('approvedNav').onclick=()=>{showSection('parkings');$('statusFilter').value='APPROVED';renderRows()};
 $('submissionsNav').onclick=()=>showSection('submissions');
 $('reportsNav').onclick=()=>showSection('reports');
@@ -530,9 +576,17 @@ $('osmPrev').onclick=()=>{if(osmPage>0){osmPage--;renderOsmCandidates();writeAdm
 $('osmNext').onclick=()=>{osmPage++;renderOsmCandidates();writeAdminRoute('osm',true);$('osmPanel').scrollIntoView({behavior:'smooth'})};
 $('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
 $('menuBackdrop').onclick=()=>$('sidebar').classList.remove('open');
+['draftMapStatus','draftMapSource','draftMapPrice','draftMapBarrier','draftMapFreePeriod','draftMapEv','draftMapNoAddress','draftMapNoSource','draftMapNoVerified','draftMapDuplicates'].forEach(id=>$(id).addEventListener('change',scheduleDraftMapRender));
+$('draftMapSearch').addEventListener('input',scheduleDraftMapRender);
+$('draftMapSearch').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();renderDraftMap();const first=draftMapFilteredRecords()[0];if(first){draftMap.setCenter([Number(first.lat),Number(first.lng)],16);openDraftMapCard(first.id)}}});
+$('draftMapReset').onclick=()=>{
+  $('draftMapSearch').value='';$('draftMapStatus').value='DRAFT';$('draftMapSource').value='';$('draftMapPrice').value='';
+  ['draftMapBarrier','draftMapFreePeriod','draftMapEv','draftMapNoAddress','draftMapNoSource','draftMapNoVerified','draftMapDuplicates'].forEach(id=>$(id).checked=false);
+  renderDraftMap(true);
+};
 
 function readAdminRoute(){
-  const raw=location.hash.slice(1),parts=raw.split('?'),allowed=['parkings','submissions','reports','osm'];
+  const raw=location.hash.slice(1),parts=raw.split('?'),allowed=['parkings','draft-map','submissions','reports','osm'];
   return {section:allowed.includes(parts[0])?parts[0]:'parkings',params:new URLSearchParams(parts[1]||'')};
 }
 function writeAdminRoute(section,replace=false){
@@ -560,22 +614,25 @@ function showSection(section,options={}){
   currentAdminSection=section;
   const info={
     parkings:['Парковки','Управление данными, статусами и публикацией парковок'],
+    'draft-map':['Карта черновиков','Визуальная проверка, дубли и публикация парковок'],
     submissions:['Заявки пользователей','Проверка и публикация предложенных парковок'],
     reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей'],
     osm:['Проверка данных OSM','Подготовка импортированных парковок к публикации']
   }[section];
   $('pageTitle').textContent=info[0];$('pageSubtitle').textContent=info[1];
   $('parkingsPanel').classList.toggle('hidden',section!=='parkings');
+  $('draftMapPanel').classList.toggle('hidden',section!=='draft-map');
   $('submissionsPanel').classList.toggle('hidden',section!=='submissions');
   $('reportsPanel').classList.toggle('hidden',section!=='reports');
   $('osmPanel').classList.toggle('hidden',section!=='osm');
   $('addBtn').classList.toggle('hidden',section!=='parkings');
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
-  $(({parkings:'parkingsNav',submissions:'submissionsNav',reports:'reportsNav',osm:'osmNav'})[section]).classList.add('active');
+  $(({parkings:'parkingsNav','draft-map':'draftMapNav',submissions:'submissionsNav',reports:'reportsNav',osm:'osmNav'})[section]).classList.add('active');
   $('sidebar').classList.remove('open');
   if(section==='submissions')loadSubmissions();
   if(section==='reports')loadReports();
   if(section==='osm')loadOsmCandidates(!!options.preservePage);
+  if(section==='draft-map')setTimeout(()=>initDraftMap(),0);
   if(!options.fromRoute)writeAdminRoute(section);
 }
 
@@ -583,7 +640,7 @@ async function loadParkings(){
   $('rows').innerHTML='<tr><td colspan="7">Загрузка данных…</td></tr>';
   const {data,error}=await sb.rpc('admin_list_parkings',{p_search:null,p_status:null,p_limit:500,p_offset:0});
   if(error){$('rows').innerHTML='';toast(error.message,'error');return}
-  records=data||[];renderRows();updateStats();
+  records=data||[];renderRows();updateStats();if(currentAdminSection==='draft-map')renderDraftMap();
 }
 function filtered(){
   const q=val('search').toLowerCase(), status=val('statusFilter'), category=val('categoryFilter');
@@ -613,6 +670,141 @@ function renderRows(){
     <td data-label="Действия"><div class="actions">${p.status==='DRAFT'?`<button class="btn btn-primary table-btn" onclick="confirmParking('${p.id}')">Подтвердить</button>`:''}<button class="btn btn-secondary table-btn" onclick="editParking('${p.id}')">Изменить</button><button class="btn btn-danger table-btn" onclick="deleteParking('${p.id}')">Удалить</button></div></td>
   </tr>`).join('');
 }
+
+function parkingDistanceMeters(a,b){
+  const lat1=Number(a.lat),lng1=Number(a.lng),lat2=Number(b.lat),lng2=Number(b.lng);
+  if(![lat1,lng1,lat2,lng2].every(Number.isFinite))return Infinity;
+  const r=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const h=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return 2*r*Math.asin(Math.sqrt(h));
+}
+function nearbyParkingRecords(parking,radius=100){
+  return records.filter(other=>other.id!==parking.id&&['DRAFT','APPROVED','PENDING'].includes(other.status)&&parkingDistanceMeters(parking,other)<=radius)
+    .map(other=>({...other,distance_m:parkingDistanceMeters(parking,other)})).sort((a,b)=>a.distance_m-b.distance_m);
+}
+function draftMapFilteredRecords(){
+  const q=val('draftMapSearch').toLowerCase(),status=val('draftMapStatus'),source=val('draftMapSource'),price=val('draftMapPrice');
+  return records.filter(p=>{
+    if(status!=='ALL'&&p.status!==status)return false;
+    if(status==='ALL'&&!['DRAFT','APPROVED'].includes(p.status))return false;
+    if(source&&p.source!==source)return false;if(price&&p.price_type!==price)return false;
+    if($('draftMapBarrier').checked&&!p.has_barrier)return false;
+    if($('draftMapFreePeriod').checked&&!p.has_free_period)return false;
+    if($('draftMapEv').checked&&!(p.has_ev||p.category==='EV_STATION'))return false;
+    if($('draftMapNoAddress').checked&&String(p.address||'').trim())return false;
+    if($('draftMapNoSource').checked&&String(p.source_ref||'').trim())return false;
+    if($('draftMapNoVerified').checked&&p.verified_at)return false;
+    if($('draftMapDuplicates').checked&&!nearbyParkingRecords(p,50).length)return false;
+    if(q&&!String([p.name,p.address,p.id,p.source,p.source_ref,p.moderator_note,p.lat,p.lng].join(' ')).toLowerCase().includes(q))return false;
+    return Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng));
+  });
+}
+function adminMapMarkerSvg(parking,selected=false,compare=false){
+  const published=parking.status==='APPROVED',fill=published?'#16a34a':'#64748b',stroke=selected?'#f59e0b':compare?'#7c3aed':'#fff';
+  const badge=parking.has_free_period?'◷':parking.has_barrier?'▰':(parking.has_ev||parking.category==='EV_STATION')?'⚡':'';
+  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="42" height="54" viewBox="0 0 42 54"><path d="M21 1C10 1 2 9 2 20c0 15 19 33 19 33s19-18 19-33C40 9 32 1 21 1z" fill="${fill}" stroke="${stroke}" stroke-width="3"/><circle cx="21" cy="20" r="12" fill="white"/><text x="21" y="25" text-anchor="middle" font-family="Arial" font-size="16" font-weight="800" fill="${fill}">P</text>${badge?`<circle cx="33" cy="10" r="8" fill="#facc15"/><text x="33" y="14" text-anchor="middle" font-family="Arial" font-size="10" font-weight="900">${badge}</text>`:''}</svg>`);
+}
+function draftMapMarkerOptions(parking,selected=false,compare=false){
+  const size=selected?[48,62]:[42,54];
+  return {iconLayout:'default#image',iconImageHref:adminMapMarkerSvg(parking,selected,compare),iconImageSize:size,iconImageOffset:[-size[0]/2,-size[1]],draggable:false,zIndex:selected?1000:compare?700:(parking.status==='DRAFT'?200:100)};
+}
+function scheduleDraftMapRender(){clearTimeout(draftMapRenderTimer);draftMapRenderTimer=setTimeout(()=>requestAnimationFrame(()=>renderDraftMap()),180)}
+function initDraftMap(){
+  if(!window.ymaps)return;
+  ymaps.ready(()=>{
+    if(!draftMap){
+      draftMap=new ymaps.Map('draftMap',{center:[41.3111,69.2650],zoom:12,controls:['zoomControl','typeSelector']});
+      draftMap.events.add('boundschange',()=>{if(draftMapMoveState)return;$('draftMapHint').classList.toggle('hidden',draftMap.getZoom()>=12);scheduleDraftMapRender()});
+    }else draftMap.container.fitToViewport();
+    renderDraftMap(true);
+  });
+}
+function renderDraftMap(fit=false){
+  if(!draftMap)return;
+  const allFiltered=draftMapFilteredRecords(),shouldThin=draftMap.getZoom()<11&&!val('draftMapSearch')&&allFiltered.length>180;
+  const step=shouldThin?Math.ceil(allFiltered.length/180):1,filteredList=shouldThin?allFiltered.filter((_,index)=>index%step===0):allFiltered;
+  const selectedRecord=allFiltered.find(p=>String(p.id)===String(draftMapSelectedId));
+  if(selectedRecord&&!filteredList.some(p=>String(p.id)===String(selectedRecord.id)))filteredList.push(selectedRecord);
+  const compareRecords=records.filter(p=>draftMapCompareIds.has(String(p.id))&&!filteredList.some(x=>String(x.id)===String(p.id))&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
+  const list=[...filteredList,...compareRecords],wanted=new Set(list.map(p=>String(p.id)));
+  draftMapMarkers.forEach((marker,id)=>{if(!wanted.has(id)){draftMap.geoObjects.remove(marker);draftMapMarkers.delete(id)}});
+  list.forEach(p=>{
+    const id=String(p.id),coords=[Number(p.lat),Number(p.lng)],selected=id===String(draftMapSelectedId),compare=draftMapCompareIds.has(id);
+    let marker=draftMapMarkers.get(id);
+    if(!marker){
+      marker=new ymaps.Placemark(coords,{},draftMapMarkerOptions(p,selected,compare));
+      marker.events.add('click',()=>openDraftMapCard(id));
+      marker.events.add('dragend',()=>{if(draftMapMoveState?.id===id){draftMapMoveState.pending=marker.geometry.getCoordinates();renderDraftMapCard(p)}});
+      draftMap.geoObjects.add(marker);draftMapMarkers.set(id,marker);
+    }else{
+      if(draftMapMoveState?.id!==id)marker.geometry.setCoordinates(coords);
+      marker.options.set(draftMapMarkerOptions(p,selected,compare));
+    }
+  });
+  const drafts=allFiltered.filter(p=>p.status==='DRAFT'),duplicateCount=drafts.filter(p=>nearbyParkingRecords(p,50).length).length;
+  $('draftMapCounts').innerHTML=[['Найдено',allFiltered.length],['На карте',filteredList.length],['Черновики',drafts.length],['OSM',drafts.filter(p=>p.source==='OSM').length],['ADMIN',drafts.filter(p=>p.source==='ADMIN').length],['USER',drafts.filter(p=>p.source==='USER').length],['Без адреса',drafts.filter(p=>!String(p.address||'').trim()).length],['Возможные дубли',duplicateCount]].map(([name,count])=>`<span class="badge badge-info">${name}: ${count}</span>`).join('');
+  if(fit&&list.length){
+    const bounds=list.reduce((box,p)=>{
+      const point=[Number(p.lat),Number(p.lng)];
+      return box?[[Math.min(box[0][0],point[0]),Math.min(box[0][1],point[1])],[Math.max(box[1][0],point[0]),Math.max(box[1][1],point[1])]]:[point.slice(),point.slice()];
+    },null);
+    if(bounds)draftMap.setBounds(bounds,{checkZoomRange:true,zoomMargin:50});
+  }
+}
+function sourceUrl(parking){
+  const ref=String(parking.source_ref||'').trim();
+  if(/^https:\/\//i.test(ref))return ref;
+  const osm=ref.match(/^(node|way|relation)\/(\d+)$/);return osm?`https://www.openstreetmap.org/${osm[1]}/${osm[2]}`:'';
+}
+function renderDraftMapCard(parking){
+  const nearby=nearbyParkingRecords(parking,100),critical=nearby.filter(p=>p.distance_m<=50),moving=draftMapMoveState?.id===String(parking.id);
+  const warnings=[];
+  if(!String(parking.address||'').trim())warnings.push('Не указан адрес');
+  if(!String(parking.source_ref||'').trim())warnings.push('Нет ссылки или идентификатора источника');
+  if(!parking.verified_at)warnings.push('Нет даты проверки');
+  if(critical.length)warnings.push(`В радиусе 50 м найдено объектов: ${critical.length}`);
+  const source=sourceUrl(parking);
+  $('draftMapCard').innerHTML=`<button class="close-card" onclick="closeDraftMapCard()">✕</button><h3>${escapeHtml(parking.name||'Парковка')}</h3>
+    <span class="badge ${statusClass(parking.status)}">${escapeHtml(labels.status[parking.status]||parking.status)}</span>
+    <div class="draft-map-meta"><span><b>Адрес:</b> ${escapeHtml(parking.address||'не указан')}</span><span><b>Координаты:</b> ${Number(parking.lat).toFixed(6)}, ${Number(parking.lng).toFixed(6)}</span><span><b>Источник:</b> ${escapeHtml(parking.source||'—')} · ${escapeHtml(parking.source_ref||'ссылка не указана')}</span><span><b>Категория:</b> ${escapeHtml(labels.category[parking.category]||parking.category||'—')} · ${escapeHtml(labels.kind[parking.kind]||parking.kind||'тип не указан')}</span><span><b>Стоимость:</b> ${escapeHtml(priceText(parking))}</span><span><b>Условия:</b> ${parking.has_barrier?'шлагбаум · ':''}${parking.has_free_period?`${parking.free_period_minutes||'?'} мин бесплатно · `:''}${parking.has_ev?'EV':'без EV'}</span><span><b>Фотографии:</b> ${Array.isArray(parking.photos)&&parking.photos.length?parking.photos.length:'нет'}</span><span><b>Создано:</b> ${parking.created_at?new Date(parking.created_at).toLocaleString('ru-RU'):'—'}${parking.submitted_by?` · автор ${escapeHtml(parking.submitted_by)}`:''}</span><span><b>Изменено:</b> ${parking.updated_at?new Date(parking.updated_at).toLocaleString('ru-RU'):'—'}</span>${parking.moderator_note?`<span><b>Причина/комментарий:</b> ${escapeHtml(parking.moderator_note)}</span>`:''}</div>
+    ${warnings.map(x=>`<div class="draft-map-warning">⚠ ${escapeHtml(x)}</div>`).join('')}
+    ${nearby.length?`<div class="draft-map-meta"><b>Объекты рядом:</b>${nearby.slice(0,5).map(x=>`<button class="btn btn-secondary" onclick="openDraftMapCard('${x.id}')">${escapeHtml(x.name)} · ${Math.round(x.distance_m)} м</button>`).join('')}</div>`:''}
+    <div class="draft-map-actions"><button class="btn btn-secondary" onclick="editParking('${parking.id}')">Открыть и изменить</button>${parking.status==='DRAFT'?`<button class="btn btn-primary" onclick="confirmParking('${parking.id}')">Подтвердить</button>`:''}<button class="btn btn-secondary" onclick="highlightDraftMapDuplicates('${parking.id}')">Найти дубли</button>
+    ${moving?`<button class="btn btn-primary" onclick="saveDraftMapMove()">Сохранить точку</button><button class="btn btn-secondary" onclick="cancelDraftMapMove()">Отменить перемещение</button>`:`<button class="btn btn-secondary" onclick="startDraftMapMove('${parking.id}')">Переместить точку</button>`}${source?`<button class="btn btn-secondary" onclick="openParkingSource('${parking.id}')">Открыть источник</button>`:''}</div>`;
+  $('draftMapCard').classList.remove('hidden');
+}
+window.openDraftMapCard=id=>{
+  const parking=records.find(p=>String(p.id)===String(id));if(!parking)return;
+  if(draftMapMoveState&&draftMapMoveState.id!==String(id))cancelDraftMapMove();
+  draftMapSelectedId=String(id);draftMapCompareIds=new Set();renderDraftMap();
+  draftMap.panTo([Number(parking.lat),Number(parking.lng)],{duration:250});renderDraftMapCard(parking);
+};
+window.closeDraftMapCard=()=>{if(draftMapMoveState)cancelDraftMapMove();draftMapSelectedId=null;draftMapCompareIds=new Set();$('draftMapCard').classList.add('hidden');renderDraftMap()};
+window.openParkingSource=id=>{const parking=records.find(p=>String(p.id)===String(id)),url=parking?sourceUrl(parking):'';if(url)window.open(url,'_blank','noopener')};
+window.highlightDraftMapDuplicates=id=>{
+  const parking=records.find(p=>String(p.id)===String(id));if(!parking)return;
+  const nearby=nearbyParkingRecords(parking,100);draftMapCompareIds=new Set(nearby.map(x=>String(x.id)));renderDraftMap();
+  const points=[parking,...nearby].map(x=>[Number(x.lat),Number(x.lng)]);
+  if(points.length>1){const bounds=points.reduce((box,point)=>box?[[Math.min(box[0][0],point[0]),Math.min(box[0][1],point[1])],[Math.max(box[1][0],point[0]),Math.max(box[1][1],point[1])]]:[point.slice(),point.slice()],null);draftMap.setBounds(bounds,{checkZoomRange:true,zoomMargin:90})}
+  toast(nearby.length?`Найдено объектов рядом: ${nearby.length}`:'Объекты в радиусе 100 м не найдены');
+};
+window.startDraftMapMove=id=>{
+  const parking=records.find(p=>String(p.id)===String(id)),marker=draftMapMarkers.get(String(id));if(!parking||!marker)return;
+  draftMapMoveState={id:String(id),original:[Number(parking.lat),Number(parking.lng)],pending:[Number(parking.lat),Number(parking.lng)]};
+  marker.options.set('draggable',true);renderDraftMapCard(parking);toast('Перетащите маркер и нажмите «Сохранить точку»');
+};
+window.cancelDraftMapMove=()=>{
+  if(!draftMapMoveState)return;const marker=draftMapMarkers.get(draftMapMoveState.id),parking=records.find(p=>String(p.id)===draftMapMoveState.id);
+  if(marker){marker.geometry.setCoordinates(draftMapMoveState.original);marker.options.set('draggable',false)}draftMapMoveState=null;if(parking)renderDraftMapCard(parking);
+};
+function parkingAdminPayload(p,coords){
+  return {id:p.id,name:p.name,address:p.address,district:p.district,city:p.city,lat:coords[0],lng:coords[1],category:p.category,kind:p.kind,price_type:p.price_type,price_hour:p.price_hour,price_day:p.price_day,price_note:p.price_note,capacity:p.capacity,capacity_est:p.capacity_est,hours:p.hours,is_247:p.is_247,height_limit:p.height_limit,has_cctv:p.has_cctv,has_disabled:p.has_disabled,payment_methods:p.payment_methods||[],has_ev:p.has_ev,ev_operator:p.ev_operator,ev_ports:p.ev_ports,ev_connectors:p.ev_connectors||[],photos:p.photos||[],source:p.source,source_ref:p.source_ref,verified_at:p.verified_at,status:p.status,moderator_note:p.moderator_note};
+}
+window.saveDraftMapMove=async()=>{
+  if(!draftMapMoveState)return;const state={...draftMapMoveState},parking=records.find(p=>String(p.id)===state.id);if(!parking)return;
+  const {error}=await sb.rpc('admin_save_parking',{p_data:parkingAdminPayload(parking,state.pending)});
+  if(error){toast(error.message,'error');return}draftMapMoveState=null;toast('Новые координаты сохранены');await loadParkings();openDraftMapCard(state.id);
+};
 
 async function loadSubmissions(){
   $('submissionRows').innerHTML='<tr><td colspan="6">Загрузка заявок…</td></tr>';
@@ -1189,6 +1381,10 @@ window.confirmParking=async id=>{
   const {error}=await sb.rpc('admin_confirm_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
   toast('Парковка подтверждена и опубликована');await loadParkings();
+  if(currentAdminSection==='draft-map'){
+    const updated=records.find(x=>String(x.id)===String(id));
+    if(updated&&draftMapFilteredRecords().some(x=>String(x.id)===String(id)))openDraftMapCard(id);else closeDraftMapCard();
+  }
 };
 window.deleteParking=async id=>{
   const p=records.find(x=>x.id===id);
@@ -1269,6 +1465,10 @@ $('parkingForm').addEventListener('submit',async e=>{
     if(osmError){formMessage($('formMsg'),'Парковка сохранена, но кандидат OSM не закрыт: '+osmError.message);return}
   }
   closeForm();toast('Изменения сохранены');await loadParkings();
+  if(currentAdminSection==='draft-map'&&draftMapSelectedId){
+    const selected=records.find(x=>String(x.id)===String(draftMapSelectedId));
+    if(selected&&draftMapFilteredRecords().some(x=>String(x.id)===String(draftMapSelectedId)))renderDraftMapCard(selected);else closeDraftMapCard();
+  }
   if(submissionId)await loadSubmissions();
   if(osmCandidateId)await loadOsmCandidates();
 });
