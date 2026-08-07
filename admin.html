@@ -869,7 +869,16 @@ window.saveDraftMapMove=async()=>{
   if(parkingDistanceMeters({lat:state.original[0],lng:state.original[1]},{lat:state.pending[0],lng:state.pending[1]})<.5){toast('Точка не перемещена','error');return}
   draftMapMoveSaving=true;
   const choice=await draftMapMoveAddressChoice(parking,state.pending);if(!choice.proceed){draftMapMoveSaving=false;return}
-  const {error}=await sb.rpc('admin_save_parking',{p_data:parkingAdminPayload(parking,state.pending,choice.fields)});
+  const addressFields=choice.fields||{},updateAddress=Boolean(addressFields.address||addressFields.district||addressFields.city);
+  const {error}=await sb.rpc('admin_move_parking',{
+    p_id:parking.id,
+    p_lat:state.pending[0],
+    p_lng:state.pending[1],
+    p_update_address:updateAddress,
+    p_address:updateAddress?(addressFields.address||null):null,
+    p_district:updateAddress?(addressFields.district||null):null,
+    p_city:updateAddress?(addressFields.city||null):null
+  });
   if(error){draftMapMoveSaving=false;toast(error.message,'error');return}draftMapMoveState=null;draftMapMoveSaving=false;toast('Новые координаты и выбранные адресные данные сохранены');await loadParkings();openDraftMapCard(state.id);
 };
 
