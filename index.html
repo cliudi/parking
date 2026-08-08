@@ -2046,9 +2046,14 @@ function toggleTraffic(){
 
 /* ═══════════ ДОБАВИТЬ ПАРКОВКУ ═══════════ */
 function openAdd(){
+  if(!selectedDestination||!selectedDestination.isMapPoint){
+    switchTab('map');
+    toast('Сначала выберите точку парковки на карте');
+    return;
+  }
   const center=selectedDestination&&selectedDestination.isMapPoint
     ?[selectedDestination.lat,selectedDestination.lng]
-    :(ymap?ymap.getCenter():(mePos?[mePos.lat,mePos.lng]:[41.3111,69.2650]));
+    :[selectedDestination.lat,selectedDestination.lng];
   const lat=Number(center[0]).toFixed(6),lng=Number(center[1]).toFixed(6);
   const knownAddress=selectedDestination&&selectedDestination.isMapPoint?cleanText(selectedDestination.address):'';
   const html='<div class="grabber"><i></i></div>'
