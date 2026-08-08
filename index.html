@@ -294,6 +294,7 @@
   .fav-more{font-size:18px;color:var(--grey);padding:4px}
   .submission-card .fav-txt{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
   .submission-card .fav-txt b{width:100%}
+  .submission-thumb{width:72px;height:72px;object-fit:cover;border-radius:14px;flex:0 0 72px;background:var(--light);border:1px solid var(--line)}
   .submission-address{display:block!important;width:100%;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
   .submission-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font:800 11px 'Manrope';line-height:1.2}
   .submission-status.pending,.submission-status.needs-info{color:#92400E;background:#FEF3C7}
@@ -2515,9 +2516,29 @@ async function signOutUser(){
 async function loadMySubmissions(){
   if(!authSession){mySubmissions=[];return}
   try{
-    mySubmissions=await userRest('/rest/v1/parking_submissions?select=id,name,address,status,admin_note,published_parking_id,created_at&order=created_at.desc')||[];
+    mySubmissions=await userRest('/rest/v1/parking_submissions?select=id,name,address,status,admin_note,published_parking_id,created_at,photos&order=created_at.desc')||[];
+    const token=await accessToken();
+    await Promise.all(mySubmissions.map(async submission=>{
+      const reference=Array.isArray(submission.photos)?submission.photos[0]:null;
+      submission.photo_preview=await resolveSubmissionPhoto(reference,token);
+    }));
   }catch(e){console.warn(e);mySubmissions=[]}
   updateNotificationBadge();
+}
+async function resolveSubmissionPhoto(reference,token){
+  const value=cleanText(reference);if(!value)return'';
+  const prefix='storage://parking-photo-drafts/';
+  if(!value.startsWith(prefix))return safePhotoUrl(value)||'';
+  if(!token)return'';
+  const path=value.slice(prefix.length).split('/').map(encodeURIComponent).join('/');
+  try{
+    const response=await fetch(SUPABASE_URL+'/storage/v1/object/sign/parking-photo-drafts/'+path,{
+      method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({expiresIn:3600})
+    });
+    if(!response.ok)return'';
+    const data=await response.json();const signed=cleanText(data.signedURL||data.signedUrl);
+    if(!signed)return'';return signed.startsWith('http')?signed:SUPABASE_URL+'/storage/v1'+signed;
+  }catch(error){console.warn('Submission photo preview failed',error);return''}
 }
 async function loadMyReports(){
   if(!authSession){myReports=[];return}
@@ -2534,7 +2555,7 @@ async function openMySubmissions(){
   await loadMySubmissions();renderProfile();
   const items=mySubmissions.length?mySubmissions.map(s=>
     '<div class="fav-item submission-card" style="align-items:flex-start">'
-      +'<div class="fav-ic" style="background:'+(s.status==='APPROVED'?'var(--green)':s.status==='REJECTED'?'var(--red)':'var(--amber)')+'">P</div>'
+      +(s.photo_preview?'<img class="submission-thumb" src="'+escapeHtml(s.photo_preview)+'" alt="Фото заявки" loading="lazy" referrerpolicy="no-referrer">':'<div class="fav-ic" style="background:'+(s.status==='APPROVED'?'var(--green)':s.status==='REJECTED'?'var(--red)':'var(--amber)')+'">P</div>')
       +'<div class="fav-txt"><b>'+cleanText(s.name)+'</b><span class="submission-address">'+cleanText(s.address)+'</span>'
       +'<span class="submission-status '+(s.status==='APPROVED'?'approved':s.status==='REJECTED'?'rejected':s.status==='NEEDS_INFO'?'needs-info':'pending')+'">'+(submissionStatusLabels[s.status]||s.status)+'</span>'
       +(s.admin_note?'<span class="submission-note">Комментарий: '+cleanText(s.admin_note)+'</span>':'')
