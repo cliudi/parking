@@ -118,6 +118,11 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   .actions{flex-wrap:wrap}.actions .btn{flex:1 1 120px;min-height:38px}
   .toast{left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));max-width:none}
 }
+.publish-validation{margin:0 20px 16px;padding:14px 16px;border:1px solid #fecaca;border-radius:14px;background:#fff7f7;color:#991b1b}
+.publish-validation strong{display:block;margin-bottom:7px}
+.publish-validation ul{margin:0;padding-left:20px;display:grid;gap:5px}
+.verification-card{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}
+.verification-card .check-card{background:var(--surface)}
 @media(max-width:520px){
   .main{padding:10px;padding-top:max(10px,env(safe-area-inset-top))}
   .topbar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;margin-bottom:14px}
@@ -405,16 +410,36 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
               <div class="field"><label>Бесплатный период, минут *</label><input id="free_period_minutes" class="control" type="number" min="1" step="1" placeholder="60"></div>
               <div class="field"><label>Цена после периода, сум</label><input id="price_after_free_period" class="control" type="number" min="0" step="1"></div>
               <div class="field"><label>Как рассчитывается цена</label><select id="price_after_free_period_unit" class="control"><option value="unknown">Схема неизвестна</option><option value="hour">За полный час</option><option value="started_hour">За начатый час</option><option value="entry">Фиксированно после периода</option><option value="day">За сутки</option><option value="custom">Сложный тариф</option></select></div>
-              <div class="field"><label>Дата проверки тарифа</label><input id="tariff_verified_at" class="control" type="date"></div>
-              <div class="field full"><label>Источник тарифа</label><input id="tariff_source_ref" class="control" placeholder="Официальная ссылка, документ или фотография тарифа"></div>
             </div>
             <div class="check-grid" style="margin-top:14px">
               <label class="check-card"><input id="requires_purchase" type="checkbox"> Бесплатный период действует при покупке</label>
               <label class="check-card"><input id="requires_receipt" type="checkbox"> Требуется чек</label>
             </div>
           </div>
+          <div class="verification-card">
+            <div class="grid">
+              <div class="field"><label>Дата проверки тарифа</label><input id="tariff_verified_at" class="control" type="date"></div>
+              <div class="field"><label>Источник тарифа</label><input id="tariff_source_ref" class="control" placeholder="Официальная ссылка, документ или фотография тарифа"></div>
+            </div>
+            <div class="check-grid" style="margin-top:14px">
+              <label class="check-card"><input id="tariff_admin_verified" type="checkbox"> Тариф проверен администратором</label>
+              <div id="tariffVerificationMethodField" class="field hidden">
+                <label>Как проверен тариф *</label>
+                <select id="tariff_verification_method" class="control">
+                  <option value="">Выберите способ</option>
+                  <option value="on_site">Проверено на месте</option>
+                  <option value="photo">Фотография тарифа</option>
+                  <option value="entrance_information">Информация при въезде</option>
+                  <option value="object_administration">Администрация объекта</option>
+                  <option value="official_source">Официальный источник</option>
+                  <option value="other">Другой подтверждённый способ</option>
+                </select>
+              </div>
+            </div>
+            <small>Административное подтверждение используйте только после фактической проверки. Пользовательские значения сами по себе подтверждением не являются.</small>
+          </div>
           <div class="field" style="margin-top:14px"><label>Дополнительное примечание к тарифу</label><textarea id="tariff_note" class="control" placeholder="Только подтверждённые условия, без предположений"></textarea></div>
-          <small>Точную цену после бесплатного периода можно публиковать только с источником и датой проверки.</small>
+          <small>Точный тариф можно публиковать с источником и датой либо после фактической проверки администратором.</small>
         </section>
 
         <section id="streetSection" class="form-section hidden">
@@ -469,6 +494,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           </div>
         </section>
       </div>
+      <div id="publishValidationPanel" class="publish-validation hidden" role="alert" aria-live="assertive"></div>
       <div class="dialog-foot">
         <button id="cancelBtn" class="btn btn-secondary" type="button">Отмена</button>
         <button class="btn btn-primary" type="submit">Сохранить изменения</button>
@@ -1105,9 +1131,11 @@ $('category').onchange=()=>$('streetSection').classList.toggle('hidden',val('cat
 function updateAccessTariffFields(){
   $('barrierFields').classList.toggle('hidden',!$('has_barrier').checked);
   $('freePeriodFields').classList.toggle('hidden',!$('has_free_period').checked);
+  $('tariffVerificationMethodField').classList.toggle('hidden',!$('tariff_admin_verified').checked);
 }
 $('has_barrier').addEventListener('change',updateAccessTariffFields);
 $('has_free_period').addEventListener('change',updateAccessTariffFields);
+$('tariff_admin_verified').addEventListener('change',updateAccessTariffFields);
 $('addStreetPoint').onclick=()=>{
   const lat=val('lat'),lng=val('lng');if(!lat||!lng){toast('Сначала выберите точку на карте','error');return}
   $('street_path').value+=($('street_path').value.trim()?'\n':'')+lat+', '+lng;
@@ -1407,19 +1435,19 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   const locationRequestId=++newParkingLocationRequestId;
   editingSubmissionId=submissionId;
   editingOsmCandidateId=osmCandidateId;
-  $('parkingForm').reset();$('formMsg').innerHTML='';$('id').value=p?.id||'';
+  $('parkingForm').reset();$('formMsg').innerHTML='';$('publishValidationPanel').classList.add('hidden');$('publishValidationPanel').innerHTML='';$('id').value=p?.id||'';
   $('formTitle').textContent=p?'Редактирование парковки':'Новая парковка';
   const defaults={district:'Юнусабадский',city:'Ташкент',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
   const data={...defaults,...(p||{})};
   ['name','address','district','city','lat','lng','category','kind','price_type','price_hour','price_day','capacity','price_note','hours','height_limit','status','source','ev_operator','ev_ports','verified_at','source_ref','moderator_note'].forEach(k=>$(k).value=data[k]??'');
-  ['free_period_minutes','price_after_free_period','price_after_free_period_unit','entry_rules','exit_rules','tariff_note','tariff_verified_at','tariff_source_ref'].forEach(k=>$(k).value=data[k]??(k==='price_after_free_period_unit'?'unknown':''));
+  ['free_period_minutes','price_after_free_period','price_after_free_period_unit','entry_rules','exit_rules','tariff_note','tariff_verified_at','tariff_source_ref','tariff_verification_method'].forEach(k=>$(k).value=data[k]??(k==='price_after_free_period_unit'?'unknown':''));
   $('ev_connectors').value=(data.ev_connectors||[]).join(', ');
   $('payment_methods').value=(data.payment_methods||[]).join(', ');
   $('photos').value=(data.photos||[]).join('\n');
   $('street_path').value=(data.street_path||[]).map(point=>point.join(', ')).join('\n');
   $('legal_note').value=data.legal_note||'Перед парковкой проверьте дорожные знаки и разметку.';
   $('streetSection').classList.toggle('hidden',data.category!=='STREET_ALLOWED');
-  ['is_247','capacity_est','has_ev','has_cctv','has_disabled','has_barrier','barrier_at_entry','barrier_at_exit','requires_ticket','has_free_period','requires_purchase','requires_receipt'].forEach(k=>$(k).checked=Boolean(data[k]));
+  ['is_247','capacity_est','has_ev','has_cctv','has_disabled','has_barrier','barrier_at_entry','barrier_at_exit','requires_ticket','has_free_period','requires_purchase','requires_receipt','tariff_admin_verified'].forEach(k=>$(k).checked=Boolean(data[k]));
   updateAccessTariffFields();
   geoDirty.address=false;geoDirty.district=false;geoDirty.city=false;setGeoStatus('');
   $('modal').classList.remove('hidden');
@@ -1438,21 +1466,39 @@ window.editParking=async id=>{
 };
 function publicationValidationMessage(parking,access){
   if(access.has_free_period&&(!access.free_period_minutes||Number(access.free_period_minutes)<1))return 'Укажите продолжительность бесплатного периода.';
-  if(access.price_after_free_period!=null&&(!access.tariff_verified_at||!String(access.tariff_source_ref||'').trim()))return 'Для точной цены после бесплатного периода нужны источник и дата проверки тарифа.';
-  const hasExactBaseTariff=parking.price_hour!=null||parking.price_day!=null;
-  if(hasExactBaseTariff&&(!parking.verified_at||!String(parking.source_ref||'').trim()))return 'Для точного тарифа нужны источник и дата проверки парковки.';
+  if(barrierPublicationWarning(access))return 'Уточните расположение шлагбаума или правила въезда и выезда.';
+  if(access.tariff_admin_verified&&!String(access.tariff_verification_method||'').trim())return 'Укажите, как администратор проверил тариф.';
+  const hasExactTariff=parking.price_hour!=null||parking.price_day!=null||access.price_after_free_period!=null;
+  const sourceConfirmed=Boolean(access.tariff_verified_at&&String(access.tariff_source_ref||'').trim());
+  const adminConfirmed=Boolean(access.tariff_admin_verified&&String(access.tariff_verification_method||'').trim());
+  if(hasExactTariff&&!sourceConfirmed&&!adminConfirmed)return 'Для точного тарифа нужны источник и дата либо подтверждение администратора.';
   return '';
 }
 function barrierPublicationWarning(access){
   return access.has_barrier&&!access.barrier_at_entry&&!access.barrier_at_exit&&!String(access.entry_rules||'').trim()&&!String(access.exit_rules||'').trim();
 }
+function showPublishValidation(errors){
+  const list=(errors||[]).filter(Boolean),panel=$('publishValidationPanel');
+  if(!list.length){panel.classList.add('hidden');panel.innerHTML='';return}
+  panel.innerHTML=`<strong>Парковку пока нельзя опубликовать</strong><ul>${list.map(error=>`<li>${escapeHtml(error)}</li>`).join('')}</ul>`;
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function validateParkingForPublication(id){
+  const {data,error}=await sb.rpc('admin_validate_parking',{p_id:id});
+  if(error)throw error;
+  return {ok:Boolean(data?.ok),errors:Array.isArray(data?.errors)?data.errors:[]};
+}
 window.confirmParking=async id=>{
   const p=records.find(x=>x.id===id);if(!p)return;
-  const {data:access,error:accessError}=await sb.rpc('admin_get_parking_access',{p_id:id});
-  if(accessError){toast('Не удалось проверить условия доступа: '+accessError.message,'error');return}
-  const validation=publicationValidationMessage(p,access||{});
-  if(validation){toast(validation,'error');return}
-  if(barrierPublicationWarning(access||{})&&!confirm('Шлагбаум отмечен, но место и правила въезда/выезда не указаны. Всё равно продолжить?'))return;
+  let validation;
+  try{validation=await validateParkingForPublication(id)}catch(error){toast('Не удалось проверить парковку: '+error.message,'error');return}
+  if(!validation.ok){
+    await editParking(id);
+    showPublishValidation(validation.errors);
+    toast('Исправьте обязательные данные перед публикацией','error');
+    return;
+  }
   if(!confirm(`Подтвердить парковку «${p.name||''}» и показать её пользователям?`))return;
   const {error}=await sb.rpc('admin_confirm_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
@@ -1483,13 +1529,12 @@ $('parkingForm').addEventListener('submit',async e=>{
     price_after_free_period:nullableNumber('price_after_free_period'),price_after_free_period_unit:val('price_after_free_period_unit')||'unknown',
     requires_purchase:$('requires_purchase').checked,requires_receipt:$('requires_receipt').checked,
     entry_rules:val('entry_rules'),exit_rules:val('exit_rules'),tariff_note:val('tariff_note'),
-    tariff_verified_at:val('tariff_verified_at')||null,tariff_source_ref:val('tariff_source_ref')
+    tariff_verified_at:val('tariff_verified_at')||null,tariff_source_ref:val('tariff_source_ref'),
+    tariff_admin_verified:$('tariff_admin_verified').checked,
+    tariff_verification_method:val('tariff_verification_method')||null
   };
   if(accessData.has_free_period&&(!accessData.free_period_minutes||accessData.free_period_minutes<1)){
     formMessage($('formMsg'),'Укажите продолжительность бесплатного периода в минутах.');return
-  }
-  if(val('status')==='APPROVED'&&accessData.price_after_free_period!=null&&(!accessData.tariff_verified_at||!accessData.tariff_source_ref)){
-    formMessage($('formMsg'),'Точную цену после бесплатного периода нельзя опубликовать без источника и даты проверки тарифа.');return
   }
   const data={
     id:val('id')||null,name:val('name'),address:val('address'),district:normalizeDistrict(val('district')),city:normalizeCity(val('city')),
@@ -1506,10 +1551,10 @@ $('parkingForm').addEventListener('submit',async e=>{
   if(data.status==='APPROVED'){
     const validation=publicationValidationMessage(data,accessData);
     if(validation){formMessage($('formMsg'),validation);return}
-    if(barrierPublicationWarning(accessData)&&!confirm('Шлагбаум отмечен, но место и правила въезда/выезда не указаны. Всё равно опубликовать?'))return;
   }
   const requestedStatus=data.status;
-  const stagedApproval=!data.id&&requestedStatus==='APPROVED';
+  const originalRecord=data.id?records.find(record=>String(record.id)===String(data.id)):null;
+  const stagedApproval=requestedStatus==='APPROVED'&&originalRecord?.status!=='APPROVED';
   if(stagedApproval)data.status='DRAFT';
   const submissionId=editingSubmissionId;
   const osmCandidateId=editingOsmCandidateId;
@@ -1524,6 +1569,9 @@ $('parkingForm').addEventListener('submit',async e=>{
     });
     if(pathError){formMessage($('formMsg'),'Парковка сохранена, но линия участка не сохранена: '+pathError.message);return}
     if(stagedApproval){
+      let publishValidation;
+      try{publishValidation=await validateParkingForPublication(savedParkingId)}catch(error){formMessage($('formMsg'),'Парковка сохранена как черновик, но проверка публикации не выполнена: '+error.message);return}
+      if(!publishValidation.ok){showPublishValidation(publishValidation.errors);formMessage($('formMsg'),'Парковка сохранена как черновик. Исправьте перечисленные данные перед публикацией.');return}
       const {error:confirmError}=await sb.rpc('admin_confirm_parking',{p_id:savedParkingId});
       if(confirmError){formMessage($('formMsg'),'Парковка сохранена как черновик, но не опубликована: '+confirmError.message);return}
     }
