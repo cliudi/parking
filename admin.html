@@ -80,6 +80,12 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 .dialog-head h2{margin:0;font-size:22px} .dialog-head p{margin:5px 0 0;color:var(--muted);font-size:13px}
 .form-body{padding:22px 24px;display:grid;gap:22px}
 .form-section{border:1px solid var(--line);border-radius:15px;padding:17px}
+.advanced-fields{margin-top:14px;border:1px dashed var(--line);border-radius:12px;background:#fbfcfe}
+.advanced-fields summary{cursor:pointer;padding:12px 14px;font-weight:750;color:var(--muted);list-style:none}
+.advanced-fields summary::-webkit-details-marker{display:none}
+.advanced-fields summary::after{content:'＋';float:right;color:var(--primary)}
+.advanced-fields[open] summary::after{content:'−'}
+.advanced-fields-body{padding:2px 14px 14px}
 .section-title{font-size:15px;font-weight:850;margin-bottom:14px} .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .field{display:flex;flex-direction:column;gap:7px} .field.full{grid-column:1/-1} .field label{font-size:13px;font-weight:750;color:#344054}
 .field small{color:#98a2b3} textarea.control{min-height:88px;resize:vertical}
@@ -390,7 +396,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         <section class="form-section">
           <div class="section-title">Основная информация</div>
           <div class="grid">
-            <div class="field"><label>Название *</label><input id="name" class="control" required placeholder="Например: Парковка у рынка Юнусабад"></div>
+            <div class="field"><label>Название <span style="font-weight:500;color:var(--muted)">(необязательно)</span></label><input id="name" class="control" placeholder="Определится по объекту или адресу"></div>
             <div class="field"><label>Адрес</label><input id="address" class="control" placeholder="Улица, дом или ориентир" autocomplete="street-address"></div>
             <div class="field"><label>Район</label><input id="district" class="control" value="Юнусабадский"></div>
             <div class="field"><label>Город</label><input id="city" class="control" value="Ташкент"></div>
@@ -451,28 +457,30 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
               <label class="check-card"><input id="requires_receipt" type="checkbox"> Требуется чек</label>
             </div>
           </div>
-          <div class="verification-card">
-            <div class="grid">
-              <div class="field"><label>Дата проверки тарифа</label><input id="tariff_verified_at" class="control" type="date"></div>
-              <div class="field"><label>Источник тарифа</label><input id="tariff_source_ref" class="control" placeholder="Официальная ссылка, документ или фотография тарифа"></div>
-            </div>
-            <div class="check-grid" style="margin-top:14px">
-              <label class="check-card"><input id="tariff_admin_verified" type="checkbox"> Тариф проверен администратором</label>
-              <div id="tariffVerificationMethodField" class="field hidden">
-                <label>Как проверен тариф *</label>
-                <select id="tariff_verification_method" class="control">
-                  <option value="">Выберите способ</option>
-                  <option value="on_site">Проверено на месте</option>
-                  <option value="photo">Фотография тарифа</option>
-                  <option value="entrance_information">Информация при въезде</option>
-                  <option value="object_administration">Администрация объекта</option>
-                  <option value="official_source">Официальный источник</option>
-                  <option value="other">Другой подтверждённый способ</option>
-                </select>
+          <details class="advanced-fields">
+            <summary>Дополнительные данные проверки тарифа</summary>
+            <div class="advanced-fields-body">
+              <div class="grid">
+                <div class="field"><label>Дата проверки тарифа</label><input id="tariff_verified_at" class="control" type="date"></div>
+                <div class="field"><label>Источник тарифа</label><input id="tariff_source_ref" class="control" placeholder="Ссылка, документ или фотография тарифа"></div>
+              </div>
+              <div class="check-grid" style="margin-top:14px">
+                <label class="check-card"><input id="tariff_admin_verified" type="checkbox"> Тариф проверен администратором</label>
+                <div id="tariffVerificationMethodField" class="field hidden">
+                  <label>Как проверен тариф</label>
+                  <select id="tariff_verification_method" class="control">
+                    <option value="">Выберите способ</option>
+                    <option value="on_site">Проверено на месте</option>
+                    <option value="photo">Фотография тарифа</option>
+                    <option value="entrance_information">Информация при въезде</option>
+                    <option value="object_administration">Администрация объекта</option>
+                    <option value="official_source">Официальный источник</option>
+                    <option value="other">Другой подтверждённый способ</option>
+                  </select>
+                </div>
               </div>
             </div>
-            <small>Административное подтверждение используйте только после фактической проверки. Пользовательские значения сами по себе подтверждением не являются.</small>
-          </div>
+          </details>
           <div class="field" style="margin-top:14px"><label>Дополнительное примечание к тарифу</label><textarea id="tariff_note" class="control" placeholder="Только подтверждённые условия, без предположений"></textarea></div>
           <small>Точный тариф можно публиковать с источником и датой либо после фактической проверки администратором.</small>
         </section>
@@ -513,12 +521,9 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         </section>
 
         <section class="form-section">
-          <div class="section-title">Публикация и источник</div>
+          <div class="section-title">Публикация и фотографии</div>
           <div class="grid">
             <div class="field"><label>Статус</label><select id="status" class="control"><option value="APPROVED">Опубликовано</option><option value="PENDING">На модерации</option><option value="NEEDS_INFO">Нужны сведения</option><option value="REJECTED">Отклонено</option><option value="DRAFT">Черновик</option></select></div>
-            <div class="field"><label>Источник данных</label><select id="source" class="control"><option value="ADMIN">Администратор</option><option value="OSM">OpenStreetMap</option><option value="USER">Пользователь</option><option value="PARTNER">Партнёр</option><option value="OPERATOR">Оператор</option></select></div>
-            <div class="field"><label>Дата проверки</label><input id="verified_at" class="control" type="date"></div>
-            <div class="field"><label>Ссылка или ID источника</label><input id="source_ref" class="control"></div>
             <div class="field full"><label>Фотографии</label>
               <input id="photoFiles" class="control" type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif,image/heic,image/heif" multiple>
               <button id="uploadPhotosBtn" class="btn btn-secondary" type="button" style="margin-top:8px">Загрузить готовые фото</button>
@@ -527,6 +532,14 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
               <small>До 5 изображений. JPEG/JPG, PNG или WebP, исходный файл до 10 МБ. HEIC/HEIF нужно предварительно преобразовать на устройстве.</small>
             </div>
             <div class="field full"><label>Комментарий модератора</label><textarea id="moderator_note" class="control"></textarea></div>
+            <details class="advanced-fields field full">
+              <summary>Дополнительные данные источника</summary>
+              <div class="advanced-fields-body grid">
+                <div class="field"><label>Источник данных</label><select id="source" class="control"><option value="ADMIN">Администратор</option><option value="OSM">OpenStreetMap</option><option value="USER">Пользователь</option><option value="PARTNER">Партнёр</option><option value="OPERATOR">Оператор</option></select></div>
+                <div class="field"><label>Дата проверки</label><input id="verified_at" class="control" type="date"></div>
+                <div class="field full"><label>Ссылка или ID источника</label><input id="source_ref" class="control"></div>
+              </div>
+            </details>
           </div>
         </section>
       </div>
@@ -578,6 +591,7 @@ let newParkingWatchId=null;
 let newParkingLocationTimer=null;
 let fillingGeoFields=false;
 const geoDirty={address:false,district:false,city:false};
+let nameManuallyEdited=false;
 
 const labels={
   status:{APPROVED:'Опубликовано',PENDING:'На модерации',REJECTED:'Отклонено',DRAFT:'Черновик',NEEDS_INFO:'Нужны сведения'},
@@ -1207,6 +1221,7 @@ $('geocodeCoordsBtn').onclick=()=>{
 };
 $('searchAddressMap').onclick=searchAddressOnMap;
 ['address','district','city'].forEach(id=>$(id).addEventListener('input',()=>{if(!fillingGeoFields)geoDirty[id]=true}));
+$('name').addEventListener('input',()=>{nameManuallyEdited=Boolean(val('name'))});
 ['lat','lng'].forEach(id=>$(id).addEventListener('change',syncManualCoordinates));
 $('address').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchAddressOnMap()}});
 $('category').onchange=()=>$('streetSection').classList.toggle('hidden',val('category')!=='STREET_ALLOWED');
@@ -1491,6 +1506,7 @@ function applyGeocoderFields(fields,{force=false}={}){
       if((id==='address'||id==='district')&&geoDirty[id]&&!overwrite)return;
       $(id).value=fields[id];geoDirty[id]=false;
     });
+    if(!nameManuallyEdited&&fields.address)$('name').value=fields.address;
   }finally{fillingGeoFields=false}
   return !protectedFields.length||overwrite;
 }
@@ -1650,6 +1666,7 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   $('formTitle').textContent=p?'Редактирование парковки':'Новая парковка';
   const defaults={district:'Юнусабадский',city:'Ташкент',category:'OFFICIAL',price_type:'unknown',status:'APPROVED',source:'ADMIN'};
   const data={...defaults,...(p||{})};
+  nameManuallyEdited=Boolean(String(data.name||'').trim());
   ['name','address','district','city','lat','lng','category','kind','price_type','price_hour','price_day','capacity','price_note','hours','height_limit','status','source','ev_operator','ev_ports','verified_at','source_ref','moderator_note'].forEach(k=>$(k).value=data[k]??'');
   ['free_period_minutes','price_after_free_period','price_after_free_period_unit','entry_rules','exit_rules','tariff_note','tariff_verified_at','tariff_source_ref','tariff_verification_method'].forEach(k=>$(k).value=data[k]??(k==='price_after_free_period_unit'?'unknown':''));
   $('ev_connectors').value=(data.ev_connectors||[]).join(', ');
