@@ -89,6 +89,11 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 .check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .check-card{display:flex;gap:9px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:11px;background:#fbfcfe}
 .dialog-foot{padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;background:#fbfcfe}
+.review-modal{position:fixed;inset:0;z-index:240;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.62);backdrop-filter:blur(3px)}
+.review-dialog{width:min(480px,100%);background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 28px 80px rgba(15,23,42,.32);overflow:hidden}
+.review-head{display:flex;gap:14px;align-items:flex-start;padding:20px 22px 12px}.review-icon{display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border-radius:14px;background:#fff1f0;color:var(--danger);font-size:20px;font-weight:900}.review-head h2{margin:1px 0 5px;font-size:20px}.review-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+.review-body{padding:8px 22px 20px}.review-body label{display:block;margin-bottom:8px;font-size:13px;font-weight:800;color:#344054}.review-body textarea{width:100%;min-height:112px;resize:vertical}.review-error{min-height:19px;margin-top:7px;color:var(--danger);font-size:12px;font-weight:700}
+.review-foot{display:flex;justify-content:flex-end;gap:10px;padding:15px 22px;background:var(--surface-2);border-top:1px solid var(--line)}
 .login-page{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr;background:#eef3fb}
 .login-visual{background:linear-gradient(145deg,#0f172a 0%,#1d4ed8 100%);color:#fff;padding:56px;display:flex;flex-direction:column;justify-content:space-between}
 .login-visual h1{font-size:48px;line-height:1.04;margin:0;max-width:560px} .login-visual p{max-width:520px;color:#dbeafe;font-size:18px;line-height:1.6}
@@ -118,6 +123,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   .actions{flex-wrap:wrap}.actions .btn{flex:1 1 120px;min-height:38px}
   .toast{left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));max-width:none}
 }
+@media(max-width:600px){.review-modal{place-items:end center;padding:0}.review-dialog{border-radius:22px 22px 0 0}.review-head{padding:18px 18px 10px}.review-body{padding:8px 18px 18px}.review-foot{display:grid;grid-template-columns:1fr 1fr;padding:12px 18px calc(12px + env(safe-area-inset-bottom))}.review-foot .btn{width:100%}}
 .publish-validation{margin:0 20px 16px;padding:14px 16px;border:1px solid #fecaca;border-radius:14px;background:#fff7f7;color:#991b1b}
 .publish-validation strong{display:block;margin-bottom:7px}
 .publish-validation ul{margin:0;padding-left:20px;display:grid;gap:5px}
@@ -352,6 +358,24 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <div id="osmEmpty" class="empty hidden"><strong>Объекты не найдены</strong>Измените поиск или загрузите новые данные OpenStreetMap.</div>
     </section>
   </main>
+</div>
+
+<div id="reviewModal" class="review-modal hidden" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
+  <section class="review-dialog">
+    <div class="review-head">
+      <div id="reviewIcon" class="review-icon">!</div>
+      <div><h2 id="reviewTitle">Отклонить заявку</h2><p id="reviewDescription"></p></div>
+    </div>
+    <div class="review-body">
+      <label id="reviewLabel" for="reviewNote">Причина отклонения</label>
+      <textarea id="reviewNote" class="control" maxlength="1000" placeholder="Объясните пользователю, что необходимо исправить"></textarea>
+      <div id="reviewError" class="review-error" aria-live="polite"></div>
+    </div>
+    <div class="review-foot">
+      <button id="reviewCancel" class="btn btn-secondary" type="button">Отмена</button>
+      <button id="reviewConfirm" class="btn btn-danger" type="button">Отклонить</button>
+    </div>
+  </section>
 </div>
 
 <div id="modal" class="modal hidden">
@@ -930,7 +954,7 @@ function renderSubmissions(){
   const status=val('submissionStatusFilter');
   const list=submissions.filter(x=>!status||x.status===status);
   $('submissionEmpty').classList.toggle('hidden',list.length>0);
-  $('submissionRows').innerHTML=list.map(s=>`<tr>
+  $('submissionRows').innerHTML=list.map(s=>`<tr data-submission-id="${s.id}">
     <td data-label="Парковка"><div class="parking-title">${escapeHtml(s.name)}</div><div class="parking-sub">${escapeHtml(s.address)}</div></td>
     <td data-label="Координаты">${Number(s.lat).toFixed(5)}, ${Number(s.lng).toFixed(5)}</td>
     <td data-label="Категория"><span class="category">${escapeHtml(labels.category[s.category]||s.category)}</span></td>
@@ -968,13 +992,46 @@ window.publishSubmission=async id=>{
   },id);
   $('formTitle').textContent='Проверка заявки пользователя';
 };
-window.reviewSubmission=async(id,status)=>{
-  const note=prompt(status==='NEEDS_INFO'?'Что нужно уточнить?':'Причина отклонения:')||'';
-  const {error}=await sb.rpc('admin_review_submission',{p_id:id,p_status:status,p_admin_note:note,p_published_parking_id:null});
-  if(error){toast(error.message,'error');return}
-  toast(status==='NEEDS_INFO'?'Запрошено уточнение':'Заявка отклонена');
-  await loadSubmissions();
+let reviewDialogState=null;
+window.reviewSubmission=(id,status)=>{
+  const submission=submissions.find(item=>item.id===id);if(!submission)return;
+  const needsInfo=status==='NEEDS_INFO';
+  reviewDialogState={id,status,anchorTop:document.querySelector(`[data-submission-id="${id}"]`)?.getBoundingClientRect().top??null,scrollY:window.scrollY||0};
+  $('reviewTitle').textContent=needsInfo?'Запросить уточнение':'Отклонить заявку';
+  $('reviewDescription').textContent=`${submission.name||'Парковка'} · ${submission.address||'адрес не указан'}`;
+  $('reviewLabel').textContent=needsInfo?'Что необходимо уточнить?':'Причина отклонения';
+  $('reviewNote').placeholder=needsInfo?'Напишите, какие сведения должен добавить пользователь':'Кратко объясните пользователю причину отклонения';
+  $('reviewNote').value='';$('reviewError').textContent='';
+  $('reviewIcon').textContent=needsInfo?'?':'!';
+  $('reviewConfirm').textContent=needsInfo?'Запросить сведения':'Отклонить';
+  $('reviewConfirm').className='btn '+(needsInfo?'btn-primary':'btn-danger');
+  $('reviewModal').classList.remove('hidden');lockBodyScroll();
+  requestAnimationFrame(()=>$('reviewNote').focus());
 };
+function closeReviewDialog(){
+  if($('reviewModal').classList.contains('hidden'))return;
+  $('reviewModal').classList.add('hidden');unlockBodyScroll();reviewDialogState=null;
+}
+async function confirmReviewSubmission(){
+  const state=reviewDialogState;if(!state)return;
+  const note=val('reviewNote').trim();
+  if(!note){$('reviewError').textContent=state.status==='NEEDS_INFO'?'Укажите, какие сведения нужны пользователю.':'Укажите причину отклонения.';$('reviewNote').focus();return}
+  const button=$('reviewConfirm');button.disabled=true;button.textContent='Сохраняю…';
+  const {error}=await sb.rpc('admin_review_submission',{p_id:state.id,p_status:state.status,p_admin_note:note,p_published_parking_id:null});
+  if(error){button.disabled=false;button.textContent=state.status==='NEEDS_INFO'?'Запросить сведения':'Отклонить';$('reviewError').textContent=error.message;return}
+  const restore={...state};$('reviewModal').classList.add('hidden');unlockBodyScroll();reviewDialogState=null;
+  await loadSubmissions();
+  requestAnimationFrame(()=>{
+    const card=document.querySelector(`[data-submission-id="${restore.id}"]`);
+    if(card&&restore.anchorTop!==null)window.scrollBy(0,card.getBoundingClientRect().top-restore.anchorTop);
+    else window.scrollTo(0,restore.scrollY);
+  });
+  toast(restore.status==='NEEDS_INFO'?'Запрошено уточнение':'Заявка отклонена');
+}
+$('reviewCancel').onclick=closeReviewDialog;
+$('reviewConfirm').onclick=confirmReviewSubmission;
+$('reviewModal').addEventListener('click',event=>{if(event.target===$('reviewModal'))closeReviewDialog()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('reviewModal').classList.contains('hidden'))closeReviewDialog()});
 
 const reportReasonLabels={
   noPark:'Парковки нет',forbidden:'Парковка запрещена',price:'Неверная цена',
