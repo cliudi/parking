@@ -2162,7 +2162,10 @@ async function uploadSubmissionPhotos(files){
       headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token,'Content-Type':'image/jpeg','x-upsert':'false'},
       body:blob
     });
-    if(!res.ok)throw new Error('Не удалось загрузить фотографию');
+    if(!res.ok){
+      const detail=await res.json().catch(()=>({}));
+      throw new Error(detail.message||detail.error||('Не удалось загрузить фотографию ('+res.status+')'));
+    }
     references.push('storage://parking-photo-drafts/'+path);
   }
   return references;
@@ -2212,16 +2215,40 @@ async function submitAdd(){
     tariff_source_ref:tariffSource||null,
     moderator_note:[userNote,accessNotes.length?'Условия парковки: '+accessNotes.join(' · '):''].filter(Boolean).join('\n')
   };
+  let submitPhase=photoFiles.length?'photo-upload':'submission';
   try{
     const photoUrls=await uploadSubmissionPhotos(photoFiles);
+    submitPhase='submission';
     const submissionId=await supabaseRpc('submit_parking',{p_data:payload});
-    if(photoUrls.length)await supabaseRpc('attach_submission_photos',{p_submission_id:submissionId,p_photos:photoUrls});
+    submitPhase='photo-attach';
+    if(photoUrls.length){
+      try{await supabaseRpc('attach_submission_photos',{p_submission_id:submissionId,p_photos:photoUrls})}
+      catch(photoError){
+        console.warn('Parking submitted, photo attachment failed',photoError);
+        const count=Number(localStorage.getItem('parkly-submission-count')||0)+1;
+        localStorage.setItem('parkly-submission-count',String(count));
+        if(authSession)await loadMySubmissions();
+        closeSheet();toast('Заявка отправлена, но фотографию прикрепить не удалось');return;
+      }
+    }
     const count=Number(localStorage.getItem('parkly-submission-count')||0)+1;
     localStorage.setItem('parkly-submission-count',String(count));
     if(authSession)await loadMySubmissions();
     closeSheet();toast(t('addOk'));
   }catch(e){
-    console.warn(e);toast(t('sendFailed'));
+    console.warn('Parking submission failed during '+submitPhase,e);
+    const raw=cleanText(e?.message);
+    let message=t('sendFailed');
+    if(submitPhase==='photo-upload'){
+      if(/jwt|token|unauthorized|401|auth/i.test(raw))message='Сессия входа истекла. Войдите снова и повторите.';
+      else if(/row-level security|policy|403|not authorized/i.test(raw))message='Нет доступа к загрузке фото. Войдите в аккаунт снова.';
+      else if(/too large|413|размер/i.test(raw))message='Фотография слишком большая. Выберите файл до 10 МБ.';
+      else message='Не удалось загрузить фотографию. '+(raw||'Повторите попытку.');
+    }else if(submitPhase==='submission'){
+      if(/jwt|token|unauthorized|401|auth/i.test(raw))message='Сессия входа истекла. Войдите снова и повторите.';
+      else message='Не удалось отправить данные парковки. '+(raw?'Причина: '+raw:'Повторите попытку.');
+    }
+    toast(message.slice(0,240));
     if(btn){btn.disabled=false;btn.textContent=t('done')}
   }
 }
