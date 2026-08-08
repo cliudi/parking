@@ -1004,7 +1004,7 @@ function catIcon(p){
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 let ymap=null, markers={}, meMark=null, meCircle=null, traffic=null,selectedPointMark=null;
 let mePos=null, watchId=null, activeTab='map', selectedId=null;
-let selectedStart=null,selectedDestination=null,selectedPointRequest=0;
+let selectedStart=null,selectedDestination=null,selectedPointRequest=0,addAddressRequest=0;
 let quickFilter='all';
 let favorites=loadFav();
 let advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,barrier:false,freePeriod:false,priceMax:100000};
@@ -1176,13 +1176,13 @@ async function setSelectedPoint(coords,label){
   if(!ymap||!coords)return;
   selectedId=null;updateSelection(null);clearSelectedPoint();
   const requestId=++selectedPointRequest;
-  selectedDestination={lat:Number(coords[0]),lng:Number(coords[1]),label:cleanText(label)||t('selectedPoint'),name:cleanText(label)||t('selectedPoint'),description:'',kind:'',loading:!label,isMapPoint:true,id:'map-point'};
+  selectedDestination={lat:Number(coords[0]),lng:Number(coords[1]),label:cleanText(label)||t('selectedPoint'),name:cleanText(label)||t('selectedPoint'),address:cleanText(label),description:'',kind:'',loading:!label,isMapPoint:true,id:'map-point'};
   selectedPointMark=new ymaps.Placemark(coords,{hintContent:selectedDestination.label},{preset:'islands#blueCircleDotIcon',zIndex:850,draggable:true});
   selectedPointMark.events.add('click',showSelectedPointCard);ymap.geoObjects.add(selectedPointMark);showSelectedPointCard();
   selectedPointMark.events.add('dragend',()=>{const next=selectedPointMark.geometry.getCoordinates();setSelectedPoint(next)});
   if(!label){
     try{const details=await geocodeAddressHttp(selectedDestination.lng+','+selectedDestination.lat);if(requestId!==selectedPointRequest||!selectedDestination)return;
-      if(details){selectedDestination.label=cleanText(details.label)||t('selectedPoint');selectedDestination.name=selectedDestination.label;selectedDestination.description=cleanText(details.description||details.fullText);selectedDestination.kind=cleanText(details.kind);selectedPointMark.properties.set('hintContent',selectedDestination.label)}}catch(error){console.warn('Reverse geocoding failed',error)}
+      if(details){selectedDestination.label=cleanText(details.label)||t('selectedPoint');selectedDestination.name=selectedDestination.label;selectedDestination.address=cleanText(details.fullText||details.description||details.label);selectedDestination.description=cleanText(details.description||details.fullText);selectedDestination.kind=cleanText(details.kind);selectedPointMark.properties.set('hintContent',selectedDestination.label)}}catch(error){console.warn('Reverse geocoding failed',error)}
     if(requestId===selectedPointRequest&&selectedDestination){selectedDestination.loading=false;showSelectedPointCard()}
   }
 }
@@ -2046,16 +2046,19 @@ function toggleTraffic(){
 
 /* ═══════════ ДОБАВИТЬ ПАРКОВКУ ═══════════ */
 function openAdd(){
-  const center=ymap?ymap.getCenter():(mePos?[mePos.lat,mePos.lng]:[41.3111,69.2650]);
+  const center=selectedDestination&&selectedDestination.isMapPoint
+    ?[selectedDestination.lat,selectedDestination.lng]
+    :(ymap?ymap.getCenter():(mePos?[mePos.lat,mePos.lng]:[41.3111,69.2650]));
   const lat=Number(center[0]).toFixed(6),lng=Number(center[1]).toFixed(6);
+  const knownAddress=selectedDestination&&selectedDestination.isMapPoint?cleanText(selectedDestination.address):'';
   const html='<div class="grabber"><i></i></div>'
     +'<div class="form-head"><button class="fh-side" onclick="closeSheet()">'+t('cancel')+'</button><h2>'+t('addTitle')+'</h2><button id="addSubmitBtn" class="fh-side right" onclick="submitAdd()">'+t('done')+'</button></div>'
     +'<div class="form-body">'
     +'<div class="field"><label>'+t('fName')+'</label><input id="a_name" placeholder="'+t('phName')+'"></div>'
-    +'<div class="field"><label>'+t('fLoc')+' <span class="req">*</span></label><input id="a_addr" placeholder="'+t('phAddr')+'"></div>'
+    +'<div class="field"><label>'+t('fLoc')+' <span class="req">*</span></label><input id="a_addr" value="'+escapeHtml(knownAddress)+'" placeholder="'+t('phAddr')+'"><small id="a_addr_status">'+(knownAddress?'Адрес определён по выбранной точке.':'Определяю адрес выбранной точки…')+'</small><button id="a_addr_retry" type="button" class="btn-outline" style="display:none;margin-top:8px" onclick="resolveAddAddress(true)">Повторить определение адреса</button></div>'
     +'<div class="field"><label>Координаты точки на карте</label><input value="'+lat+', '+lng+'" readonly>'
       +'<input id="a_lat" type="hidden" value="'+lat+'"><input id="a_lng" type="hidden" value="'+lng+'">'
-      +'<small>Используется центр карты в момент открытия формы.</small></div>'
+      +'<small>'+(selectedDestination&&selectedDestination.isMapPoint?'Используется выбранная вами точка на карте.':'Используется центр карты в момент открытия формы.')+'</small></div>'
     +'<div class="field"><label>'+t('fCat')+' <span class="req">*</span></label><select id="a_cat"><option value="OFFICIAL">'+t('catOfficial')+'</option><option value="STREET_ALLOWED">'+t('catStreet')+'</option><option value="EV">'+t('catEv')+'</option></select></div>'
     +'<div class="field"><label>'+t('fCost')+' <span class="req">*</span></label><select id="a_cost"><option value="free">'+t('costFree')+'</option><option value="paid">'+t('costPaid')+'</option><option value="unknown">'+t('costUnknown')+'</option></select></div>'
     +'<div class="field"><label>'+t('fRate')+'</label><input id="a_rate" placeholder="'+t('phRate')+'"></div>'
@@ -2085,6 +2088,32 @@ function openAdd(){
     +'<div class="field"><label>'+t('fNote')+'</label><textarea id="a_note" placeholder="'+t('phNote')+'"></textarea></div>'
     +'</div>';
   openSheet(html);
+  const addressInput=document.getElementById('a_addr');
+  if(addressInput)addressInput.addEventListener('input',()=>{addressInput.dataset.manuallyEdited='true'});
+  if(!knownAddress)resolveAddAddress(false);
+}
+async function resolveAddAddress(force){
+  const addressInput=document.getElementById('a_addr');
+  const status=document.getElementById('a_addr_status');
+  const retry=document.getElementById('a_addr_retry');
+  const lat=Number(document.getElementById('a_lat')?.value),lng=Number(document.getElementById('a_lng')?.value);
+  if(!addressInput||!Number.isFinite(lat)||!Number.isFinite(lng))return;
+  if(force)addressInput.dataset.manuallyEdited='false';
+  const requestId=++addAddressRequest;
+  if(status)status.textContent='Определяю адрес…';if(retry)retry.style.display='none';
+  try{
+    const details=await geocodeAddressHttp(lng+','+lat);
+    if(requestId!==addAddressRequest||!document.getElementById('a_addr'))return;
+    const address=cleanText(details?.fullText||details?.description||details?.label);
+    if(!address)throw new Error('ADDRESS_NOT_FOUND');
+    if(addressInput.dataset.manuallyEdited!=='true'||force){addressInput.value=address;addressInput.dataset.manuallyEdited='false'}
+    if(status)status.textContent=addressInput.dataset.manuallyEdited==='true'?'Найден адрес: '+address:'Адрес определён по точке на карте.';
+  }catch(error){
+    if(requestId!==addAddressRequest)return;
+    if(status)status.textContent='Не удалось определить адрес автоматически. Введите его вручную или повторите.';
+    if(retry)retry.style.display='block';
+    console.warn('Parking address lookup failed',error);
+  }
 }
 function updateSubmissionAccessFields(){
   const box=document.getElementById('a_access_fields');if(!box)return;
