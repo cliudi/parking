@@ -123,6 +123,17 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 .publish-validation ul{margin:0;padding-left:20px;display:grid;gap:5px}
 .verification-card{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}
 .verification-card .check-card{background:var(--surface)}
+.photo-manager{display:grid;gap:10px;margin-top:10px}
+.photo-empty{padding:18px;border:1px dashed var(--line);border-radius:13px;text-align:center;color:var(--muted);background:var(--surface-2)}
+.photo-item{display:grid;grid-template-columns:112px minmax(0,1fr) auto;gap:12px;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface);align-items:start}
+.photo-preview{width:112px;height:86px;border-radius:10px;object-fit:cover;background:#e9eef6;border:1px solid var(--line)}
+.photo-preview-placeholder{display:grid;place-items:center;color:var(--muted);font-size:12px;text-align:center;padding:8px}
+.photo-info{min-width:0;display:grid;gap:7px}.photo-name{font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.photo-meta{font-size:12px;color:var(--muted)}
+.photo-status{display:inline-flex;width:max-content;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#eef2f7;color:#344054}
+.photo-status.ready{background:#eff8ff;color:#175cd3}.photo-status.uploading{background:#fffaeb;color:#b54708}.photo-status.uploaded{background:#ecfdf3;color:#027a48}.photo-status.error{background:#fef3f2;color:#b42318}
+.photo-fields{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}.photo-fields .control{padding:9px 10px}
+.photo-actions{display:grid;grid-template-columns:repeat(2,38px);gap:6px}.photo-actions .btn{padding:7px;min-width:38px;height:38px}
+@media(max-width:700px){.photo-item{grid-template-columns:82px minmax(0,1fr)}.photo-preview{width:82px;height:72px}.photo-actions{grid-column:1/-1;display:flex}.photo-fields{grid-template-columns:1fr}.photo-actions .btn{flex:1}}
 @media(max-width:520px){
   .main{padding:10px;padding-top:max(10px,env(safe-area-inset-top))}
   .topbar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;margin-bottom:14px}
@@ -485,10 +496,11 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
             <div class="field"><label>Дата проверки</label><input id="verified_at" class="control" type="date"></div>
             <div class="field"><label>Ссылка или ID источника</label><input id="source_ref" class="control"></div>
             <div class="field full"><label>Фотографии</label>
-              <input id="photoFiles" class="control" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-              <button id="uploadPhotosBtn" class="btn btn-secondary" type="button" style="margin-top:8px">Загрузить выбранные фото</button>
-              <textarea id="photos" class="control" style="margin-top:8px" placeholder="Ссылки появятся здесь после загрузки — по одной в строке"></textarea>
-              <small>До 5 изображений, JPEG/PNG/WebP, не более 5 МБ каждое.</small>
+              <input id="photoFiles" class="control" type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif,image/heic,image/heif" multiple>
+              <button id="uploadPhotosBtn" class="btn btn-secondary" type="button" style="margin-top:8px">Загрузить готовые фото</button>
+              <div id="photoManager" class="photo-manager"></div>
+              <textarea id="photos" class="hidden" aria-hidden="true" tabindex="-1"></textarea>
+              <small>До 5 изображений. JPEG/JPG, PNG или WebP, исходный файл до 10 МБ. HEIC/HEIF нужно предварительно преобразовать на устройстве.</small>
             </div>
             <div class="field full"><label>Комментарий модератора</label><textarea id="moderator_note" class="control"></textarea></div>
           </div>
@@ -932,13 +944,26 @@ function renderSubmissions(){
   </tr>`).join('');
 }
 
-window.publishSubmission=id=>{
+async function submissionPhotoPayload(references){
+  const photos=[],photo_metadata=[];
+  for(const reference of references||[]){
+    const prefix='storage://parking-photo-drafts/';
+    if(String(reference).startsWith(prefix)){
+      const path=String(reference).slice(prefix.length);
+      const {data}=await sb.storage.from('parking-photo-drafts').createSignedUrl(path,3600);
+      photo_metadata.push({storage_bucket:'parking-photo-drafts',storage_path:path,public_url:null,preview_url:data?.signedUrl||'',photo_type:'general',caption:'',sort_order:photo_metadata.length});
+    }else photos.push(reference);
+  }
+  return {photos,photo_metadata};
+}
+window.publishSubmission=async id=>{
   const s=submissions.find(x=>x.id===id);if(!s)return;
+  const photoPayload=await submissionPhotoPayload(s.photos||[]);
   openForm({
     name:s.name,address:s.address,district:'Юнусабадский',city:'Tashkent',
     lat:s.lat,lng:s.lng,category:s.category,kind:s.kind,price_type:s.price_type,
     price_note:s.price_note,capacity:s.capacity,hours:s.hours,has_ev:s.has_ev,
-    photos:s.photos||[],status:'APPROVED',source:'USER',source_ref:'submission:'+s.id,
+    ...photoPayload,status:'APPROVED',source:'USER',source_ref:'submission:'+s.id,
     moderator_note:s.user_note||''
   },id);
   $('formTitle').textContent='Проверка заявки пользователя';
@@ -1140,42 +1165,171 @@ $('addStreetPoint').onclick=()=>{
   const lat=val('lat'),lng=val('lng');if(!lat||!lng){toast('Сначала выберите точку на карте','error');return}
   $('street_path').value+=($('street_path').value.trim()?'\n':'')+lat+', '+lng;
 };
-$('uploadPhotosBtn').onclick=uploadSelectedPhotos;
+const PHOTO_LIMIT=5,PHOTO_MAX_BYTES=10*1024*1024;
+const photoTypeLabels={general:'Общий вид',entrance:'Въезд',exit:'Выезд',barrier:'Шлагбаум',tariff:'Тариф',rules:'Правила',ev:'EV',other:'Другое'};
+const photoStatusLabels={ready:'Готово к загрузке',uploading:'Загружается…',uploaded:'Загружено',error:'Ошибка'};
+let parkingPhotoItems=[];
+
+function formatPhotoSize(bytes){
+  if(!Number.isFinite(Number(bytes)))return '';
+  return Number(bytes)>=1024*1024?(Number(bytes)/1024/1024).toFixed(1)+' МБ':Math.max(1,Math.round(Number(bytes)/1024))+' КБ';
+}
+function cleanupPhotoObjectUrls(){
+  parkingPhotoItems.forEach(item=>{if(item.objectUrl)URL.revokeObjectURL(item.objectUrl)});
+}
+function syncLegacyPhotoField(){
+  $('photos').value=parkingPhotoItems.map(item=>item.public_url).filter(Boolean).join('\n');
+}
+function renderPhotoManager(){
+  const root=$('photoManager');
+  if(!parkingPhotoItems.length){root.innerHTML='<div class="photo-empty">Фотографии пока не добавлены</div>';syncLegacyPhotoField();return}
+  root.innerHTML=parkingPhotoItems.map((item,index)=>{
+    const preview=item.preview_url||item.public_url||item.objectUrl||'';
+    const name=item.original_name||item.storage_path?.split('/').pop()||`Фото ${index+1}`;
+    const status=item.status||'uploaded';
+    return `<div class="photo-item" data-photo-key="${escapeHtml(item.key)}">
+      ${preview?`<img class="photo-preview" src="${escapeHtml(preview)}" alt="${escapeHtml(item.caption||name)}">`:'<div class="photo-preview photo-preview-placeholder">Нет предпросмотра</div>'}
+      <div class="photo-info">
+        <div class="photo-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+        <div class="photo-meta">${formatPhotoSize(item.size)}${item.error?` · ${escapeHtml(item.error)}`:''}</div>
+        <span class="photo-status ${status}">${photoStatusLabels[status]||status}</span>
+        <div class="photo-fields">
+          <select class="control" onchange="updateManagedPhoto('${item.key}','photo_type',this.value)">${Object.entries(photoTypeLabels).map(([value,label])=>`<option value="${value}"${item.photo_type===value?' selected':''}>${label}</option>`).join('')}</select>
+          <input class="control" maxlength="300" value="${escapeHtml(item.caption||'')}" placeholder="Подпись к фото" oninput="updateManagedPhoto('${item.key}','caption',this.value)">
+        </div>
+      </div>
+      <div class="photo-actions">
+        <button class="btn btn-secondary" type="button" title="Выше" onclick="moveManagedPhoto('${item.key}',-1)" ${index===0?'disabled':''}>↑</button>
+        <button class="btn btn-secondary" type="button" title="Ниже" onclick="moveManagedPhoto('${item.key}',1)" ${index===parkingPhotoItems.length-1?'disabled':''}>↓</button>
+        ${status==='error'&&item.file?`<button class="btn btn-secondary" type="button" title="Повторить" onclick="retryManagedPhoto('${item.key}')">↻</button>`:''}
+        <button class="btn btn-danger" type="button" title="Удалить" onclick="removeManagedPhoto('${item.key}')">×</button>
+      </div>
+    </div>`;
+  }).join('');
+  syncLegacyPhotoField();
+}
+function isHeicPhoto(file){return /\.(heic|heif)$/i.test(file.name)||['image/heic','image/heif'].includes(file.type)}
+function validatePhotoFile(file){
+  if(file.size>PHOTO_MAX_BYTES)return `Файл больше 10 МБ`;
+  if(isHeicPhoto(file))return 'HEIC/HEIF пока нельзя обработать в браузере. Сохраните фото как JPEG, PNG или WebP.';
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))return 'Поддерживаются только JPEG/JPG, PNG и WebP.';
+  return '';
+}
+function queueSelectedPhotos(files){
+  const available=Math.max(0,PHOTO_LIMIT-parkingPhotoItems.length),selected=[...files];
+  if(selected.length>available)toast(`Можно добавить ещё ${available} фото`,'error');
+  selected.slice(0,available).forEach(file=>{
+    const error=validatePhotoFile(file),objectUrl=URL.createObjectURL(file);
+    parkingPhotoItems.push({key:crypto.randomUUID(),file,objectUrl,preview_url:objectUrl,original_name:file.name,size:file.size,photo_type:'general',caption:'',status:error?'error':'ready',error,sort_order:parkingPhotoItems.length});
+  });
+  $('photoFiles').value='';renderPhotoManager();
+}
+$('photoFiles').addEventListener('change',event=>queueSelectedPhotos(event.target.files));
+window.updateManagedPhoto=(key,field,value)=>{const item=parkingPhotoItems.find(x=>x.key===key);if(item)item[field]=value};
+window.moveManagedPhoto=(key,direction)=>{
+  const index=parkingPhotoItems.findIndex(x=>x.key===key),target=index+direction;
+  if(index<0||target<0||target>=parkingPhotoItems.length)return;
+  [parkingPhotoItems[index],parkingPhotoItems[target]]=[parkingPhotoItems[target],parkingPhotoItems[index]];
+  renderPhotoManager();
+};
+window.retryManagedPhoto=key=>{
+  const item=parkingPhotoItems.find(x=>x.key===key);if(!item?.file)return;
+  const error=validatePhotoFile(item.file);item.error=error;item.status=error?'error':'ready';renderPhotoManager();
+};
+window.removeManagedPhoto=async key=>{
+  const index=parkingPhotoItems.findIndex(x=>x.key===key);if(index<0)return;
+  const item=parkingPhotoItems[index];
+  if(item.id){
+    if(!confirm('Удалить эту фотографию? Действие нельзя отменить.'))return;
+    const {error:storageError}=await sb.storage.from(item.storage_bucket).remove([item.storage_path]);
+    if(storageError){toast('Не удалось удалить файл: '+storageError.message,'error');return}
+    const parkingId=val('id');
+    const {error}=await sb.rpc('admin_delete_parking_photo_metadata',{p_parking_id:parkingId,p_photo_id:item.id});
+    if(error){toast('Файл удалён, но метаданные не очищены: '+error.message,'error');return}
+    if(item.storage_bucket==='parking-photos')await sb.rpc('admin_sync_parking_photo_urls',{p_parking_id:parkingId});
+  }
+  if(item.objectUrl)URL.revokeObjectURL(item.objectUrl);
+  parkingPhotoItems.splice(index,1);renderPhotoManager();toast('Фотография удалена');
+};
+async function decodePhoto(file){
+  if(typeof createImageBitmap==='function')return await createImageBitmap(file);
+  const url=URL.createObjectURL(file);
+  try{return await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error('Не удалось прочитать изображение'));image.src=url})}
+  finally{URL.revokeObjectURL(url)}
+}
 async function prepareImage(file){
-  if(file.size>5*1024*1024)throw new Error(`Файл ${file.name} больше 5 МБ`);
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error(`Неподдерживаемый формат: ${file.name}`);
-  const bitmap=await createImageBitmap(file);
-  const scale=Math.min(1,1920/Math.max(bitmap.width,bitmap.height));
-  const canvas=document.createElement('canvas');
-  canvas.width=Math.max(1,Math.round(bitmap.width*scale));
-  canvas.height=Math.max(1,Math.round(bitmap.height*scale));
-  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
-  bitmap.close();
-  return await new Promise((resolve,reject)=>canvas.toBlob(
-    blob=>blob?resolve(blob):reject(new Error('Не удалось обработать изображение')),
-    'image/jpeg',0.82
-  ));
+  const validation=validatePhotoFile(file);if(validation)throw new Error(`${file.name}: ${validation}`);
+  const bitmap=await decodePhoto(file),width=bitmap.width||bitmap.naturalWidth,height=bitmap.height||bitmap.naturalHeight;
+  const scale=Math.min(1,1920/Math.max(width,height)),canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
+  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);if(bitmap.close)bitmap.close();
+  return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось обработать изображение')),'image/jpeg',0.84));
+}
+async function privatePhotoPreview(item){
+  if(item.storage_bucket!=='parking-photo-drafts'||!item.storage_path)return;
+  const {data,error}=await sb.storage.from(item.storage_bucket).createSignedUrl(item.storage_path,3600);
+  if(!error&&data?.signedUrl){item.preview_url=data.signedUrl;renderPhotoManager()}
+}
+function initializePhotoManager(data){
+  cleanupPhotoObjectUrls();
+  const metadata=Array.isArray(data.photo_metadata)?data.photo_metadata:[];
+  parkingPhotoItems=metadata.map((item,index)=>({...item,key:String(item.id||crypto.randomUUID()),photo_type:item.photo_type||'general',caption:item.caption||'',sort_order:index,status:'uploaded',preview_url:item.preview_url||item.public_url||''}));
+  const knownUrls=new Set(parkingPhotoItems.map(item=>item.public_url).filter(Boolean));
+  (data.photos||[]).filter(url=>!knownUrls.has(url)).forEach(url=>parkingPhotoItems.push({key:crypto.randomUUID(),legacy:true,public_url:url,preview_url:url,photo_type:'general',caption:'',status:'uploaded',sort_order:parkingPhotoItems.length}));
+  renderPhotoManager();parkingPhotoItems.forEach(privatePhotoPreview);
+}
+async function sourceBlobForPhoto(item){
+  if(item.file)return await prepareImage(item.file);
+  if(item.storage_bucket&&item.storage_path){
+    const {data,error}=await sb.storage.from(item.storage_bucket).download(item.storage_path);if(error)throw error;return data;
+  }
+  const source=item.public_url||item.preview_url;if(!source)throw new Error('У фотографии отсутствует исходный файл');
+  const response=await fetch(source);if(!response.ok)throw new Error('Не удалось получить исходную фотографию');
+  const blob=await response.blob();
+  if(!blob.type.startsWith('image/'))throw new Error('Ссылка не является изображением');
+  return blob;
+}
+async function saveOneManagedPhoto(item,parkingId,targetBucket,sortOrder){
+  item.status='uploading';item.error='';renderPhotoManager();
+  let newlyUploadedPath='';
+  try{
+    let path=item.storage_path,publicUrl=item.public_url||null;
+    if(!item.id||item.storage_bucket!==targetBucket||item.legacy){
+      const blob=await sourceBlobForPhoto(item),normalized=item.file?blob:await prepareImage(new File([blob],item.original_name||'photo.jpg',{type:blob.type||'image/jpeg'}));
+      path=`parkings/${parkingId}/${crypto.randomUUID()}.jpg`;
+      const {error:uploadError}=await sb.storage.from(targetBucket).upload(path,normalized,{contentType:'image/jpeg',upsert:false});if(uploadError)throw uploadError;
+      newlyUploadedPath=path;
+      publicUrl=targetBucket==='parking-photos'?sb.storage.from(targetBucket).getPublicUrl(path).data.publicUrl:null;
+    }
+    const {data:id,error}=await sb.rpc('admin_save_parking_photo',{p_parking_id:parkingId,p_photo_id:item.id||null,p_storage_bucket:targetBucket,p_storage_path:path,p_public_url:publicUrl,p_photo_type:item.photo_type||'general',p_caption:item.caption||null,p_sort_order:sortOrder});
+    if(error)throw error;
+    const oldBucket=item.storage_bucket,oldPath=item.storage_path;
+    if(item.id&&oldBucket&&oldPath&&(oldBucket!==targetBucket||oldPath!==path))await sb.storage.from(oldBucket).remove([oldPath]);
+    Object.assign(item,{id,legacy:false,storage_bucket:targetBucket,storage_path:path,public_url:publicUrl,sort_order:sortOrder,status:'uploaded',error:'',file:null,preview_url:publicUrl||item.preview_url});
+    if(item.objectUrl){URL.revokeObjectURL(item.objectUrl);item.objectUrl=null}
+    if(targetBucket==='parking-photo-drafts')await privatePhotoPreview(item);
+  }catch(error){
+    if(newlyUploadedPath)await sb.storage.from(targetBucket).remove([newlyUploadedPath]);
+    item.status='error';item.error=error.message||'Не удалось загрузить фото';renderPhotoManager();throw error;
+  }
+}
+async function savePhotoManager(parkingId,targetStatus){
+  const invalid=parkingPhotoItems.find(item=>item.status==='error'&&item.file&&validatePhotoFile(item.file));
+  if(invalid)throw new Error(`${invalid.original_name}: ${invalid.error}`);
+  const targetBucket=targetStatus==='APPROVED'?'parking-photos':'parking-photo-drafts';
+  for(let index=0;index<parkingPhotoItems.length;index++)await saveOneManagedPhoto(parkingPhotoItems[index],parkingId,targetBucket,index);
+  const {data:urls,error}=await sb.rpc('admin_sync_parking_photo_urls',{p_parking_id:parkingId});if(error)throw error;
+  $('photos').value=(urls||[]).join('\n');renderPhotoManager();return urls||[];
 }
 async function uploadSelectedPhotos(){
-  const files=[...$('photoFiles').files];
-  const current=arr(val('photos'));
-  if(!files.length){toast('Выберите фотографии','error');return}
-  if(current.length+files.length>5){toast('Можно добавить не более 5 фотографий','error');return}
+  const parkingId=val('id');if(!parkingId){toast('Фото загрузятся автоматически после сохранения парковки');return}
   const btn=$('uploadPhotosBtn');btn.disabled=true;btn.textContent='Загрузка…';
-  try{
-    for(const file of files){
-      const blob=await prepareImage(file);
-      const name=`parkings/${Date.now()}-${crypto.randomUUID()}.jpg`;
-      const {error}=await sb.storage.from('parking-photos').upload(name,blob,{contentType:'image/jpeg',upsert:false});
-      if(error)throw error;
-      const {data}=sb.storage.from('parking-photos').getPublicUrl(name);
-      current.push(data.publicUrl);
-    }
-    $('photos').value=current.join('\n');$('photoFiles').value='';
-    toast('Фотографии загружены');
-  }catch(error){toast(error.message||'Не удалось загрузить фото','error')}
-  finally{btn.disabled=false;btn.textContent='Загрузить выбранные фото'}
+  const storedStatus=records.find(record=>String(record.id)===String(parkingId))?.status||'DRAFT';
+  try{await savePhotoManager(parkingId,storedStatus);toast('Фотографии сохранены')}
+  catch(error){toast(error.message||'Не удалось загрузить фото','error')}
+  finally{btn.disabled=false;btn.textContent='Загрузить готовые фото'}
 }
+$('uploadPhotosBtn').onclick=uploadSelectedPhotos;
 const districtAliases=[
   ['Алмазарский',['алмазар','almazar','olmazor']],['Бектемирский',['бектемир','bektemir']],
   ['Мирабадский',['мирабад','mirabad','mirobod']],['Мирзо-Улугбекский',['мирзо улугбек','mirzo ulugbek','mirzo ulug‘bek','mirzo ulughbek']],
@@ -1443,7 +1597,7 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   ['free_period_minutes','price_after_free_period','price_after_free_period_unit','entry_rules','exit_rules','tariff_note','tariff_verified_at','tariff_source_ref','tariff_verification_method'].forEach(k=>$(k).value=data[k]??(k==='price_after_free_period_unit'?'unknown':''));
   $('ev_connectors').value=(data.ev_connectors||[]).join(', ');
   $('payment_methods').value=(data.payment_methods||[]).join(', ');
-  $('photos').value=(data.photos||[]).join('\n');
+  initializePhotoManager(data);
   $('street_path').value=(data.street_path||[]).map(point=>point.join(', ')).join('\n');
   $('legal_note').value=data.legal_note||'Перед парковкой проверьте дорожные знаки и разметку.';
   $('streetSection').classList.toggle('hidden',data.category!=='STREET_ALLOWED');
@@ -1457,12 +1611,15 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
     if(!p)locateNewParkingFromDevice(locationRequestId);
   },50);
 }
-function closeForm(){stopNewParkingLocationWatch();newParkingLocationRequestId++;$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
+function closeForm(){stopNewParkingLocationWatch();newParkingLocationRequestId++;cleanupPhotoObjectUrls();parkingPhotoItems=[];$('modal').classList.add('hidden');unlockBodyScroll();editingSubmissionId=null;editingOsmCandidateId=null}
 window.editParking=async id=>{
   const parking=records.find(x=>x.id===id);if(!parking)return;
-  const {data,error}=await sb.rpc('admin_get_parking_access',{p_id:id});
-  if(error){toast('Не удалось загрузить условия доступа: '+error.message,'error');return}
-  openForm({...parking,...(data||{})});
+  const [{data:access,error:accessError},{data:photoMetadata,error:photoError}]=await Promise.all([
+    sb.rpc('admin_get_parking_access',{p_id:id}),sb.rpc('admin_list_parking_photos',{p_parking_id:id})
+  ]);
+  if(accessError){toast('Не удалось загрузить условия доступа: '+accessError.message,'error');return}
+  if(photoError){toast('Не удалось загрузить фотографии: '+photoError.message,'error');return}
+  openForm({...parking,...(access||{}),photo_metadata:photoMetadata||[]});
 };
 function publicationValidationMessage(parking,access){
   if(access.has_free_period&&(!access.free_period_minutes||Number(access.free_period_minutes)<1))return 'Укажите продолжительность бесплатного периода.';
@@ -1489,6 +1646,13 @@ async function validateParkingForPublication(id){
   if(error)throw error;
   return {ok:Boolean(data?.ok),errors:Array.isArray(data?.errors)?data.errors:[]};
 }
+async function prepareParkingPhotosForPublication(parking){
+  const {data,error}=await sb.rpc('admin_list_parking_photos',{p_parking_id:parking.id});
+  if(error)throw error;
+  initializePhotoManager({...parking,photo_metadata:data||[]});
+  try{return await savePhotoManager(parking.id,'APPROVED')}
+  finally{cleanupPhotoObjectUrls();parkingPhotoItems=[]}
+}
 window.confirmParking=async id=>{
   const p=records.find(x=>x.id===id);if(!p)return;
   let validation;
@@ -1500,6 +1664,9 @@ window.confirmParking=async id=>{
     return;
   }
   if(!confirm(`Подтвердить парковку «${p.name||''}» и показать её пользователям?`))return;
+  try{await prepareParkingPhotosForPublication(p)}catch(error){
+    await editParking(id);formMessage($('formMsg'),'Парковка не опубликована: не удалось подготовить фотографии. '+(error.message||''));return;
+  }
   const {error}=await sb.rpc('admin_confirm_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
   toast('Парковка подтверждена и опубликована');await loadParkings();
@@ -1544,7 +1711,7 @@ $('parkingForm').addEventListener('submit',async e=>{
     hours:val('hours'),is_247:$('is_247').checked,height_limit:nullableNumber('height_limit'),
     has_cctv:$('has_cctv').checked,has_disabled:$('has_disabled').checked,payment_methods:arr(val('payment_methods')),
     has_ev:$('has_ev').checked,ev_operator:val('ev_operator'),ev_ports:nullableNumber('ev_ports'),
-    ev_connectors:arr(val('ev_connectors')),photos:arr(val('photos')),source:val('source'),
+    ev_connectors:arr(val('ev_connectors')),photos:parkingPhotoItems.map(item=>item.public_url).filter(Boolean),source:val('source'),
     source_ref:val('source_ref'),verified_at:val('verified_at')||null,status:val('status'),
     moderator_note:val('moderator_note')
   };
@@ -1568,10 +1735,14 @@ $('parkingForm').addEventListener('submit',async e=>{
       p_parking_id:savedParkingId,p_path:streetPath,p_legal_note:val('legal_note')||null
     });
     if(pathError){formMessage($('formMsg'),'Парковка сохранена, но линия участка не сохранена: '+pathError.message);return}
+    try{await savePhotoManager(savedParkingId,stagedApproval?'DRAFT':requestedStatus)}
+    catch(error){formMessage($('formMsg'),'Парковка сохранена, но фотографии не обработаны: '+(error.message||'неизвестная ошибка'));return}
     if(stagedApproval){
       let publishValidation;
       try{publishValidation=await validateParkingForPublication(savedParkingId)}catch(error){formMessage($('formMsg'),'Парковка сохранена как черновик, но проверка публикации не выполнена: '+error.message);return}
       if(!publishValidation.ok){showPublishValidation(publishValidation.errors);formMessage($('formMsg'),'Парковка сохранена как черновик. Исправьте перечисленные данные перед публикацией.');return}
+      try{await savePhotoManager(savedParkingId,'APPROVED')}
+      catch(error){formMessage($('formMsg'),'Парковка проверена, но фотографии не подготовлены к публикации: '+(error.message||'неизвестная ошибка'));return}
       const {error:confirmError}=await sb.rpc('admin_confirm_parking',{p_id:savedParkingId});
       if(confirmError){formMessage($('formMsg'),'Парковка сохранена как черновик, но не опубликована: '+confirmError.message);return}
     }
