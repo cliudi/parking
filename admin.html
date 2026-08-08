@@ -1698,6 +1698,7 @@ window.editParking=async id=>{
 function publicationValidationMessage(parking,access){
   if(access.has_free_period&&(!access.free_period_minutes||Number(access.free_period_minutes)<1))return 'Укажите продолжительность бесплатного периода.';
   if(barrierPublicationWarning(access))return 'Уточните расположение шлагбаума или правила въезда и выезда.';
+  if(String(parking.source||'').toUpperCase()==='ADMIN')return '';
   if(access.tariff_admin_verified&&!String(access.tariff_verification_method||'').trim())return 'Укажите, как администратор проверил тариф.';
   const hasExactTariff=parking.price_hour!=null||parking.price_day!=null||access.price_after_free_period!=null;
   const sourceConfirmed=Boolean(access.tariff_verified_at&&String(access.tariff_source_ref||'').trim());
@@ -1777,8 +1778,9 @@ $('parkingForm').addEventListener('submit',async e=>{
   if(accessData.has_free_period&&(!accessData.free_period_minutes||accessData.free_period_minutes<1)){
     formMessage($('formMsg'),'Укажите продолжительность бесплатного периода в минутах.');return
   }
+  const automaticName=val('address')||normalizeDistrict(val('district'))||'Парковка';
   const data={
-    id:val('id')||null,name:val('name'),address:val('address'),district:normalizeDistrict(val('district')),city:normalizeCity(val('city')),
+    id:val('id')||null,name:val('name')||automaticName,address:val('address'),district:normalizeDistrict(val('district')),city:normalizeCity(val('city')),
     lat:coords[0],lng:coords[1],category:val('category'),kind:val('kind'),
     price_type:val('price_type'),price_hour:nullableNumber('price_hour'),price_day:nullableNumber('price_day'),
     price_note:val('price_note'),capacity:nullableNumber('capacity'),capacity_est:$('capacity_est').checked,
