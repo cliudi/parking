@@ -255,7 +255,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         <div class="search-wrap"><span>⌕</span><input id="search" class="control" placeholder="Поиск по названию, адресу или району"></div>
         <select id="statusFilter" class="control">
           <option value="">Все статусы</option><option value="APPROVED">Опубликовано</option><option value="PENDING">На модерации</option>
-          <option value="NEEDS_INFO">Нужны сведения</option><option value="REJECTED">Отклонено</option><option value="DRAFT">Черновик</option>
+          <option value="NEEDS_INFO">Нужны сведения</option><option value="REJECTED">Отклонено</option><option value="DRAFT">Черновик</option><option value="ARCHIVED">В архиве</option>
         </select>
         <select id="categoryFilter" class="control">
           <option value="">Все категории</option><option value="OFFICIAL">Официальная</option><option value="STREET_ALLOWED">Разрешённая уличная</option>
@@ -523,7 +523,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         <section class="form-section">
           <div class="section-title">Публикация и фотографии</div>
           <div class="grid">
-            <div class="field"><label>Статус</label><select id="status" class="control"><option value="APPROVED">Опубликовано</option><option value="PENDING">На модерации</option><option value="NEEDS_INFO">Нужны сведения</option><option value="REJECTED">Отклонено</option><option value="DRAFT">Черновик</option></select></div>
+            <div class="field"><label>Статус</label><select id="status" class="control"><option value="APPROVED">Опубликовано</option><option value="DRAFT">Черновик</option><option value="ARCHIVED">В архиве</option><option value="PENDING">На модерации</option><option value="NEEDS_INFO">Нужны сведения</option><option value="REJECTED">Отклонено</option></select></div>
             <div class="field full"><label>Фотографии</label>
               <input id="photoFiles" class="control" type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif,image/heic,image/heif" multiple>
               <button id="uploadPhotosBtn" class="btn btn-secondary" type="button" style="margin-top:8px">Загрузить готовые фото</button>
@@ -594,7 +594,7 @@ const geoDirty={address:false,district:false,city:false};
 let nameManuallyEdited=false;
 
 const labels={
-  status:{APPROVED:'Опубликовано',PENDING:'На модерации',REJECTED:'Отклонено',DRAFT:'Черновик',NEEDS_INFO:'Нужны сведения'},
+  status:{APPROVED:'Опубликовано',ARCHIVED:'В архиве',PENDING:'На модерации',REJECTED:'Отклонено',DRAFT:'Черновик',NEEDS_INFO:'Нужны сведения'},
   category:{OFFICIAL:'Официальная',STREET_ALLOWED:'Уличная разрешённая',PRIVATE:'Частная',EV_STATION:'Зарядная станция'},
   kind:{open:'Открытая',covered:'Крытая',underground:'Подземная',multilevel:'Многоуровневая',street:'Уличная'},
   price:{free:'Бесплатно',paid:'Платно',unknown:'Неизвестно'},
@@ -748,7 +748,7 @@ function renderRows(){
     <td data-label="Стоимость">${escapeHtml(priceText(p))}</td><td data-label="Места">${p.capacity??'—'}</td>
     <td data-label="Статус"><span class="badge ${statusClass(p.status)}">${escapeHtml(labels.status[p.status]||p.status)}</span></td>
     <td data-label="Обновлено">${p.updated_at?new Date(p.updated_at).toLocaleDateString('ru-RU'):'—'}</td>
-    <td data-label="Действия"><div class="actions">${p.status==='DRAFT'?`<button class="btn btn-primary table-btn" onclick="confirmParking('${p.id}')">Подтвердить</button>`:''}<button class="btn btn-secondary table-btn" onclick="editParking('${p.id}')">Изменить</button><button class="btn btn-danger table-btn" onclick="deleteParking('${p.id}')">Удалить</button></div></td>
+    <td data-label="Действия"><div class="actions">${p.status==='DRAFT'?`<button class="btn btn-primary table-btn" onclick="confirmParking('${p.id}')">Подтвердить</button>`:''}<button class="btn btn-secondary table-btn" onclick="editParking('${p.id}')">Изменить</button>${p.status==='DRAFT'?`<button class="btn btn-danger table-btn" onclick="deleteParking('${p.id}')">Удалить черновик</button>`:''}${p.status==='APPROVED'?`<button class="btn btn-danger table-btn" onclick="archiveParking('${p.id}')">В архив</button>`:''}</div></td>
   </tr>`).join('');
 }
 
@@ -883,7 +883,7 @@ function renderDraftMapCard(parking){
     <div class="draft-map-meta"><span><b>Адрес:</b> ${escapeHtml(parking.address||'не указан')}</span><span><b>Координаты:</b> ${Number(parking.lat).toFixed(6)}, ${Number(parking.lng).toFixed(6)}</span><span><b>Источник:</b> ${escapeHtml(parking.source||'—')} · ${escapeHtml(parking.source_ref||'ссылка не указана')}</span><span><b>Категория:</b> ${escapeHtml(labels.category[parking.category]||parking.category||'—')} · ${escapeHtml(labels.kind[parking.kind]||parking.kind||'тип не указан')}</span><span><b>Стоимость:</b> ${escapeHtml(priceText(parking))}</span><span><b>Условия:</b> ${parking.has_barrier?'шлагбаум · ':''}${parking.has_free_period?`${parking.free_period_minutes||'?'} мин бесплатно · `:''}${parking.has_ev?'EV':'без EV'}</span><span><b>Фотографии:</b> ${Array.isArray(parking.photos)&&parking.photos.length?parking.photos.length:'нет'}</span><span><b>Создано:</b> ${parking.created_at?new Date(parking.created_at).toLocaleString('ru-RU'):'—'}${parking.submitted_by?` · автор ${escapeHtml(parking.submitted_by)}`:''}</span><span><b>Изменено:</b> ${parking.updated_at?new Date(parking.updated_at).toLocaleString('ru-RU'):'—'}</span>${parking.moderator_note?`<span><b>Причина/комментарий:</b> ${escapeHtml(parking.moderator_note)}</span>`:''}</div>
     ${warnings.map(x=>`<div class="draft-map-warning">⚠ ${escapeHtml(x)}</div>`).join('')}
     ${nearby.length?`<div class="draft-map-meta"><b>Объекты рядом:</b>${nearby.slice(0,5).map(x=>`<button class="btn btn-secondary" onclick="openDraftMapCard('${x.id}')">${escapeHtml(x.name)} · ${Math.round(x.distance_m)} м</button>`).join('')}</div>`:''}
-    <div class="draft-map-actions"><button class="btn btn-secondary" onclick="editParking('${parking.id}')">Открыть и изменить</button>${parking.status==='DRAFT'?`<button class="btn btn-primary" onclick="confirmParking('${parking.id}')">Подтвердить</button>`:''}<button class="btn btn-secondary" onclick="highlightDraftMapDuplicates('${parking.id}')">Найти дубли</button>
+    <div class="draft-map-actions"><button class="btn btn-secondary" onclick="editParking('${parking.id}')">Открыть и изменить</button>${parking.status==='DRAFT'?`<button class="btn btn-primary" onclick="confirmParking('${parking.id}')">Подтвердить</button><button class="btn btn-danger" onclick="deleteParking('${parking.id}')">Удалить черновик</button>`:''}${parking.status==='APPROVED'?`<button class="btn btn-danger" onclick="archiveParking('${parking.id}')">В архив</button>`:''}<button class="btn btn-secondary" onclick="highlightDraftMapDuplicates('${parking.id}')">Найти дубли</button>
     ${moving?`<button class="btn btn-primary" onclick="saveDraftMapMove()">Сохранить точку</button><button class="btn btn-secondary" onclick="cancelDraftMapMove()">Отменить перемещение</button>`:`<button class="btn btn-secondary" onclick="startDraftMapMove('${parking.id}')">Переместить точку</button>`}${source?`<button class="btn btn-secondary" onclick="openParkingSource('${parking.id}')">Открыть источник</button>`:''}</div>`;
   $('draftMapCard').classList.remove('hidden');
 }
@@ -1752,10 +1752,19 @@ window.confirmParking=async id=>{
 };
 window.deleteParking=async id=>{
   const p=records.find(x=>x.id===id);
-  if(!confirm(`Удалить парковку «${p?.name||''}»? Это действие нельзя отменить.`))return;
-  const {error}=await sb.rpc('admin_delete_parking',{p_id:id});
+  if(p?.status!=='DRAFT'){toast('Физически удалить можно только черновик.','error');return}
+  if(!confirm(`Удалить черновик «${p?.name||p?.address||''}»? Это действие нельзя отменить.`))return;
+  const {error}=await sb.rpc('admin_delete_draft_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
-  toast('Парковка удалена');await loadParkings();
+  toast('Черновик удалён');await loadParkings();
+};
+window.archiveParking=async id=>{
+  const p=records.find(x=>x.id===id);
+  if(p?.status!=='APPROVED'){toast('Архивировать можно только опубликованную парковку.','error');return}
+  if(!confirm(`Убрать «${p?.name||p?.address||''}» с публичной карты и сохранить в архиве?`))return;
+  const {error}=await sb.rpc('admin_archive_parking',{p_id:id});
+  if(error){toast(error.message,'error');return}
+  toast('Парковка перемещена в архив');await loadParkings();
 };
 
 $('parkingForm').addEventListener('submit',async e=>{
