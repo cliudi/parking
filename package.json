@@ -1,0 +1,7 @@
+{
+  "name": "parkly-pages",
+  "private": true,
+  "scripts": {
+    "check": "node scripts/check-html.mjs"
+  }
+}

@@ -602,7 +602,11 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+.search-history{display:none;position:absolute;left:0;right:0;top:64px;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 34px rgba(15,23,42,.16);padding:8px;z-index:12}
+.search-history.on{display:block;animation:fadeUp .18s ease-out}.search-history-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;color:var(--ink2);font:700 12px Manrope}.search-history-clear{border:0;background:none;color:var(--blue);font:700 12px Manrope;cursor:pointer}.search-history-item{width:100%;display:flex;align-items:center;gap:10px;border:0;background:none;color:var(--ink);padding:11px 10px;border-radius:12px;text-align:left;font:600 14px Manrope;cursor:pointer}.search-history-item:hover,.search-history-item:focus-visible{background:var(--bg);outline:none}.search-history-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.onboarding{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:none;align-items:flex-end;justify-content:center;padding:16px}.onboarding.on{display:flex}.onboarding-card{width:min(100%,520px);background:var(--card);color:var(--ink);border-radius:28px;padding:24px;box-shadow:0 24px 80px rgba(15,23,42,.3);animation:slideUp .28s cubic-bezier(.2,.8,.3,1)}.onboarding-icon{width:64px;height:64px;display:grid;place-items:center;border-radius:20px;background:#E8F0FF;color:var(--blue);font-size:30px;margin-bottom:18px}.onboarding-card h2{font:800 25px Manrope;margin:0 0 10px}.onboarding-card p{font:500 15px/1.55 Manrope;color:var(--ink2);margin:0 0 22px}.onboarding-actions{display:grid;gap:10px}.onboarding-actions button{min-height:50px;border-radius:15px;font:800 14px Manrope;cursor:pointer}.onboarding-primary{border:0;background:var(--blue);color:#fff}.onboarding-secondary{border:1px solid var(--line);background:var(--card);color:var(--ink)}
 
+.duplicate-mask{position:fixed;inset:0;z-index:10020;background:rgba(15,23,42,.58);display:none;align-items:flex-end;justify-content:center;padding:16px}.duplicate-mask.on{display:flex}.duplicate-dialog{width:min(100%,540px);max-height:min(78vh,660px);overflow:auto;background:var(--card);color:var(--ink);border-radius:26px;padding:22px;box-shadow:0 24px 80px rgba(15,23,42,.32);animation:slideUp .24s cubic-bezier(.2,.8,.3,1)}.duplicate-dialog h2{font:800 22px Manrope;margin:0 0 8px}.duplicate-dialog>p{font:500 14px/1.5 Manrope;color:var(--ink2);margin:0 0 16px}.duplicate-results{display:grid;gap:9px;margin-bottom:18px}.duplicate-result{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);background:var(--bg);padding:13px;border-radius:16px}.duplicate-result b{display:block;font:800 14px Manrope}.duplicate-result span{display:block;color:var(--ink2);font:500 12px/1.4 Manrope;margin-top:3px}.duplicate-distance{margin-left:auto!important;color:var(--blue)!important;font-weight:800!important;white-space:nowrap}.duplicate-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.duplicate-actions button{min-height:48px;border-radius:14px;font:800 13px Manrope;cursor:pointer}.duplicate-open{grid-column:1/-1;border:0;background:var(--blue);color:#fff}.duplicate-submit{border:1px solid var(--line);background:var(--card);color:var(--ink)}.duplicate-cancel{border:0;background:var(--bg);color:var(--ink2)}
 </style>
 </head>
 <body>
@@ -624,6 +628,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
       <button class="bell" id="themebtn" style="font-size:15px" aria-label="Переключить тему" title="Переключить тему">🌙</button>
       <button class="bell" id="notificationsBtn" aria-label="Уведомления" title="Уведомления" onclick="openNotifications()"><span class="dot" id="notificationsDot" style="display:none"></span>🔔</button>
     </div>
+    <div class="search-history" id="searchHistoryPanel" role="listbox" aria-label="Недавние запросы"></div>
     <div class="qchips" id="qchips"></div>
   </div>
 
@@ -679,6 +684,30 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 <!-- ═══════════ МОДАЛКИ ═══════════ -->
 <div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
+<div class="onboarding" id="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+  <div class="onboarding-card">
+    <div class="onboarding-icon">P</div>
+    <h2 id="onboardingTitle">Добро пожаловать в Parkly</h2>
+    <p>Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.</p>
+    <div class="onboarding-actions">
+      <button class="onboarding-primary" type="button" onclick="finishOnboarding(true)">Разрешить геолокацию</button>
+      <button class="onboarding-secondary" type="button" onclick="finishOnboarding(false)">Продолжить без геолокации</button>
+    </div>
+  </div>
+</div>
+
+<div class="duplicate-mask" id="duplicateMask" role="dialog" aria-modal="true" aria-labelledby="duplicateTitle">
+  <div class="duplicate-dialog">
+    <h2 id="duplicateTitle">Рядом уже есть парковка</h2>
+    <p>Проверьте найденные объекты. Если это та же парковка, откройте её и отправьте исправление вместо новой заявки.</p>
+    <div class="duplicate-results" id="duplicateResults"></div>
+    <div class="duplicate-actions">
+      <button class="duplicate-open" id="duplicateOpen" type="button">Открыть ближайшую парковку</button>
+      <button class="duplicate-submit" type="button" onclick="resolveDuplicateDialog('submit')">Всё равно отправить</button>
+      <button class="duplicate-cancel" type="button" onclick="resolveDuplicateDialog('cancel')">Отмена</button>
+    </div>
+  </div>
+</div>
 
 <script src="assets/vendor/maplibre-gl/maplibre-gl.js"></script>
 <script>
@@ -744,6 +773,18 @@ const I18N={
 };
 let lang='ru';
 const t=k=>I18N[lang][k]||k;
+let onboardingResolve;
+const onboardingReady=new Promise(resolve=>{onboardingResolve=resolve});
+function finishOnboarding(useLocation){
+  try{localStorage.setItem('parkly-onboarding-complete','1')}catch(e){}
+  document.getElementById('onboarding').classList.remove('on');
+  onboardingResolve(Boolean(useLocation));
+}
+function initOnboarding(){
+  let complete=false;try{complete=localStorage.getItem('parkly-onboarding-complete')==='1'}catch(e){}
+  if(complete){onboardingResolve(true);return}
+  document.getElementById('onboarding').classList.add('on');
+}
 
 /* В production показываем только данные из Supabase. Вымышленные точки
    нельзя выдавать за реальные парковки при ошибке сети. */
@@ -2046,12 +2087,39 @@ function toggleTraffic(){
 }
 
 /* ═══════════ ДОБАВИТЬ ПАРКОВКУ ═══════════ */
+let duplicateDialogResolve=null;
+let duplicateCheckBypassed=false;
+function findNearbyParkingCandidates(lat,lng){
+  return PARKINGS.map(parking=>({...parking,distance:dist(lat,lng,parking.lat,parking.lng)}))
+    .filter(parking=>Number.isFinite(parking.distance)&&parking.distance<=.05)
+    .sort((a,b)=>a.distance-b.distance)
+    .slice(0,3);
+}
+function showDuplicateDialog(candidates){
+  const mask=document.getElementById('duplicateMask');
+  const results=document.getElementById('duplicateResults');
+  const open=document.getElementById('duplicateOpen');
+  results.innerHTML=candidates.map(parking=>'<div class="duplicate-result"><div><b>'+escapeHtml(parking.name||'Парковка')+'</b><span>'+escapeHtml(parking.address||'Адрес не указан')+'</span></div><span class="duplicate-distance">'+Math.max(1,Math.round(parking.distance*1000))+' м</span></div>').join('');
+  open.onclick=()=>resolveDuplicateDialog('open',candidates[0]?.id);
+  mask.classList.add('on');
+  return new Promise(resolve=>{duplicateDialogResolve=resolve});
+}
+function resolveDuplicateDialog(action,id){
+  document.getElementById('duplicateMask')?.classList.remove('on');
+  const resolve=duplicateDialogResolve;duplicateDialogResolve=null;
+  if(action==='open'&&id){
+    closeSheet();switchTab('map');selectParking(id);
+    if(resolve)resolve(false);return;
+  }
+  if(resolve)resolve(action==='submit');
+}
 function openAdd(){
   if(!selectedDestination||!selectedDestination.isMapPoint){
     switchTab('map');
     toast('Сначала выберите точку парковки на карте');
     return;
   }
+  duplicateCheckBypassed=false;
   const center=selectedDestination&&selectedDestination.isMapPoint
     ?[selectedDestination.lat,selectedDestination.lng]
     :[selectedDestination.lat,selectedDestination.lng];
@@ -2174,6 +2242,16 @@ async function uploadSubmissionPhotos(files){
 async function submitAdd(){
   const addr=document.getElementById('a_addr').value.trim();
   if(!addr){toast(t('needName'));return}
+  const submissionLat=Number(document.getElementById('a_lat').value);
+  const submissionLng=Number(document.getElementById('a_lng').value);
+  if(!duplicateCheckBypassed){
+    const candidates=findNearbyParkingCandidates(submissionLat,submissionLng);
+    if(candidates.length){
+      const proceed=await showDuplicateDialog(candidates);
+      if(!proceed)return;
+      duplicateCheckBypassed=true;
+    }
+  }
   const photoFiles=[...(document.getElementById('a_photos')?.files||[])];
   if(photoFiles.length&&!authSession){toast('Войдите в аккаунт, чтобы добавить фотографии');return}
   const btn=document.getElementById('addSubmitBtn');
@@ -2306,23 +2384,38 @@ async function sendReport(id,reason,providedComment){
 }
 
 /* ═══════════ ИЗБРАННОЕ ═══════════ */
+function favoriteSortMode(){try{return localStorage.getItem('parkly-favorite-sort')||'distance'}catch(e){return'distance'}}
+function favoriteDistance(parking){return mePos?dist(mePos.lat,mePos.lng,parking.lat,parking.lng):Infinity}
+function setFavoriteSort(mode){try{localStorage.setItem('parkly-favorite-sort',mode)}catch(e){};closeSheet();renderFav()}
+function openFavoriteSort(){
+  const current=favoriteSortMode();
+  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Сортировка</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="filt-body">'
+    +'<button class="nav-provider '+(current==='distance'?'selected':'')+'" onclick="setFavoriteSort(\'distance\')"><b>По расстоянию</b><span>Ближайшие парковки сначала</span></button>'
+    +'<button class="nav-provider '+(current==='name'?'selected':'')+'" onclick="setFavoriteSort(\'name\')"><b>По названию</b><span>В алфавитном порядке</span></button></div>');
+}
 function renderFav(){
   document.getElementById('fav-title').textContent=t('favTitle');
-  document.getElementById('fav-edit').textContent=t('edit');
+  document.getElementById('fav-edit').textContent='Сортировка';
+  document.getElementById('fav-edit').onclick=openFavoriteSort;
   const cont=document.getElementById('fav-content');
-  const items=favorites.map(id=>PARKINGS.find(p=>p.id===id)).filter(Boolean);
-  if(!items.length){
+  const existing=favorites.map(id=>PARKINGS.find(p=>p.id===id)).filter(Boolean);
+  const missing=favorites.filter(id=>!PARKINGS.some(p=>p.id===id));
+  const mode=favoriteSortMode();
+  existing.sort((a,b)=>mode==='name'||!mePos?String(a.name||a.addr).localeCompare(String(b.name||b.addr),'ru'):favoriteDistance(a)-favoriteDistance(b));
+  if(!existing.length&&!missing.length){
     cont.innerHTML='<div class="empty-state"><div class="ei">☆</div><b>'+t('favEmpty')+'</b><span>'+t('favEmptyDesc')+'</span></div>';
     return;
   }
-  cont.innerHTML='<div class="fav-list">'+items.map(p=>
+  cont.innerHTML='<div class="fav-list">'+existing.map(p=>
     '<div class="fav-item" onclick="switchTab(\'map\');selectParking(\''+p.id+'\')">'
     +'<div class="fav-ic" style="background:'+markerColor(p)+'">'+catIcon(p)+'</div>'
     +'<div class="fav-txt"><b>'+p.name+'</b><span>'+(p.is247?t('open247'):p.hours)+'</span>'+parkingBadgesHtml(p,true)+'</div>'
     +'<div class="fav-right"><div class="fav-dist">'+(distText(p)||'')+'</div>'
       +'<div style="font:700 12px Manrope;color:var(--ink2);margin-top:2px">'+priceLabel(p)+'</div></div>'
     +'<span class="fav-more" onclick="event.stopPropagation();toggleFav(\''+p.id+'\',null);renderFav()">✕</span>'
-    +'</div>').join('')+'</div>';
+    +'</div>').join('')+missing.map(id=>
+    '<div class="fav-item" aria-disabled="true"><div class="fav-ic" style="background:#94A3B8">P</div><div class="fav-txt"><b>Парковка недоступна</b><span>Она скрыта, архивирована или удалена модератором.</span></div><span class="fav-more" onclick="toggleFav(\''+id+'\',null);renderFav()">✕</span></div>'
+    ).join('')+'</div>';
 }
 
 /* ═══════════ ПРОФИЛЬ ═══════════ */
@@ -2446,6 +2539,8 @@ function openAbout(){
     +'<div class="info-card"><b>Источники данных</b><span>Данные Parkly, предложения пользователей и OpenStreetMap. Карта предоставлена сервисом Яндекс Карты.</span></div>'
     +'<div class="legalnote" style="margin:0">ℹ️<span>Parkly не гарантирует наличие свободных мест. Перед поездкой проверяйте знаки, режим работы и условия оплаты на месте.</span></div>'
     +'<button class="btn-outline" onclick="openPrivacyInfo()">Как используются мои данные</button>'
+    +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="privacy.html" target="_blank" rel="noopener">Политика конфиденциальности</a>'
+    +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="terms.html" target="_blank" rel="noopener">Условия использования</a>'
     +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>'
     +'</div>';
   openSheet(html);
@@ -2628,6 +2723,23 @@ function switchTab(tab){
 }
 
 /* ═══════════ ПОИСК ═══════════ */
+const SEARCH_HISTORY_KEY='parkly-search-history';
+function loadSearchHistory(){try{return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY)||'[]').filter(Boolean).slice(0,8)}catch(e){return[]}}
+function rememberSearch(query){
+  const value=cleanText(query);if(!value)return;
+  const items=[value,...loadSearchHistory().filter(item=>item.toLowerCase()!==value.toLowerCase())].slice(0,8);
+  try{localStorage.setItem(SEARCH_HISTORY_KEY,JSON.stringify(items))}catch(e){}
+}
+function hideSearchHistory(){document.getElementById('searchHistoryPanel').classList.remove('on')}
+function clearSearchHistory(){try{localStorage.removeItem(SEARCH_HISTORY_KEY)}catch(e){};hideSearchHistory();document.getElementById('search').focus()}
+function chooseRecentSearch(value){const input=document.getElementById('search');input.value=value;hideSearchHistory();input.dispatchEvent(new Event('change'))}
+function showSearchHistory(){
+  const panel=document.getElementById('searchHistoryPanel');const items=loadSearchHistory();
+  if(!items.length){hideSearchHistory();return}
+  panel.innerHTML='<div class="search-history-head"><span>Недавние запросы</span><button class="search-history-clear" type="button" onclick="clearSearchHistory()">Очистить</button></div>'
+    +items.map(item=>'<button class="search-history-item" type="button" role="option" data-value="'+encodeURIComponent(item)+'" onclick="chooseRecentSearch(decodeURIComponent(this.dataset.value))"><b>↻</b><span>'+escapeHtml(item)+'</span></button>').join('');
+  panel.classList.add('on');
+}
 async function geocodeAddressHttp(query){
   const params=new URLSearchParams({
     apikey:YANDEX_GEOCODER_API_KEY,geocode:query,format:'json',lang:'ru_RU',results:'1'
@@ -2646,23 +2758,27 @@ async function geocodeAddressHttp(query){
 }
 document.getElementById('search').addEventListener('input',e=>{
   const q=e.target.value.toLowerCase().trim();
-  if(!q)return;
+  if(!q){showSearchHistory();return}
+  hideSearchHistory();
   const found=PARKINGS.find(p=>(p.name+p.addr).toLowerCase().includes(q));
   if(found&&ymap)ymap.setCenter([found.lat,found.lng],15,{duration:400});
 });
+document.getElementById('search').addEventListener('focus',e=>{if(!e.target.value.trim())showSearchHistory()});
 document.getElementById('search').addEventListener('change',async e=>{
-  const q=e.target.value.toLowerCase().trim();
+  const raw=e.target.value.trim();const q=raw.toLowerCase();hideSearchHistory();
   const found=PARKINGS.find(p=>(p.name+p.addr).toLowerCase().includes(q));
-  if(found)selectParking(found.id);
+  if(found){rememberSearch(raw);selectParking(found.id)}
   else if(q&&ymap){
     try{
       const result=await geocodeAddressHttp(q);
       if(!result){toast(t('noParkArea'));return}
+      rememberSearch(raw);
       ymap.setCenter(result.coords,16,{duration:400});
       setSelectedPoint(result.coords,cleanText(result.label));drawMarkers(true);
     }catch(err){console.warn(err);toast(t('noParkArea'))}
   }
 });
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('.topwrap'))hideSearchHistory()});
 
 /* ═══════════ БЫСТРЫЕ ФИЛЬТРЫ (чипы) ═══════════ */
 function buildQchips(){
@@ -2700,7 +2816,7 @@ let isDark = (()=>{ try{return localStorage.getItem('pl-theme')==='dark'}catch(e
 applyTheme(isDark);
 document.getElementById('themebtn').onclick=()=>{isDark=!isDark;applyTheme(isDark)};
 
-loadYandex();buildQchips();buildNav();loadParkingsFromDB();updateNotificationBadge();
+initOnboarding();loadYandex();buildQchips();buildNav();loadParkingsFromDB();updateNotificationBadge();
 if(authSession){
   loadRemoteFavorites();
   Promise.all([loadMySubmissions(),loadMyReports()]).then(()=>{renderProfile();updateNotificationBadge()});
@@ -2742,6 +2858,8 @@ if(authSession){
   }
 
   async function run(){
+    const useLocation=await onboardingReady;
+    if(!useLocation)return;
     let granted=await tryGrantOnce();
     if(!granted){
       // окно приложения могло быть ещё не в фокусе — пробуем ещё раз чуть позже
