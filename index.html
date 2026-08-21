@@ -566,6 +566,18 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 .prof-card,.prof-list,.prof-logout{border:1px solid var(--line);box-shadow:none}
 .prof-row{min-height:56px}
 .prof-row:active{background:var(--bg)}
+.language-picker{display:grid;gap:10px;padding-bottom:8px}
+.language-option{width:100%;display:grid;grid-template-columns:46px minmax(0,1fr) 28px;align-items:center;gap:13px;padding:13px 14px;border:1.5px solid var(--line);border-radius:17px;background:var(--card);color:var(--ink);text-align:left;cursor:pointer;transition:border-color .18s,background .18s,transform .12s,box-shadow .18s}
+.language-option:active{transform:scale(.985)}
+.language-option.selected{border-color:var(--blue);background:var(--blueSoft);box-shadow:0 8px 22px rgba(37,99,235,.12)}
+.language-flag{width:46px;height:40px;display:grid;place-items:center;border-radius:12px;background:var(--bg);font:800 13px Manrope;color:var(--ink2);letter-spacing:.04em}
+.language-option.selected .language-flag{background:var(--blue);color:#fff}
+.language-copy{min-width:0;display:grid;gap:3px}
+.language-copy b{font:800 15px Manrope}
+.language-copy span{font:600 12px/1.35 Manrope;color:var(--ink2)}
+.language-check{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:var(--line);color:transparent;font:900 13px Manrope}
+.language-option.selected .language-check{background:var(--blue);color:#fff}
+.language-hint{margin:0 0 12px;color:var(--ink2);font:600 13px/1.5 Manrope}
 .empty-state{max-width:460px;margin:auto}
 
 /* Тост: не перекрывает нижнюю навигацию и хорошо читается */
@@ -771,7 +783,10 @@ const I18N={
   networkErr:'Не удалось загрузить парковки. Проверьте интернет и повторите.',
   sending:'Отправляю…', sendFailed:'Не удалось отправить. Проверьте интернет и повторите.',
   trafOn:'Пробки включены', trafOff:'Пробки выключены', removed:'Удалено из избранного',
-  onboardingTitle:'Добро пожаловать в Parkly',onboardingText:'Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.',allowGeo:'Разрешить геолокацию',continueNoGeo:'Продолжить без геолокации'
+  onboardingTitle:'Добро пожаловать в Parkly',onboardingText:'Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.',allowGeo:'Разрешить геолокацию',continueNoGeo:'Продолжить без геолокации',
+  language:'Язык',languageTitle:'Язык интерфейса',languageHint:'Выберите язык Parkly. Настройка сохранится на этом устройстве.',languageChanged:'Язык изменён',
+  mySubmissions:'Мои заявки',myReports:'Мои исправления',routes:'Маршруты',parklyAccount:'Аккаунт Parkly',signOut:'Выйти',sort:'Сортировка',sortDistance:'По расстоянию',sortDistanceHint:'Ближайшие парковки сначала',sortName:'По названию',sortNameHint:'В алфавитном порядке',navAsk:'Спрашивать',navYandex:'Яндекс',navInternal:'Внутри Parkly',
+  theme:'Переключить тему',openNotifications:'Уведомления',notificationNew:'новых',openLegend:'Открыть обозначения на карте',openFilters:'Открыть фильтры',compass:'Компас',myLocation:'Моё местоположение',zoomIn:'Приблизить карту',zoomOut:'Отдалить карту',mainNavigation:'Основная навигация'
  }
 };
 I18N.uz={...I18N.ru,
@@ -787,7 +802,10 @@ I18N.uz={...I18N.ru,
  selectedPoint:'Tanlangan nuqta',currentPosition:'Sizning joylashuvingiz',byCar:'Avtomobilda',onFoot:'Piyoda',
  noParkArea:'Bu hududda avtoturargohlar hali qo‘shilmagan',networkErr:'Avtoturargohlarni yuklab bo‘lmadi. Internetni tekshiring.',
  routeUnavailable:'Yo‘l bo‘yicha yo‘nalish qurilmadi',startGuide:'Kuzatuvni boshlash',stopGuide:'To‘xtatish',sending:'Yuborilmoqda…'
- ,onboardingTitle:'Parkly’ga xush kelibsiz',onboardingText:'Tekshirilgan avtoturargohlarni toping, shartlarni ko‘ring va yo‘nalish quring. Parkly bo‘sh joylarni real vaqtda ko‘rsatmaydi.',allowGeo:'Geolokatsiyaga ruxsat berish',continueNoGeo:'GPSsiz davom etish'
+  ,onboardingTitle:'Parkly’ga xush kelibsiz',onboardingText:'Tekshirilgan avtoturargohlarni toping, shartlarni ko‘ring va yo‘nalish quring. Parkly bo‘sh joylarni real vaqtda ko‘rsatmaydi.',allowGeo:'Geolokatsiyaga ruxsat berish',continueNoGeo:'GPSsiz davom etish',
+  language:'Til',languageTitle:'Interfeys tili',languageHint:'Parkly tilini tanlang. Sozlama ushbu qurilmada saqlanadi.',languageChanged:'Til o‘zgartirildi',
+  mySubmissions:'Mening arizalarim',myReports:'Mening tuzatishlarim',routes:'Yo‘nalishlar',parklyAccount:'Parkly hisobi',notSignedIn:'Siz hisobga kirmagansiz',signOut:'Chiqish',sort:'Saralash',sortDistance:'Masofa bo‘yicha',sortDistanceHint:'Eng yaqin avtoturargohlar avval',sortName:'Nomi bo‘yicha',sortNameHint:'Alifbo tartibida',navAsk:'Har safar so‘rash',navYandex:'Yandex',navInternal:'Parkly ichida',
+  theme:'Mavzuni almashtirish',openNotifications:'Bildirishnomalar',notificationNew:'yangi',openLegend:'Xarita belgilarini ochish',openFilters:'Filtrlarni ochish',compass:'Kompas',myLocation:'Mening joylashuvim',zoomIn:'Xaritani yaqinlashtirish',zoomOut:'Xaritani uzoqlashtirish',mainNavigation:'Asosiy navigatsiya'
 };
 I18N.en={...I18N.ru,
  searchPh:'Find a street, place or parking',qAll:'All',qFree:'Free',qPaid:'Paid',qEv:'Charging',
@@ -802,7 +820,10 @@ I18N.en={...I18N.ru,
  selectedPoint:'Selected point',currentPosition:'Your location',byCar:'Driving',onFoot:'Walking',
  noParkArea:'No parking places have been added in this area yet',networkErr:'Could not load parking places. Check your connection.',
  routeUnavailable:'A road route could not be built',startGuide:'Start guidance',stopGuide:'Stop',sending:'Sending…'
- ,onboardingTitle:'Welcome to Parkly',onboardingText:'Find verified parking, review its conditions and build a route. Parkly does not show real-time availability.',allowGeo:'Allow location',continueNoGeo:'Continue without location'
+  ,onboardingTitle:'Welcome to Parkly',onboardingText:'Find verified parking, review its conditions and build a route. Parkly does not show real-time availability.',allowGeo:'Allow location',continueNoGeo:'Continue without location',
+  language:'Language',languageTitle:'Interface language',languageHint:'Choose the Parkly language. This setting is saved on this device.',languageChanged:'Language changed',
+  mySubmissions:'My submissions',myReports:'My corrections',routes:'Routes',parklyAccount:'Parkly account',notSignedIn:'You are not signed in',signOut:'Sign out',sort:'Sort',sortDistance:'By distance',sortDistanceHint:'Nearest parking first',sortName:'By name',sortNameHint:'Alphabetical order',navAsk:'Ask every time',navYandex:'Yandex',navInternal:'Inside Parkly',
+  theme:'Switch theme',openNotifications:'Notifications',notificationNew:'new',openLegend:'Open map legend',openFilters:'Open filters',compass:'Compass',myLocation:'My location',zoomIn:'Zoom in',zoomOut:'Zoom out',mainNavigation:'Main navigation'
 };
 let lang=(()=>{try{return ['ru','uz','en'].includes(localStorage.getItem('parkly-language'))?localStorage.getItem('parkly-language'):'ru'}catch(e){return'ru'}})();
 const t=k=>I18N[lang]?.[k]||I18N.ru[k]||k;
@@ -822,6 +843,9 @@ function updateLocalizedStaticUi(){
   const values={onboardingTitle:t('onboardingTitle'),onboardingText:t('onboardingText'),onboardingGeo:t('allowGeo'),onboardingSkip:t('continueNoGeo')};
   Object.entries(values).forEach(([id,value])=>{const element=document.getElementById(id);if(element)element.textContent=value});
   const search=document.getElementById('search');if(search){search.placeholder=t('searchPh');search.setAttribute('aria-label',t('searchPh'))}
+  const labels={themebtn:'theme',notificationsBtn:'openNotifications',legendbtn:'openLegend',filtbtn:'openFilters',compassbtn:'compass',locbtn:'myLocation',zin:'zoomIn',zout:'zoomOut'};
+  Object.entries(labels).forEach(([id,key])=>{const element=document.getElementById(id);if(!element)return;element.setAttribute('aria-label',t(key));element.setAttribute('title',t(key))});
+  document.getElementById('bottomnav')?.setAttribute('aria-label',t('mainNavigation'));
 }
 
 /* В production показываем только данные из Supabase. Вымышленные точки
@@ -2471,13 +2495,13 @@ function favoriteDistance(parking){return mePos?dist(mePos.lat,mePos.lng,parking
 function setFavoriteSort(mode){try{localStorage.setItem('parkly-favorite-sort',mode)}catch(e){};closeSheet();renderFav()}
 function openFavoriteSort(){
   const current=favoriteSortMode();
-  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Сортировка</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="filt-body">'
-    +'<button class="nav-provider '+(current==='distance'?'selected':'')+'" onclick="setFavoriteSort(\'distance\')"><b>По расстоянию</b><span>Ближайшие парковки сначала</span></button>'
-    +'<button class="nav-provider '+(current==='name'?'selected':'')+'" onclick="setFavoriteSort(\'name\')"><b>По названию</b><span>В алфавитном порядке</span></button></div>');
+  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>'+t('sort')+'</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="filt-body language-picker">'
+    +'<button class="language-option '+(current==='distance'?'selected':'')+'" onclick="setFavoriteSort(\'distance\')"><span class="language-flag">↕</span><span class="language-copy"><b>'+t('sortDistance')+'</b><span>'+t('sortDistanceHint')+'</span></span><span class="language-check">✓</span></button>'
+    +'<button class="language-option '+(current==='name'?'selected':'')+'" onclick="setFavoriteSort(\'name\')"><span class="language-flag">АЯ</span><span class="language-copy"><b>'+t('sortName')+'</b><span>'+t('sortNameHint')+'</span></span><span class="language-check">✓</span></button></div>');
 }
 function renderFav(){
   document.getElementById('fav-title').textContent=t('favTitle');
-  document.getElementById('fav-edit').textContent='Сортировка';
+  document.getElementById('fav-edit').textContent=t('sort');
   document.getElementById('fav-edit').onclick=openFavoriteSort;
   const cont=document.getElementById('fav-content');
   const existing=favorites.map(id=>PARKINGS.find(p=>p.id===id)).filter(Boolean);
@@ -2511,37 +2535,37 @@ function renderProfile(){
   const cont=document.getElementById('prof-content');
   cont.innerHTML=
     '<div class="prof-card"><div class="prof-ava">'+(email?email[0].toUpperCase():'Г')+'</div>'
-    +'<div class="prof-info"><b>'+(email||t('guest'))+'</b><span>'+(email?'Аккаунт Parkly':t('notSignedIn'))+'</span></div></div>'
+    +'<div class="prof-info"><b>'+(email||t('guest'))+'</b><span>'+(email?t('parklyAccount'):t('notSignedIn'))+'</span></div></div>'
     +'<div class="prof-list">'
-    +profRow('📄','Мои заявки',submissionCount,'openMySubmissions()')
-    +profRow('🛠','Мои исправления',reportCount,'openMyReports()')
+    +profRow('📄',t('mySubmissions'),submissionCount,'openMySubmissions()')
+    +profRow('🛠',t('myReports'),reportCount,'openMyReports()')
     +profRow('🔔',t('notifs'),notificationUnreadCount()||'','openNotifications()')
-    +profRow('文','Язык',languageLabel(lang),'openLanguageSettings()')
-    +profRow('➤','Маршруты',navigationProviderLabel(localStorage.getItem('parkly_navigation_provider')),'openNavigationSettings()')
+    +profRow('文',t('language'),languageLabel(lang),'openLanguageSettings()')
+    +profRow('➤',t('routes'),navigationProviderLabel(localStorage.getItem('parkly_navigation_provider')),'openNavigationSettings()')
     +profRow('💬',t('support'),'','openSupport()')
     +profRow('ⓘ',t('about'),'v1.0','openAbout()')
     +'</div>'
-    +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?'Выйти':t('signIn'))+'</button>';
+    +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?t('signOut'):t('signIn'))+'</button>';
 }
 function profRow(ic,label,val,action){
   return '<div class="prof-row" onclick="'+action+'"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val!==''?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
 }
 function languageLabel(value){return({ru:'Русский',uz:'O‘zbekcha',en:'English'})[value]||'Русский'}
 function openLanguageSettings(){
-  const options=[['ru','Русский'],['uz','O‘zbekcha'],['en','English']];
-  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Язык интерфейса</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="filt-body">'
-    +options.map(([value,label])=>'<button class="nav-provider '+(lang===value?'selected':'')+'" onclick="setLanguage(\''+value+'\')"><b>'+label+'</b><span>'+(value==='ru'?'Русский язык':value==='uz'?'O‘zbek tili':'English language')+'</span></button>').join('')+'</div>');
+  const options=[['ru','RU','Русский','Интерфейс на русском'],['uz','UZ','O‘zbekcha','O‘zbek tilidagi interfeys'],['en','EN','English','Interface in English']];
+  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>'+t('languageTitle')+'</h2><button class="x" aria-label="'+t('cancel')+'" onclick="closeSheet()">✕</button></div><div class="filt-body"><p class="language-hint">'+t('languageHint')+'</p><div class="language-picker">'
+    +options.map(([value,code,label,description])=>'<button class="language-option '+(lang===value?'selected':'')+'" aria-pressed="'+(lang===value)+'" onclick="setLanguage(\''+value+'\')"><span class="language-flag">'+code+'</span><span class="language-copy"><b>'+label+'</b><span>'+description+'</span></span><span class="language-check" aria-hidden="true">✓</span></button>').join('')+'</div></div>');
 }
 function setLanguage(value){
   if(!['ru','uz','en'].includes(value))return;
   lang=value;try{localStorage.setItem('parkly-language',value)}catch(e){}
   document.documentElement.lang=value;
   updateLocalizedStaticUi();
-  buildQchips();buildNav();closeSheet();renderProfile();
+  buildQchips();buildNav();updateNotificationBadge();closeSheet();renderProfile();
   if(document.getElementById('screen-fav')?.classList.contains('active'))renderFav();
-  toast(value==='ru'?'Язык изменён':value==='uz'?'Til o‘zgartirildi':'Language changed');
+  toast(t('languageChanged'));
 }
-function navigationProviderLabel(provider){return ({ors:'Parkly Beta','external-yandex':'Яндекс',google:'Google Maps',apple:'Apple Maps'})[provider]||'Спрашивать'}
+function navigationProviderLabel(provider){return ({ors:t('navInternal')+' — Beta','external-yandex':t('navYandex'),google:'Google Maps',apple:'Apple Maps'})[provider]||t('navAsk')}
 function openNavigationSettings(){
   const selected=localStorage.getItem('parkly_navigation_provider')||'';
   const options=[['','Спрашивать каждый раз'],['external-yandex','Яндекс Навигатор'],['google','Google Maps'],...(isAppleDevice()?[['apple','Apple Maps']]:[]),['ors','Внутри Parkly — Beta']];
@@ -2591,7 +2615,7 @@ function updateNotificationBadge(){
   const dot=document.getElementById('notificationsDot');
   if(dot)dot.style.display=count?'block':'none';
   const btn=document.getElementById('notificationsBtn');
-  if(btn)btn.setAttribute('aria-label',count?'Уведомления, новых: '+count:'Уведомления');
+  if(btn){const label=count?t('openNotifications')+', '+t('notificationNew')+': '+count:t('openNotifications');btn.setAttribute('aria-label',label);btn.setAttribute('title',label)}
 }
 function markNotificationsSeen(items){
   try{localStorage.setItem(notificationSeenKey(),JSON.stringify(items.map(notificationFingerprint).slice(0,200)))}catch(e){}
