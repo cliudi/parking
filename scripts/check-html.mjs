@@ -40,8 +40,11 @@ for (const file of files) {
     for (const id of ['sourceFilter', 'photoFilter', 'updatedFromFilter', 'updatedToFilter', 'usersNav', 'usersPanel', 'userRows']) {
       if (!html.includes(`id="${id}"`)) throw new Error(`${file}: missing #${id}`);
     }
-    for (const fn of ['loadAdminUsers', 'loadParkingsLegacy', 'adminPageArgs']) {
+    for (const fn of ['loadAdminUsers', 'loadParkingsLegacy', 'adminPageArgs', 'setSidebarOpen']) {
       if (!html.includes(`function ${fn}`)) throw new Error(`${file}: missing ${fn}()`);
+    }
+    for (const sidebarUi of ['height:100dvh', 'overflow-y:auto', 'aria-expanded="false"']) {
+      if (!html.includes(sidebarUi)) throw new Error(`${file}: missing sidebar behavior ${sidebarUi}`);
     }
   }
 
