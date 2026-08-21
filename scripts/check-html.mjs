@@ -28,7 +28,7 @@ for (const file of files) {
     for (const language of ['ru:{', 'I18N.uz', 'I18N.en']) {
       if (!html.includes(language)) throw new Error(`${file}: missing ${language}`);
     }
-    for (const localizedUi of ['language-option', "languageTitle:'", "mySubmissions:'", "navAsk:'", "notificationNew:'", "routeHow:'", "selectPointFirst:'", "photoPreview:'"]) {
+    for (const localizedUi of ['language-option', "languageTitle:'", "mySubmissions:'", "navAsk:'", "notificationNew:'", "routeHow:'", "selectPointFirst:'", "photoPreview:'", "parkingTerms:'", "geoposition:'", "compassDenied:'", "guidanceStopped:'", "notificationsOn:'"]) {
       if (!html.includes(localizedUi)) throw new Error(`${file}: missing localized UI ${localizedUi}`);
     }
     for (const link of ['privacy.html', 'terms.html']) {
