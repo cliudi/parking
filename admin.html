@@ -235,6 +235,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <button class="nav-item" id="submissionsNav">＋ Заявки пользователей</button>
       <button class="nav-item" id="reportsNav">⚑ Сообщения об ошибках</button>
       <button class="nav-item" id="auditNav">≡ Журнал модерации</button>
+      <button class="nav-item" id="usersNav">♙ Пользователи</button>
       <button class="nav-item" id="osmNav">◉ Проверка данных OSM</button>
     </nav>
     <div class="sidebar-user">
@@ -281,6 +282,10 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           <option value="weak_name">Слабое название</option>
           <option value="duplicate">Возможный дубль</option>
         </select>
+        <select id="sourceFilter" class="control"><option value="">Все источники</option><option value="ADMIN">ADMIN</option><option value="USER">USER</option><option value="OSM">OSM</option><option value="PARTNER">PARTNER</option><option value="OPERATOR">OPERATOR</option></select>
+        <select id="photoFilter" class="control"><option value="">Фото: любое состояние</option><option value="with">Есть фото</option><option value="without">Нет фото</option></select>
+        <label class="control" style="display:flex;align-items:center;gap:8px">Изменено с <input id="updatedFromFilter" type="date" style="border:0;background:transparent;min-width:130px"></label>
+        <label class="control" style="display:flex;align-items:center;gap:8px">по <input id="updatedToFilter" type="date" style="border:0;background:transparent;min-width:130px"></label>
         <button id="resetFilters" class="btn btn-secondary add-inline">Сбросить фильтры</button>
       </div>
       <div class="table-wrap">
@@ -367,7 +372,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           <option value="">Все объекты</option><option value="parking">Парковки</option><option value="submission">Заявки</option><option value="report">Сообщения</option>
         </select>
         <select id="auditActionFilter" class="control">
-          <option value="">Все действия</option><option value="APPROVED">Публикация</option><option value="MOVED">Перемещение</option><option value="ARCHIVED">Архивирование</option><option value="DELETED">Удаление</option><option value="REJECTED">Отклонение</option>
+          <option value="">Все действия</option><option value="APPROVED">Публикация</option><option value="MOVED">Перемещение</option><option value="ARCHIVED">Архивирование</option><option value="DELETED">Удаление</option><option value="REJECTED">Отклонение</option><option value="USER_BLOCKED">Блокировка пользователя</option><option value="USER_UNBLOCKED">Разблокировка пользователя</option>
         </select>
         <button id="refreshAudit" class="btn btn-secondary">Обновить журнал</button>
       </div>
@@ -379,6 +384,16 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       </div>
       <div id="auditPager" class="pager hidden"><button id="auditPrev" class="btn btn-secondary">← Назад</button><strong id="auditPageLabel"></strong><button id="auditNext" class="btn btn-secondary">Вперёд →</button></div>
       <div id="auditEmpty" class="empty hidden"><strong>Записей нет</strong>Выбранные события в журнале не найдены.</div>
+    </section>
+
+    <section id="usersPanel" class="panel hidden">
+      <div class="filters" style="grid-template-columns:minmax(220px,1fr) auto">
+        <div class="search-wrap"><span>⌕</span><input id="userSearch" class="control" placeholder="Поиск по электронной почте"></div>
+        <button id="refreshUsers" class="btn btn-secondary">Обновить пользователей</button>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Пользователь</th><th>Роль</th><th>Создан</th><th>Последний вход</th><th>Статус</th><th>Действия</th></tr></thead><tbody id="userRows"></tbody></table></div>
+      <div id="userPager" class="pager hidden"><button id="userPrev" class="btn btn-secondary">← Назад</button><strong id="userPageLabel"></strong><button id="userNext" class="btn btn-secondary">Вперёд →</button></div>
+      <div id="userEmpty" class="empty hidden"><strong>Пользователи не найдены</strong>Измените запрос или обновите список.</div>
     </section>
 
     <section id="osmPanel" class="panel hidden">
@@ -705,6 +720,9 @@ function markParkingFormDirty(){
 let records=[];
 let parkingPage=0;
 const parkingPageSize=50;
+let parkingTotal=0;
+let parkingServerMode=false;
+let parkingGlobalStats=null;
 let parkingLoadRequestId=0;
 let submissions=[];
 let reports=[];
@@ -712,6 +730,10 @@ let auditEntries=[];
 let auditPage=0;
 let auditHasNext=false;
 const auditPageSize=50;
+let adminUsers=[];
+let userPage=0;
+let userHasNext=false;
+const userPageSize=50;
 let osmCandidates=[];
 let osmPage=0;
 const osmPageSize=50;
@@ -808,7 +830,6 @@ async function checkSession(){
   $('who').textContent=session.user.email;
   $('roleLabel').textContent=labels.role[admin.role]||admin.role;
   $('loginView').classList.add('hidden');$('adminView').classList.remove('hidden');
-  await loadParkings();
   restoreAdminRoute();
 }
 function showLogin(){$('adminView').classList.add('hidden');$('loginView').classList.remove('hidden')}
@@ -822,26 +843,29 @@ $('loginForm').addEventListener('submit',async e=>{
 $('logoutBtn').onclick=async()=>{await sb.auth.signOut();showLogin()};
 
 let searchTimer;
-$('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{parkingPage=0;renderRows();writeAdminRoute('parkings',true)},250)});
-$('statusFilter').onchange=()=>{parkingPage=0;renderRows();writeAdminRoute('parkings',true)};
-$('categoryFilter').onchange=()=>{parkingPage=0;renderRows();writeAdminRoute('parkings',true)};
-$('qualityFilter').onchange=()=>{parkingPage=0;renderRows();writeAdminRoute('parkings',true)};
-$('resetFilters').onclick=()=>{$('search').value='';$('statusFilter').value='';$('categoryFilter').value='';$('qualityFilter').value='';parkingPage=0;renderRows();writeAdminRoute('parkings',true)};
-$('parkingPrev').onclick=()=>{if(parkingPage>0){parkingPage--;renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
-$('parkingNext').onclick=()=>{const pages=Math.ceil(filtered().length/parkingPageSize);if(parkingPage+1<pages){parkingPage++;renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
+$('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{parkingPage=0;loadParkings();writeAdminRoute('parkings',true)},250)});
+['statusFilter','categoryFilter','qualityFilter','sourceFilter','photoFilter','updatedFromFilter','updatedToFilter'].forEach(id=>$(id).onchange=()=>{parkingPage=0;loadParkings();writeAdminRoute('parkings',true)});
+$('resetFilters').onclick=()=>{$('search').value='';['statusFilter','categoryFilter','qualityFilter','sourceFilter','photoFilter','updatedFromFilter','updatedToFilter'].forEach(id=>$(id).value='');parkingPage=0;loadParkings();writeAdminRoute('parkings',true)};
+$('parkingPrev').onclick=()=>{if(parkingPage>0){parkingPage--;parkingServerMode?loadParkings():renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
+$('parkingNext').onclick=()=>{const pages=Math.ceil((parkingServerMode?parkingTotal:filtered().length)/parkingPageSize);if(parkingPage+1<pages){parkingPage++;parkingServerMode?loadParkings():renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
 $('refreshBtn').onclick=loadParkings;
 $('parkingsNav').onclick=()=>showSection('parkings');
-$('pendingNav').onclick=()=>{showSection('parkings');$('statusFilter').value='PENDING';renderRows()};
-$('draftNav').onclick=()=>{showSection('parkings');$('statusFilter').value='DRAFT';renderRows()};
+$('pendingNav').onclick=()=>{$('statusFilter').value='PENDING';parkingPage=0;showSection('parkings')};
+$('draftNav').onclick=()=>{$('statusFilter').value='DRAFT';parkingPage=0;showSection('parkings')};
 $('draftMapNav').onclick=()=>showSection('draft-map');
-$('approvedNav').onclick=()=>{showSection('parkings');$('statusFilter').value='APPROVED';renderRows()};
+$('approvedNav').onclick=()=>{$('statusFilter').value='APPROVED';parkingPage=0;showSection('parkings')};
 $('submissionsNav').onclick=()=>showSection('submissions');
 $('reportsNav').onclick=()=>showSection('reports');
 $('auditNav').onclick=()=>showSection('audit');
+$('usersNav').onclick=()=>showSection('users');
 $('osmNav').onclick=()=>showSection('osm');
 $('refreshSubmissions').onclick=loadSubmissions;
 $('refreshReports').onclick=loadReports;
 $('refreshAudit').onclick=loadModerationAudit;
+$('refreshUsers').onclick=loadAdminUsers;
+$('userSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{userPage=0;loadAdminUsers()},300)});
+$('userPrev').onclick=()=>{if(userPage>0){userPage--;loadAdminUsers()}};
+$('userNext').onclick=()=>{if(userHasNext){userPage++;loadAdminUsers()}};
 $('refreshOsm').onclick=()=>loadOsmCandidates(true);
 $('runOsmImport').onclick=runOsmImport;
 $('submissionStatusFilter').onchange=renderSubmissions;
@@ -866,14 +890,15 @@ $('draftMapReset').onclick=()=>{
 };
 
 function readAdminRoute(){
-  const raw=location.hash.slice(1),parts=raw.split('?'),allowed=['parkings','draft-map','submissions','reports','audit','osm'];
+  const raw=location.hash.slice(1),parts=raw.split('?'),allowed=['parkings','draft-map','submissions','reports','audit','users','osm'];
   return {section:allowed.includes(parts[0])?parts[0]:'parkings',params:new URLSearchParams(parts[1]||'')};
 }
 function writeAdminRoute(section,replace=false){
   let hash=section;
   if(section==='parkings'){
-    const params=new URLSearchParams(),q=val('search'),status=val('statusFilter'),category=val('categoryFilter'),quality=val('qualityFilter');
+    const params=new URLSearchParams(),q=val('search'),status=val('statusFilter'),category=val('categoryFilter'),quality=val('qualityFilter'),source=val('sourceFilter'),photo=val('photoFilter'),from=val('updatedFromFilter'),to=val('updatedToFilter');
     if(q)params.set('q',q);if(status)params.set('status',status);if(category)params.set('category',category);if(quality)params.set('quality',quality);if(parkingPage>0)params.set('page',String(parkingPage+1));
+    if(source)params.set('source',source);if(photo)params.set('photo',photo);if(from)params.set('from',from);if(to)params.set('to',to);
     const query=params.toString();if(query)hash+='?'+query;
   }else if(section==='audit'){
     const params=new URLSearchParams(),entity=val('auditEntityFilter'),action=val('auditActionFilter');
@@ -893,6 +918,10 @@ function restoreAdminRoute(){
     $('statusFilter').value=route.params.get('status')||'';
     $('categoryFilter').value=route.params.get('category')||'';
     $('qualityFilter').value=route.params.get('quality')||'';
+    $('sourceFilter').value=route.params.get('source')||'';
+    $('photoFilter').value=route.params.get('photo')||'';
+    $('updatedFromFilter').value=route.params.get('from')||'';
+    $('updatedToFilter').value=route.params.get('to')||'';
     parkingPage=Math.max(0,(Number(route.params.get('page'))||1)-1);
   }else if(route.section==='audit'){
     $('auditEntityFilter').value=route.params.get('entity')||'';
@@ -916,6 +945,7 @@ function showSection(section,options={}){
     submissions:['Заявки пользователей','Проверка и публикация предложенных парковок'],
     reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей'],
     audit:['Журнал модерации','Кто, когда и какие изменения выполнял'],
+    users:['Пользователи','Аккаунты, роли и блокировка злоупотреблений'],
     osm:['Проверка данных OSM','Подготовка импортированных парковок к публикации']
   }[section];
   $('pageTitle').textContent=info[0];$('pageSubtitle').textContent=info[1];
@@ -924,22 +954,43 @@ function showSection(section,options={}){
   $('submissionsPanel').classList.toggle('hidden',section!=='submissions');
   $('reportsPanel').classList.toggle('hidden',section!=='reports');
   $('auditPanel').classList.toggle('hidden',section!=='audit');
+  $('usersPanel').classList.toggle('hidden',section!=='users');
   $('osmPanel').classList.toggle('hidden',section!=='osm');
   $('addBtn').classList.toggle('hidden',section!=='parkings');
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
-  $(({parkings:'parkingsNav','draft-map':'draftMapNav',submissions:'submissionsNav',reports:'reportsNav',audit:'auditNav',osm:'osmNav'})[section]).classList.add('active');
+  $(({parkings:'parkingsNav','draft-map':'draftMapNav',submissions:'submissionsNav',reports:'reportsNav',audit:'auditNav',users:'usersNav',osm:'osmNav'})[section]).classList.add('active');
   $('sidebar').classList.remove('open');
-  if(section==='parkings')renderRows();
+  if(section==='parkings')loadParkings();
   if(section==='submissions')loadSubmissions();
   if(section==='reports')loadReports();
   if(section==='audit')loadModerationAudit();
+  if(section==='users')loadAdminUsers();
   if(section==='osm')loadOsmCandidates(!!options.preservePage);
-  if(section==='draft-map')setTimeout(()=>initDraftMap(),0);
+  if(section==='draft-map'){
+    if(parkingServerMode)setTimeout(()=>loadParkingsLegacy().then(()=>initDraftMap()),0);
+    else setTimeout(()=>initDraftMap(),0);
+  }
   if(!options.fromRoute)writeAdminRoute(section);
 }
 
+function adminPageArgs(){
+  const from=val('updatedFromFilter'),to=val('updatedToFilter');
+  return {p_search:val('search')||null,p_status:val('statusFilter')||null,p_category:val('categoryFilter')||null,p_source:val('sourceFilter')||null,p_photo_filter:val('photoFilter')||null,p_quality:val('qualityFilter')||null,p_updated_from:from?new Date(from+'T00:00:00').toISOString():null,p_updated_to:to?new Date(to+'T23:59:59.999').toISOString():null,p_limit:parkingPageSize,p_offset:parkingPage*parkingPageSize};
+}
 async function loadParkings(){
   const requestId=++parkingLoadRequestId;
+  $('rows').innerHTML='<tr><td colspan="7">Загрузка данных…</td></tr>';
+  const {data,error}=await sb.rpc('admin_list_parkings_page',adminPageArgs());
+  if(requestId!==parkingLoadRequestId)return;
+  if(!error&&data&&Array.isArray(data.items)){
+    parkingServerMode=true;records=data.items;parkingTotal=Number(data.total)||0;parkingGlobalStats=data.stats||null;
+    rebuildDraftMapDuplicateIndex();renderRows();updateStats();return;
+  }
+  if(error&&!/admin_list_parkings_page|schema cache|function/i.test(error.message||'')){toast(error.message,'error');$('rows').innerHTML='';return}
+  await loadParkingsLegacy(requestId);
+}
+async function loadParkingsLegacy(existingRequestId){
+  const requestId=existingRequestId||++parkingLoadRequestId;
   $('rows').innerHTML='<tr><td colspan="7">Загрузка данных…</td></tr>';
   const loaded=[];
   for(let offset=0;offset<20000;offset+=500){
@@ -949,22 +1000,30 @@ async function loadParkings(){
     loaded.push(...(data||[]));
     if(!data||data.length<500)break;
   }
-  records=loaded;rebuildDraftMapDuplicateIndex();renderRows();updateStats();if(currentAdminSection==='draft-map')renderDraftMap();
+  parkingServerMode=false;parkingGlobalStats=null;records=loaded;parkingTotal=loaded.length;rebuildDraftMapDuplicateIndex();renderRows();updateStats();if(currentAdminSection==='draft-map')renderDraftMap();
 }
+async function refreshParkingsForSection(){return currentAdminSection==='draft-map'?loadParkingsLegacy():loadParkings()}
 function filtered(){
+  if(parkingServerMode)return records.slice();
   const q=val('search').toLowerCase(), status=val('statusFilter'), category=val('categoryFilter'), quality=val('qualityFilter');
+  const source=val('sourceFilter'),photo=val('photoFilter'),from=val('updatedFromFilter'),to=val('updatedToFilter');
+  const fromTime=from?new Date(from+'T00:00:00').getTime():null,toTime=to?new Date(to+'T23:59:59.999').getTime():null;
   return records.filter(p=>{
     const issues=parkingQualityIssues(p);
+    const photoCount=Array.isArray(p.photos)?p.photos.filter(Boolean).length:0;
+    const updated=p.updated_at?new Date(p.updated_at).getTime():0;
     return (!q||[p.name,p.address,p.district].some(x=>String(x||'').toLowerCase().includes(q)))
       &&(!status||p.status===status)&&(!category||p.category===category)
-      &&(!quality||(quality==='attention'?issues.length>0:issues.includes(quality)));
+      &&(!quality||(quality==='attention'?issues.length>0:issues.includes(quality)))
+      &&(!source||p.source===source)&&(!photo||(photo==='with'?photoCount>0:photoCount===0))
+      &&(fromTime==null||updated>=fromTime)&&(toTime==null||updated<=toTime);
   });
 }
 function updateStats(){
-  $('statAll').textContent=records.length;
-  $('statApproved').textContent=records.filter(x=>x.status==='APPROVED').length;
-  $('statPending').textContent=records.filter(x=>x.status==='PENDING').length;
-  $('statEv').textContent=records.filter(x=>x.has_ev||x.category==='EV_STATION').length;
+  $('statAll').textContent=parkingGlobalStats?.all??records.length;
+  $('statApproved').textContent=parkingGlobalStats?.approved??records.filter(x=>x.status==='APPROVED').length;
+  $('statPending').textContent=parkingGlobalStats?.pending??records.filter(x=>x.status==='PENDING'||x.status==='NEEDS_INFO').length;
+  $('statEv').textContent=parkingGlobalStats?.ev??records.filter(x=>x.has_ev||x.category==='EV_STATION').length;
 }
 function statusClass(s){return s==='APPROVED'?'badge-approved':s==='PENDING'?'badge-pending':s==='REJECTED'?'badge-rejected':'badge-info'}
 function parkingQualityIssues(p){
@@ -988,12 +1047,12 @@ function priceText(p){
   return labels.price[p.price_type]||'Не указано';
 }
 function renderRows(){
-  const list=filtered(),pageCount=Math.max(1,Math.ceil(list.length/parkingPageSize));
+  const list=filtered(),total=parkingServerMode?parkingTotal:list.length,pageCount=Math.max(1,Math.ceil(total/parkingPageSize));
   parkingPage=Math.min(parkingPage,pageCount-1);
-  const visible=list.slice(parkingPage*parkingPageSize,(parkingPage+1)*parkingPageSize);
-  $('empty').classList.toggle('hidden',list.length>0);
-  $('parkingPager').classList.toggle('hidden',list.length<=parkingPageSize);
-  $('parkingPageLabel').textContent=list.length?`Страница ${parkingPage+1} из ${pageCount} · ${list.length} объектов`:'Ничего не найдено';
+  const visible=parkingServerMode?list:list.slice(parkingPage*parkingPageSize,(parkingPage+1)*parkingPageSize);
+  $('empty').classList.toggle('hidden',total>0);
+  $('parkingPager').classList.toggle('hidden',total<=parkingPageSize);
+  $('parkingPageLabel').textContent=total?`Страница ${parkingPage+1} из ${pageCount} · ${total} объектов`:'Ничего не найдено';
   $('parkingPrev').disabled=parkingPage===0;$('parkingNext').disabled=parkingPage+1>=pageCount;
   $('rows').innerHTML=visible.map(p=>`<tr>
     <td data-label="Парковка"><div class="parking-title">${escapeHtml(p.name||p.address||'Без названия')}</div><div class="parking-sub">${escapeHtml(p.address||p.district||'Адрес не указан')}</div>${parkingQualityHtml(p)}</td>
@@ -1208,7 +1267,7 @@ window.saveDraftMapMove=async()=>{
     p_district:updateAddress?(addressFields.district||null):null,
     p_city:updateAddress?(addressFields.city||null):null
   });
-  if(error){draftMapMoveSaving=false;toast(error.message,'error');return}draftMapMoveState=null;draftMapMoveSaving=false;toast('Новые координаты и выбранные адресные данные сохранены');await loadParkings();openDraftMapCard(state.id);
+  if(error){draftMapMoveSaving=false;toast(error.message,'error');return}draftMapMoveState=null;draftMapMoveSaving=false;toast('Новые координаты и выбранные адресные данные сохранены');await refreshParkingsForSection();openDraftMapCard(state.id);
 };
 
 async function loadSubmissions(){
@@ -1372,7 +1431,7 @@ window.reviewReport=async(id,status)=>{
   }finally{endAdminAction(action)}
 };
 
-const auditActionLabels={APPROVED:'Опубликовано',MOVED:'Перемещено',ARCHIVED:'В архиве',DELETED:'Удалено',REJECTED:'Отклонено',UPDATED:'Изменено',CREATED:'Создано'};
+const auditActionLabels={APPROVED:'Опубликовано',MOVED:'Перемещено',ARCHIVED:'В архиве',DELETED:'Удалено',REJECTED:'Отклонено',UPDATED:'Изменено',CREATED:'Создано',USER_BLOCKED:'Пользователь заблокирован',USER_UNBLOCKED:'Пользователь разблокирован'};
 function auditDetailsText(details){
   if(!details||typeof details!=='object')return '—';
   const preferred=['old_address','new_address','old_lat','old_lng','new_lat','new_lng','source_status','confirmed_at','moved_at'];
@@ -1405,6 +1464,23 @@ function renderModerationAudit(){
     <td data-label="Подробности"><span class="parking-sub">${escapeHtml(auditDetailsText(entry.details))}</span></td>
   </tr>`).join('');
 }
+
+async function loadAdminUsers(){
+  $('userRows').innerHTML='<tr><td colspan="6">Загрузка пользователей…</td></tr>';$('userEmpty').classList.add('hidden');
+  const {data,error}=await sb.functions.invoke('admin-users',{body:{action:'list',page:userPage+1,per_page:userPageSize,search:val('userSearch')||null}});
+  if(error||!data?.ok){adminUsers=[];$('userRows').innerHTML='';$('userPager').classList.add('hidden');$('userEmpty').classList.remove('hidden');$('userEmpty').innerHTML='<strong>Раздел пока недоступен</strong>Разверните защищённую Edge Function admin-users и обновите страницу.';return}
+  adminUsers=Array.isArray(data.users)?data.users:[];userHasNext=Boolean(data.has_next);renderAdminUsers();
+}
+function renderAdminUsers(){
+  $('userEmpty').classList.toggle('hidden',adminUsers.length>0);$('userPager').classList.toggle('hidden',userPage===0&&!userHasNext);
+  $('userPageLabel').textContent=`Страница ${userPage+1}`;$('userPrev').disabled=userPage===0;$('userNext').disabled=!userHasNext;
+  $('userRows').innerHTML=adminUsers.map(user=>`<tr><td data-label="Пользователь"><div class="parking-title">${escapeHtml(user.email||'Без электронной почты')}</div><div class="parking-sub">${escapeHtml(user.id)}</div></td><td data-label="Роль"><span class="badge badge-info">${escapeHtml(user.role||'Пользователь')}</span></td><td data-label="Создан">${user.created_at?new Date(user.created_at).toLocaleDateString('ru-RU'):'—'}</td><td data-label="Последний вход">${user.last_sign_in_at?new Date(user.last_sign_in_at).toLocaleString('ru-RU'):'—'}</td><td data-label="Статус"><span class="badge ${user.banned?'badge-rejected':'badge-approved'}">${user.banned?'Заблокирован':'Активен'}</span></td><td data-label="Действия"><button class="btn ${user.banned?'btn-secondary':'btn-danger'} table-btn" onclick="setUserBlocked('${user.id}',${!user.banned})">${user.banned?'Разблокировать':'Заблокировать'}</button></td></tr>`).join('');
+}
+window.setUserBlocked=async(userId,blocked)=>{
+  const confirmed=await parklyConfirm({title:blocked?'Заблокировать пользователя?':'Разблокировать пользователя?',message:blocked?'Пользователь потеряет возможность входить и отправлять материалы.':'Пользователь снова сможет войти в Parkly.',confirmText:blocked?'Заблокировать':'Разблокировать',danger:blocked});if(!confirmed)return;
+  const action=beginAdminAction(`user:${userId}`,blocked?'Блокирую…':'Разблокирую…');if(!action)return;
+  try{const {data,error}=await sb.functions.invoke('admin-users',{body:{action:blocked?'ban':'unban',user_id:userId}});if(error||!data?.ok){toast(data?.error||'Не удалось изменить статус пользователя','error');return}toast(data.audit_logged===false?'Статус изменён, но запись аудита не сохранилась':(blocked?'Пользователь заблокирован':'Пользователь разблокирован'),data.audit_logged===false?'error':'success');await loadAdminUsers()}finally{endAdminAction(action)}
+};
 
 function osmCandidateFromElement(el){
   const t=el.tags||{}, point=el.center||el;
@@ -1567,7 +1643,7 @@ $('addStreetPoint').onclick=()=>{
   $('street_path').value+=($('street_path').value.trim()?'\n':'')+lat+', '+lng;markParkingFormDirty();
 };
 const PHOTO_LIMIT=5,PHOTO_MAX_BYTES=10*1024*1024;
-const photoTypeLabels={general:'Общий вид',entrance:'Въезд',exit:'Выезд',barrier:'Шлагбаум',tariff:'Тариф',rules:'Правила',ev:'EV',other:'Другое'};
+const photoTypeLabels={general:'Общий вид',entrance:'Въезд',barrier:'Шлагбаум',tariff:'Тариф',rules:'Правила',ev:'EV',other:'Другое'};
 const photoStatusLabels={ready:'Готово к загрузке',uploading:'Загружается…',uploaded:'Загружено',error:'Ошибка'};
 let parkingPhotoItems=[];
 
@@ -2096,7 +2172,7 @@ window.confirmParking=async id=>{
   }
   const {error}=await sb.rpc('admin_confirm_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
-  toast('Парковка подтверждена и опубликована');await loadParkings();
+  toast('Парковка подтверждена и опубликована');await refreshParkingsForSection();
   if(currentAdminSection==='draft-map'){
     const updated=records.find(x=>String(x.id)===String(id));
     if(updated&&draftMapFilteredRecords().some(x=>String(x.id)===String(id)))openDraftMapCard(id);else closeDraftMapCard();
@@ -2111,7 +2187,7 @@ window.deleteParking=async id=>{
   if(!await parklyConfirm({title:'Удалить черновик?',message:`«${p?.name||p?.address||''}» будет удалён без возможности восстановления.`,confirmText:'Удалить',danger:true}))return;
   const {error}=await sb.rpc('admin_delete_draft_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
-  toast('Черновик удалён');await loadParkings();
+  toast('Черновик удалён');await refreshParkingsForSection();
   }finally{endAdminAction(action)}
 };
 window.archiveParking=async id=>{
@@ -2122,7 +2198,7 @@ window.archiveParking=async id=>{
   if(!await parklyConfirm({title:'Переместить в архив?',message:`«${p?.name||p?.address||''}» исчезнет с публичной карты, но сохранится в архиве.`,confirmText:'В архив',danger:true}))return;
   const {error}=await sb.rpc('admin_archive_parking',{p_id:id});
   if(error){toast(error.message,'error');return}
-  toast('Парковка перемещена в архив');await loadParkings();
+  toast('Парковка перемещена в архив');await refreshParkingsForSection();
   }finally{endAdminAction(action)}
 };
 
@@ -2205,7 +2281,7 @@ $('parkingForm').addEventListener('submit',async e=>{
     });
     if(osmError){formMessage($('formMsg'),'Парковка сохранена, но кандидат OSM не закрыт: '+osmError.message);return}
   }
-  closeForm(true);toast('Изменения сохранены');await loadParkings();
+  closeForm(true);toast('Изменения сохранены');await refreshParkingsForSection();
   if(currentAdminSection==='draft-map'&&draftMapSelectedId){
     const selected=records.find(x=>String(x.id)===String(draftMapSelectedId));
     if(selected&&draftMapFilteredRecords().some(x=>String(x.id)===String(draftMapSelectedId)))renderDraftMapCard(selected);else closeDraftMapCard();

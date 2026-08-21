@@ -607,6 +607,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 .onboarding{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:none;align-items:flex-end;justify-content:center;padding:16px}.onboarding.on{display:flex}.onboarding-card{width:min(100%,520px);background:var(--card);color:var(--ink);border-radius:28px;padding:24px;box-shadow:0 24px 80px rgba(15,23,42,.3);animation:slideUp .28s cubic-bezier(.2,.8,.3,1)}.onboarding-icon{width:64px;height:64px;display:grid;place-items:center;border-radius:20px;background:#E8F0FF;color:var(--blue);font-size:30px;margin-bottom:18px}.onboarding-card h2{font:800 25px Manrope;margin:0 0 10px}.onboarding-card p{font:500 15px/1.55 Manrope;color:var(--ink2);margin:0 0 22px}.onboarding-actions{display:grid;gap:10px}.onboarding-actions button{min-height:50px;border-radius:15px;font:800 14px Manrope;cursor:pointer}.onboarding-primary{border:0;background:var(--blue);color:#fff}.onboarding-secondary{border:1px solid var(--line);background:var(--card);color:var(--ink)}
 
 .duplicate-mask{position:fixed;inset:0;z-index:10020;background:rgba(15,23,42,.58);display:none;align-items:flex-end;justify-content:center;padding:16px}.duplicate-mask.on{display:flex}.duplicate-dialog{width:min(100%,540px);max-height:min(78vh,660px);overflow:auto;background:var(--card);color:var(--ink);border-radius:26px;padding:22px;box-shadow:0 24px 80px rgba(15,23,42,.32);animation:slideUp .24s cubic-bezier(.2,.8,.3,1)}.duplicate-dialog h2{font:800 22px Manrope;margin:0 0 8px}.duplicate-dialog>p{font:500 14px/1.5 Manrope;color:var(--ink2);margin:0 0 16px}.duplicate-results{display:grid;gap:9px;margin-bottom:18px}.duplicate-result{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);background:var(--bg);padding:13px;border-radius:16px}.duplicate-result b{display:block;font:800 14px Manrope}.duplicate-result span{display:block;color:var(--ink2);font:500 12px/1.4 Manrope;margin-top:3px}.duplicate-distance{margin-left:auto!important;color:var(--blue)!important;font-weight:800!important;white-space:nowrap}.duplicate-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.duplicate-actions button{min-height:48px;border-radius:14px;font:800 13px Manrope;cursor:pointer}.duplicate-open{grid-column:1/-1;border:0;background:var(--blue);color:#fff}.duplicate-submit{border:1px solid var(--line);background:var(--card);color:var(--ink)}.duplicate-cancel{border:0;background:var(--bg);color:var(--ink2)}
+.photo-preview-list{display:grid;gap:9px;margin-top:10px}.photo-preview-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:8px;background:var(--bg)}.photo-preview-item img{width:58px;height:58px;object-fit:cover;border-radius:10px;background:#e2e8f0}.photo-preview-meta{min-width:0}.photo-preview-meta b,.photo-preview-meta span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.photo-preview-meta b{font:700 12px Manrope}.photo-preview-meta span{font:500 11px Manrope;color:var(--ink2);margin-top:3px}.photo-preview-remove{width:36px;height:36px;border:0;border-radius:11px;background:#fee2e2;color:#b91c1c;font-weight:900;cursor:pointer}.photo-preview-error{color:var(--red)!important;white-space:normal!important}
 </style>
 </head>
 <body>
@@ -688,10 +689,10 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
   <div class="onboarding-card">
     <div class="onboarding-icon">P</div>
     <h2 id="onboardingTitle">Добро пожаловать в Parkly</h2>
-    <p>Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.</p>
+    <p id="onboardingText">Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.</p>
     <div class="onboarding-actions">
-      <button class="onboarding-primary" type="button" onclick="finishOnboarding(true)">Разрешить геолокацию</button>
-      <button class="onboarding-secondary" type="button" onclick="finishOnboarding(false)">Продолжить без геолокации</button>
+      <button class="onboarding-primary" id="onboardingGeo" type="button" onclick="finishOnboarding(true)">Разрешить геолокацию</button>
+      <button class="onboarding-secondary" id="onboardingSkip" type="button" onclick="finishOnboarding(false)">Продолжить без геолокации</button>
     </div>
   </div>
 </div>
@@ -703,8 +704,9 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
     <div class="duplicate-results" id="duplicateResults"></div>
     <div class="duplicate-actions">
       <button class="duplicate-open" id="duplicateOpen" type="button">Открыть ближайшую парковку</button>
+      <button class="duplicate-submit" id="duplicateReport" type="button">Сообщить об ошибке</button>
       <button class="duplicate-submit" type="button" onclick="resolveDuplicateDialog('submit')">Всё равно отправить</button>
-      <button class="duplicate-cancel" type="button" onclick="resolveDuplicateDialog('cancel')">Отмена</button>
+      <button class="duplicate-cancel" style="grid-column:1/-1" type="button" onclick="resolveDuplicateDialog('cancel')">Отмена</button>
     </div>
   </div>
 </div>
@@ -745,7 +747,7 @@ const I18N={
   costFree:'Бесплатно', costPaid:'Платно', costUnknown:'Неизвестно',
   chgYes:'Есть', chgNo:'Нет', chgUnknown:'Неизвестно',
   needName:'Укажите местоположение', addOk:'Спасибо. Парковка отправлена на проверку',
-  profTitle:'Профиль', myCars:'Мои автомобили', history:'История поездок', payments:'Способы оплаты',
+  profTitle:'Профиль',
   notifs:'Уведомления', support:'Поддержка', about:'О приложении', logout:'Выйти из аккаунта',
   guest:'Гость', signIn:'Войти', notSignedIn:'Вы не вошли в аккаунт',
   reportTitle:'Сообщить об ошибке', rNoPark:'Парковки здесь нет', rForbidden:'Парковка запрещена',
@@ -768,11 +770,42 @@ const I18N={
   mapErr:'Карта не загрузилась', mapErrP:'Проверьте интернет или домен в кабинете Яндекс API.',
   networkErr:'Не удалось загрузить парковки. Проверьте интернет и повторите.',
   sending:'Отправляю…', sendFailed:'Не удалось отправить. Проверьте интернет и повторите.',
-  trafOn:'Пробки включены', trafOff:'Пробки выключены', removed:'Удалено из избранного'
+  trafOn:'Пробки включены', trafOff:'Пробки выключены', removed:'Удалено из избранного',
+  onboardingTitle:'Добро пожаловать в Parkly',onboardingText:'Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.',allowGeo:'Разрешить геолокацию',continueNoGeo:'Продолжить без геолокации'
  }
 };
-let lang='ru';
-const t=k=>I18N[lang][k]||k;
+I18N.uz={...I18N.ru,
+ searchPh:'Ko‘cha, joy yoki avtoturargohni qidiring',qAll:'Barchasi',qFree:'Bepul',qPaid:'Pullik',qEv:'Quvvatlash',
+ navMap:'Xarita',navFav:'Sevimlilar',navAdd:'Qo‘shish',navProfile:'Profil',showDetails:'Batafsil',goRoute:'Yo‘nalish qurish',
+ addFav:'Sevimlilarga qo‘shish',inFav:'Sevimlilarda',report:'Xato haqida xabar berish',free:'Bepul',approx:'Taxminan',places:'joy',
+ filters:'Filtrlar',filtType:'Avtoturargoh turi',filtExtra:'Qo‘shimcha',filtPrice:'Narx',fAll:'Barchasi',fPaid:'Pullik',fFree:'Bepul',
+ apply:'Qo‘llash',reset:'Tozalash',favTitle:'Sevimlilar',edit:'Tahrirlash',done:'Tayyor',favEmpty:'Hozircha bo‘sh',
+ favEmptyDesc:'Avtoturargoh kartasidagi yulduzchani bosib saqlang.',addTitle:'Avtoturargoh qo‘shish',cancel:'Bekor qilish',
+ fLoc:'Joylashuv',fName:'Nomi',fCat:'Toifa',fCost:'Narx',fRate:'Tarif',fCap:'Joylar soni',fType:'Turi',fHours:'Ish vaqti',
+ fCharge:'Quvvatlash',fPhoto:'Rasmlar',fNote:'Izoh',costFree:'Bepul',costPaid:'Pullik',costUnknown:'Noma’lum',
+ profTitle:'Profil',notifs:'Bildirishnomalar',support:'Yordam',about:'Ilova haqida',signIn:'Kirish',logout:'Chiqish',guest:'Mehmon',
+ selectedPoint:'Tanlangan nuqta',currentPosition:'Sizning joylashuvingiz',byCar:'Avtomobilda',onFoot:'Piyoda',
+ noParkArea:'Bu hududda avtoturargohlar hali qo‘shilmagan',networkErr:'Avtoturargohlarni yuklab bo‘lmadi. Internetni tekshiring.',
+ routeUnavailable:'Yo‘l bo‘yicha yo‘nalish qurilmadi',startGuide:'Kuzatuvni boshlash',stopGuide:'To‘xtatish',sending:'Yuborilmoqda…'
+ ,onboardingTitle:'Parkly’ga xush kelibsiz',onboardingText:'Tekshirilgan avtoturargohlarni toping, shartlarni ko‘ring va yo‘nalish quring. Parkly bo‘sh joylarni real vaqtda ko‘rsatmaydi.',allowGeo:'Geolokatsiyaga ruxsat berish',continueNoGeo:'GPSsiz davom etish'
+};
+I18N.en={...I18N.ru,
+ searchPh:'Find a street, place or parking',qAll:'All',qFree:'Free',qPaid:'Paid',qEv:'Charging',
+ navMap:'Map',navFav:'Favorites',navAdd:'Add',navProfile:'Profile',showDetails:'Show details',goRoute:'Build route',
+ addFav:'Add to favorites',inFav:'In favorites',report:'Report an error',free:'Free',approx:'Approx.',places:'spaces',
+ filters:'Filters',filtType:'Parking type',filtExtra:'More',filtPrice:'Price',fAll:'All',fPaid:'Paid',fFree:'Free',
+ apply:'Apply',reset:'Reset',favTitle:'Favorites',edit:'Edit',done:'Done',favEmpty:'Nothing here yet',
+ favEmptyDesc:'Save parking places with the star button in their cards.',addTitle:'Add parking',cancel:'Cancel',
+ fLoc:'Location',fName:'Name',fCat:'Category',fCost:'Cost',fRate:'Rate',fCap:'Capacity',fType:'Type',fHours:'Opening hours',
+ fCharge:'EV charging',fPhoto:'Photos',fNote:'Note',costFree:'Free',costPaid:'Paid',costUnknown:'Unknown',
+ profTitle:'Profile',notifs:'Notifications',support:'Support',about:'About',signIn:'Sign in',logout:'Sign out',guest:'Guest',
+ selectedPoint:'Selected point',currentPosition:'Your location',byCar:'Driving',onFoot:'Walking',
+ noParkArea:'No parking places have been added in this area yet',networkErr:'Could not load parking places. Check your connection.',
+ routeUnavailable:'A road route could not be built',startGuide:'Start guidance',stopGuide:'Stop',sending:'Sending…'
+ ,onboardingTitle:'Welcome to Parkly',onboardingText:'Find verified parking, review its conditions and build a route. Parkly does not show real-time availability.',allowGeo:'Allow location',continueNoGeo:'Continue without location'
+};
+let lang=(()=>{try{return ['ru','uz','en'].includes(localStorage.getItem('parkly-language'))?localStorage.getItem('parkly-language'):'ru'}catch(e){return'ru'}})();
+const t=k=>I18N[lang]?.[k]||I18N.ru[k]||k;
 let onboardingResolve;
 const onboardingReady=new Promise(resolve=>{onboardingResolve=resolve});
 function finishOnboarding(useLocation){
@@ -784,6 +817,11 @@ function initOnboarding(){
   let complete=false;try{complete=localStorage.getItem('parkly-onboarding-complete')==='1'}catch(e){}
   if(complete){onboardingResolve(true);return}
   document.getElementById('onboarding').classList.add('on');
+}
+function updateLocalizedStaticUi(){
+  const values={onboardingTitle:t('onboardingTitle'),onboardingText:t('onboardingText'),onboardingGeo:t('allowGeo'),onboardingSkip:t('continueNoGeo')};
+  Object.entries(values).forEach(([id,value])=>{const element=document.getElementById(id);if(element)element.textContent=value});
+  const search=document.getElementById('search');if(search){search.placeholder=t('searchPh');search.setAttribute('aria-label',t('searchPh'))}
 }
 
 /* В production показываем только данные из Supabase. Вымышленные точки
@@ -1049,7 +1087,7 @@ let mePos=null, watchId=null, activeTab='map', selectedId=null;
 let selectedStart=null,selectedDestination=null,selectedPointRequest=0,addAddressRequest=0;
 let quickFilter='all';
 let favorites=loadFav();
-let advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,barrier:false,freePeriod:false,priceMax:100000};
+let advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,barrier:false,freePeriod:false,minFreeMinutes:0,priceMax:100000};
 const PARKING_MARKER_ASSETS={
   barrier:{small:'assets/markers/barrier-parking-small.png',normal:'assets/markers/barrier-parking.png',selected:'assets/markers/barrier-parking-selected.png'},
   freePeriod:{small:'assets/markers/limited-free-parking-small.png',normal:'assets/markers/limited-free-parking.png',selected:'assets/markers/limited-free-parking-selected.png'}
@@ -1267,6 +1305,7 @@ function filteredParkings(){
   if(advFilters.wash)v=v.filter(p=>p.wash);
   if(advFilters.barrier)v=v.filter(p=>p.has_barrier);
   if(advFilters.freePeriod)v=v.filter(p=>p.has_free_period);
+  if(advFilters.minFreeMinutes>0)v=v.filter(p=>p.has_free_period&&Number(p.free_period_minutes)>=advFilters.minFreeMinutes);
   if(advFilters.priceMax<100000)v=v.filter(p=>(p.price_val||0)<=advFilters.priceMax);
   return v;
 }
@@ -1638,6 +1677,12 @@ function shareParking(id){
 function openSheet(html){document.getElementById('sheet').innerHTML=html;document.getElementById('mask').classList.add('open')}
 function closeSheet(){document.getElementById('mask').classList.remove('open')}
 document.getElementById('mask').onclick=e=>{if(e.target.id==='mask')closeSheet()};
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  if(document.getElementById('duplicateMask')?.classList.contains('on')){event.preventDefault();resolveDuplicateDialog('cancel');return}
+  if(document.getElementById('mask')?.classList.contains('open')){event.preventDefault();closeSheet();return}
+  hideSearchHistory();
+});
 
 /* ═══════════ ФИЛЬТРЫ (расширенные) ═══════════ */
 function openFilters(){
@@ -1657,6 +1702,9 @@ function openFilters(){
     +'<div class="check-row" onclick="toggleFiltExtra(\'barrier\')"><span class="rl" style="flex:1;font:700 14.5px Manrope">🚧 Со шлагбаумом</span><span class="toggle'+(advFilters.barrier?' on':'')+'"></span></div>'
     +'<div class="check-row" onclick="toggleFiltExtra(\'freePeriod\')"><span class="rl" style="flex:1;font:700 14.5px Manrope">🕐 Есть бесплатный период</span><span class="toggle'+(advFilters.freePeriod?' on':'')+'"></span></div>'
     +'</div>'
+    +'<div class="filt-group"><h3>Минимальный бесплатный период</h3>'
+    +[[0,'Любой'],[30,'Не менее 30 минут'],[60,'Не менее 60 минут'],[120,'Не менее 120 минут']].map(([value,label])=>'<div class="radio-row'+(advFilters.minFreeMinutes===value?' sel':'')+'" onclick="setMinFreeMinutes('+value+')"><span class="rl">'+label+'</span><span class="radio-mark"></span></div>').join('')
+    +'</div>'
     +'<div class="filt-group"><h3>'+t('filtPrice')+'</h3>'
     +'<div class="price-row"><span>0 сум</span><span id="priceVal">'+(advFilters.priceMax>=100000?t('anyPrice'):advFilters.priceMax.toLocaleString('ru')+' сум')+'</span></div>'
     +'<input type="range" class="slider" min="0" max="100000" step="5000" value="'+advFilters.priceMax+'" oninput="document.getElementById(\'priceVal\').textContent=(+this.value>=100000?t(\'anyPrice\'):(+this.value).toLocaleString(\'ru\')+\' сум\');advFilters.priceMax=+this.value">'
@@ -1671,9 +1719,10 @@ function openFilters(){
 function setFiltPrice(k){advFilters.price=k;openFilters()}
 function toggleFiltType(k){const i=advFilters.types.indexOf(k);if(i>=0)advFilters.types.splice(i,1);else advFilters.types.push(k);openFilters()}
 function toggleFiltExtra(k){advFilters[k]=!advFilters[k];openFilters()}
+function setMinFreeMinutes(value){advFilters.minFreeMinutes=Number(value)||0;if(advFilters.minFreeMinutes)advFilters.freePeriod=true;openFilters()}
 function applyFilters(){closeSheet();drawMarkers();
   const n=filteredParkings().length;toast(n?('Найдено: '+n):t('noParkArea'))}
-function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,barrier:false,freePeriod:false,priceMax:100000};openFilters()}
+function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,disabled:false,wash:false,barrier:false,freePeriod:false,minFreeMinutes:0,priceMax:100000};openFilters()}
 
 /* ═══════════ ГЕОЛОКАЦИЯ (параллельная: сеть + GPS одновременно) ═══════════ */
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -2099,8 +2148,10 @@ function showDuplicateDialog(candidates){
   const mask=document.getElementById('duplicateMask');
   const results=document.getElementById('duplicateResults');
   const open=document.getElementById('duplicateOpen');
+  const report=document.getElementById('duplicateReport');
   results.innerHTML=candidates.map(parking=>'<div class="duplicate-result"><div><b>'+escapeHtml(parking.name||'Парковка')+'</b><span>'+escapeHtml(parking.address||'Адрес не указан')+'</span></div><span class="duplicate-distance">'+Math.max(1,Math.round(parking.distance*1000))+' м</span></div>').join('');
   open.onclick=()=>resolveDuplicateDialog('open',candidates[0]?.id);
+  report.onclick=()=>resolveDuplicateDialog('report',candidates[0]?.id);
   mask.classList.add('on');
   return new Promise(resolve=>{duplicateDialogResolve=resolve});
 }
@@ -2109,6 +2160,10 @@ function resolveDuplicateDialog(action,id){
   const resolve=duplicateDialogResolve;duplicateDialogResolve=null;
   if(action==='open'&&id){
     closeSheet();switchTab('map');selectParking(id);
+    if(resolve)resolve(false);return;
+  }
+  if(action==='report'&&id){
+    closeSheet();switchTab('map');selectParking(id);setTimeout(()=>openReport(id),220);
     if(resolve)resolve(false);return;
   }
   if(resolve)resolve(action==='submit');
@@ -2156,8 +2211,8 @@ function openAdd(){
       +'<div class="field"><label>'+t('fCharge')+'</label><select id="a_ev"><option value="no">'+t('chgNo')+'</option><option value="yes">'+t('chgYes')+'</option><option value="unknown">'+t('chgUnknown')+'</option></select></div>'
     +'</div>'
     +'<div class="field"><label>'+t('fPhoto')+'</label>'
-        +'<input id="a_photos" type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif,image/heic,image/heif" multiple>'
-      +'<small>До 5 фото. Для загрузки фотографий необходимо войти в аккаунт.</small>'
+        +'<input id="a_photos" type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif,image/heic,image/heif" multiple onchange="renderSubmissionPhotoPreview()">'
+      +'<small>До 5 фото. Для загрузки фотографий необходимо войти в аккаунт.</small><div class="photo-preview-list" id="a_photo_preview"></div>'
     +'</div>'
     +'<div class="field"><label>'+t('fNote')+'</label><textarea id="a_note" placeholder="'+t('phNote')+'"></textarea></div>'
     +'</div>';
@@ -2195,6 +2250,29 @@ function updateSubmissionAccessFields(){
   const freePeriod=Boolean(document.getElementById('a_free_period')?.checked);
   box.style.display=(barrier||freePeriod)?'block':'none';
 }
+const submissionPhotoUrls=[];
+function formatFileSize(bytes){return bytes<1024*1024?Math.max(1,Math.round(bytes/1024))+' КБ':(bytes/1024/1024).toFixed(1)+' МБ'}
+function submissionPhotoError(file){
+  if(file.size>10*1024*1024)return'Файл больше 10 МБ';
+  if(/\.(heic|heif)$/i.test(file.name)||['image/heic','image/heif'].includes(file.type))return'HEIC/HEIF: сначала преобразуйте в JPEG';
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))return'Неподдерживаемый формат';
+  return'';
+}
+function renderSubmissionPhotoPreview(){
+  const input=document.getElementById('a_photos'),box=document.getElementById('a_photo_preview');if(!input||!box)return;
+  submissionPhotoUrls.splice(0).forEach(url=>URL.revokeObjectURL(url));
+  const files=[...input.files];
+  box.innerHTML=files.map((file,index)=>{
+    const url=URL.createObjectURL(file);submissionPhotoUrls.push(url);const error=submissionPhotoError(file);
+    return '<div class="photo-preview-item"><img src="'+url+'" alt="Предпросмотр фотографии"><div class="photo-preview-meta"><b>'+escapeHtml(file.name)+'</b><span>'+formatFileSize(file.size)+'</span><span id="a_photo_status_'+index+'" class="'+(error?'photo-preview-error':'')+'">'+escapeHtml(error||'Готово к загрузке')+'</span></div><button class="photo-preview-remove" type="button" aria-label="Удалить фотографию" onclick="removeSubmissionPhoto('+index+')">✕</button></div>';
+  }).join('');
+  if(files.length>5)toast('Можно добавить не более 5 фотографий');
+}
+function removeSubmissionPhoto(index){
+  const input=document.getElementById('a_photos');if(!input)return;
+  const transfer=new DataTransfer();[...input.files].forEach((file,i)=>{if(i!==index)transfer.items.add(file)});input.files=transfer.files;renderSubmissionPhotoPreview();
+}
+function setSubmissionPhotoStatus(index,text,error=false){const element=document.getElementById('a_photo_status_'+index);if(element){element.textContent=text;element.classList.toggle('photo-preview-error',error)}}
 async function prepareSubmissionImage(file){
   if(file.size>10*1024*1024)throw new Error('Фотография больше 10 МБ');
   if(/\.(heic|heif)$/i.test(file.name)||['image/heic','image/heif'].includes(file.type))throw new Error('HEIC/HEIF пока не поддерживается. Сохраните фотографию как JPEG, PNG или WebP.');
@@ -2223,8 +2301,11 @@ async function uploadSubmissionPhotos(files){
   if(!token)throw new Error('Войдите в аккаунт, чтобы добавить фотографии');
   if(files.length>5)throw new Error('Можно добавить не более 5 фотографий');
   const references=[];
-  for(const file of files){
-    const blob=await prepareSubmissionImage(file);
+  for(let index=0;index<files.length;index++){
+    const file=files[index];setSubmissionPhotoStatus(index,'Обрабатываю…');
+    let blob;
+    try{blob=await prepareSubmissionImage(file)}catch(error){setSubmissionPhotoStatus(index,error.message||'Ошибка файла',true);throw error}
+    setSubmissionPhotoStatus(index,'Загружаю…');
     const path='submissions/'+authSession.user.id+'/'+crypto.randomUUID()+'.jpg';
     const res=await fetch(SUPABASE_URL+'/storage/v1/object/parking-photo-drafts/'+path,{
       method:'POST',
@@ -2233,9 +2314,10 @@ async function uploadSubmissionPhotos(files){
     });
     if(!res.ok){
       const detail=await res.json().catch(()=>({}));
-      throw new Error(detail.message||detail.error||('Не удалось загрузить фотографию ('+res.status+')'));
+      const error=new Error(detail.message||detail.error||('Не удалось загрузить фотографию ('+res.status+')'));setSubmissionPhotoStatus(index,error.message,true);throw error;
     }
     references.push('storage://parking-photo-drafts/'+path);
+    setSubmissionPhotoStatus(index,'Загружено');
   }
   return references;
 }
@@ -2434,6 +2516,7 @@ function renderProfile(){
     +profRow('📄','Мои заявки',submissionCount,'openMySubmissions()')
     +profRow('🛠','Мои исправления',reportCount,'openMyReports()')
     +profRow('🔔',t('notifs'),notificationUnreadCount()||'','openNotifications()')
+    +profRow('文','Язык',languageLabel(lang),'openLanguageSettings()')
     +profRow('➤','Маршруты',navigationProviderLabel(localStorage.getItem('parkly_navigation_provider')),'openNavigationSettings()')
     +profRow('💬',t('support'),'','openSupport()')
     +profRow('ⓘ',t('about'),'v1.0','openAbout()')
@@ -2442,6 +2525,21 @@ function renderProfile(){
 }
 function profRow(ic,label,val,action){
   return '<div class="prof-row" onclick="'+action+'"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val!==''?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
+}
+function languageLabel(value){return({ru:'Русский',uz:'O‘zbekcha',en:'English'})[value]||'Русский'}
+function openLanguageSettings(){
+  const options=[['ru','Русский'],['uz','O‘zbekcha'],['en','English']];
+  openSheet('<div class="grabber"><i></i></div><div class="filt-head"><h2>Язык интерфейса</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="filt-body">'
+    +options.map(([value,label])=>'<button class="nav-provider '+(lang===value?'selected':'')+'" onclick="setLanguage(\''+value+'\')"><b>'+label+'</b><span>'+(value==='ru'?'Русский язык':value==='uz'?'O‘zbek tili':'English language')+'</span></button>').join('')+'</div>');
+}
+function setLanguage(value){
+  if(!['ru','uz','en'].includes(value))return;
+  lang=value;try{localStorage.setItem('parkly-language',value)}catch(e){}
+  document.documentElement.lang=value;
+  updateLocalizedStaticUi();
+  buildQchips();buildNav();closeSheet();renderProfile();
+  if(document.getElementById('screen-fav')?.classList.contains('active'))renderFav();
+  toast(value==='ru'?'Язык изменён':value==='uz'?'Til o‘zgartirildi':'Language changed');
 }
 function navigationProviderLabel(provider){return ({ors:'Parkly Beta','external-yandex':'Яндекс',google:'Google Maps',apple:'Apple Maps'})[provider]||'Спрашивать'}
 function openNavigationSettings(){
@@ -2816,6 +2914,8 @@ let isDark = (()=>{ try{return localStorage.getItem('pl-theme')==='dark'}catch(e
 applyTheme(isDark);
 document.getElementById('themebtn').onclick=()=>{isDark=!isDark;applyTheme(isDark)};
 
+document.documentElement.lang=lang;
+updateLocalizedStaticUi();
 initOnboarding();loadYandex();buildQchips();buildNav();loadParkingsFromDB();updateNotificationBadge();
 if(authSession){
   loadRemoteFavorites();

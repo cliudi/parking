@@ -22,11 +22,23 @@ for (const file of files) {
     for (const id of requiredUserIds) {
       if (!html.includes(`id="${id}"`)) throw new Error(`${file}: missing #${id}`);
     }
-    for (const fn of ['finishOnboarding', 'showSearchHistory', 'openFavoriteSort', 'showDuplicateDialog']) {
+    for (const fn of ['finishOnboarding', 'showSearchHistory', 'openFavoriteSort', 'showDuplicateDialog', 'setMinFreeMinutes', 'setLanguage', 'renderSubmissionPhotoPreview']) {
       if (!html.includes(`function ${fn}`)) throw new Error(`${file}: missing ${fn}()`);
+    }
+    for (const language of ['ru:{', 'I18N.uz', 'I18N.en']) {
+      if (!html.includes(language)) throw new Error(`${file}: missing ${language}`);
     }
     for (const link of ['privacy.html', 'terms.html']) {
       if (!html.includes(`href="${link}"`)) throw new Error(`${file}: missing link to ${link}`);
+    }
+  }
+
+  if (file === 'admin.html') {
+    for (const id of ['sourceFilter', 'photoFilter', 'updatedFromFilter', 'updatedToFilter', 'usersNav', 'usersPanel', 'userRows']) {
+      if (!html.includes(`id="${id}"`)) throw new Error(`${file}: missing #${id}`);
+    }
+    for (const fn of ['loadAdminUsers', 'loadParkingsLegacy', 'adminPageArgs']) {
+      if (!html.includes(`function ${fn}`)) throw new Error(`${file}: missing ${fn}()`);
     }
   }
 
