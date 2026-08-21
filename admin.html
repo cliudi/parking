@@ -847,16 +847,16 @@ $('logoutBtn').onclick=async()=>{await sb.auth.signOut();showLogin()};
 
 let searchTimer;
 $('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{parkingPage=0;loadParkings();writeAdminRoute('parkings',true)},250)});
-['statusFilter','categoryFilter','qualityFilter','sourceFilter','photoFilter','updatedFromFilter','updatedToFilter'].forEach(id=>$(id).onchange=()=>{parkingPage=0;loadParkings();writeAdminRoute('parkings',true)});
-$('resetFilters').onclick=()=>{$('search').value='';['statusFilter','categoryFilter','qualityFilter','sourceFilter','photoFilter','updatedFromFilter','updatedToFilter'].forEach(id=>$(id).value='');parkingPage=0;loadParkings();writeAdminRoute('parkings',true)};
+['statusFilter','categoryFilter','qualityFilter','sourceFilter','photoFilter','updatedFromFilter','updatedToFilter'].forEach(id=>$(id).onchange=()=>{parkingPage=0;showSection('parkings',{replaceRoute:true})});
+$('resetFilters').onclick=()=>{$('search').value='';['statusFilter','categoryFilter','qualityFilter','sourceFilter','photoFilter','updatedFromFilter','updatedToFilter'].forEach(id=>$(id).value='');parkingPage=0;showSection('parkings',{replaceRoute:true})};
 $('parkingPrev').onclick=()=>{if(parkingPage>0){parkingPage--;parkingServerMode?loadParkings():renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
 $('parkingNext').onclick=()=>{const pages=Math.ceil((parkingServerMode?parkingTotal:filtered().length)/parkingPageSize);if(parkingPage+1<pages){parkingPage++;parkingServerMode?loadParkings():renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
 $('refreshBtn').onclick=loadParkings;
-$('parkingsNav').onclick=()=>showSection('parkings');
-$('pendingNav').onclick=()=>{$('statusFilter').value='PENDING';parkingPage=0;showSection('parkings')};
-$('draftNav').onclick=()=>{$('statusFilter').value='DRAFT';parkingPage=0;showSection('parkings')};
+$('parkingsNav').onclick=()=>selectParkingSection('');
+$('pendingNav').onclick=()=>selectParkingSection('PENDING');
+$('draftNav').onclick=()=>selectParkingSection('DRAFT');
 $('draftMapNav').onclick=()=>showSection('draft-map');
-$('approvedNav').onclick=()=>{$('statusFilter').value='APPROVED';parkingPage=0;showSection('parkings')};
+$('approvedNav').onclick=()=>selectParkingSection('APPROVED');
 $('submissionsNav').onclick=()=>showSection('submissions');
 $('reportsNav').onclick=()=>showSection('reports');
 $('auditNav').onclick=()=>showSection('audit');
@@ -893,6 +893,29 @@ function setSidebarOpen(open,{restoreFocus=false}={}){
   }else if(restoreFocus&&isMobile){
     restoreKeyboardFocus($('menuBtn'));
   }
+}
+function selectParkingSection(status){
+  $('statusFilter').value=status;
+  parkingPage=0;
+  showSection('parkings');
+}
+function parkingSectionInfo(){
+  return {
+    PENDING:['Парковки на модерации','Проверка парковок, ожидающих решения администратора'],
+    DRAFT:['Черновики','Проверка и подготовка черновиков к публикации'],
+    APPROVED:['Опубликованные парковки','Парковки, которые сейчас видят пользователи']
+  }[val('statusFilter')]||['Все парковки','Управление данными, статусами и публикацией парковок'];
+}
+function updateSidebarActiveState(section){
+  const parkingNav={PENDING:'pendingNav',DRAFT:'draftNav',APPROVED:'approvedNav'}[val('statusFilter')]||'parkingsNav';
+  const activeId=section==='parkings'?parkingNav:({
+    'draft-map':'draftMapNav',submissions:'submissionsNav',reports:'reportsNav',audit:'auditNav',users:'usersNav',osm:'osmNav'
+  })[section];
+  document.querySelectorAll('.nav-item').forEach(item=>{
+    const active=item.id===activeId;
+    item.classList.toggle('active',active);
+    if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
+  });
 }
 $('menuBtn').onclick=()=>setSidebarOpen(!$('sidebar').classList.contains('open'));
 $('menuBackdrop').onclick=()=>setSidebarOpen(false,{restoreFocus:true});
@@ -956,15 +979,14 @@ window.addEventListener('hashchange',()=>{if(!$('adminView').classList.contains(
 
 function showSection(section,options={}){
   currentAdminSection=section;
-  const info={
-    parkings:['Парковки','Управление данными, статусами и публикацией парковок'],
+  const info=section==='parkings'?parkingSectionInfo():({
     'draft-map':['Карта черновиков','Визуальная проверка, дубли и публикация парковок'],
     submissions:['Заявки пользователей','Проверка и публикация предложенных парковок'],
     reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей'],
     audit:['Журнал модерации','Кто, когда и какие изменения выполнял'],
     users:['Пользователи','Аккаунты, роли и блокировка злоупотреблений'],
     osm:['Проверка данных OSM','Подготовка импортированных парковок к публикации']
-  }[section];
+  }[section]);
   $('pageTitle').textContent=info[0];$('pageSubtitle').textContent=info[1];
   $('parkingsPanel').classList.toggle('hidden',section!=='parkings');
   $('draftMapPanel').classList.toggle('hidden',section!=='draft-map');
@@ -974,8 +996,7 @@ function showSection(section,options={}){
   $('usersPanel').classList.toggle('hidden',section!=='users');
   $('osmPanel').classList.toggle('hidden',section!=='osm');
   $('addBtn').classList.toggle('hidden',section!=='parkings');
-  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
-  $(({parkings:'parkingsNav','draft-map':'draftMapNav',submissions:'submissionsNav',reports:'reportsNav',audit:'auditNav',users:'usersNav',osm:'osmNav'})[section]).classList.add('active');
+  updateSidebarActiveState(section);
   setSidebarOpen(false);
   if(section==='parkings')loadParkings();
   if(section==='submissions')loadSubmissions();
@@ -987,7 +1008,7 @@ function showSection(section,options={}){
     if(parkingServerMode)setTimeout(()=>loadParkingsLegacy().then(()=>initDraftMap()),0);
     else setTimeout(()=>initDraftMap(),0);
   }
-  if(!options.fromRoute)writeAdminRoute(section);
+  if(!options.fromRoute)writeAdminRoute(section,Boolean(options.replaceRoute));
 }
 
 function adminPageArgs(){
