@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="index,follow">
+  <title>Удаление аккаунта — Parky</title>
+  <style>
+    :root{color-scheme:light;--blue:#2563eb;--red:#dc2626;--ink:#0f172a;--muted:#64748b;--line:#dbe3ef;--bg:#f5f7fb}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:660px;margin:auto;padding:28px 18px 64px}.back{display:inline-block;margin-bottom:18px;color:var(--blue);font-weight:700;text-decoration:none}
+    article{background:#fff;border:1px solid var(--line);border-radius:24px;padding:clamp(22px,5vw,42px);box-shadow:0 18px 55px #0f172a0d}
+    h1{margin:0 0 10px;font-size:clamp(28px,7vw,40px);line-height:1.15}p{color:#334155}.warning{padding:16px;border-radius:15px;background:#fef2f2;color:#991b1b}
+    label{display:block;margin:18px 0 7px;font-weight:750}input{width:100%;min-height:50px;border:1px solid var(--line);border-radius:14px;padding:0 14px;font:inherit;color:var(--ink);background:#fff}
+    input:focus{outline:3px solid #2563eb24;border-color:var(--blue)}button{width:100%;min-height:52px;margin-top:18px;border:0;border-radius:14px;background:var(--red);color:#fff;font:800 16px system-ui;cursor:pointer}
+    button:disabled{opacity:.6;cursor:wait}.message{min-height:24px;margin-top:14px;font-weight:650;color:var(--red)}.success{color:#15803d}.hidden{display:none}.small{font-size:14px;color:var(--muted)}
+  </style>
+</head>
+<body><main>
+  <a class="back" href="index.html">← Вернуться в Parky</a>
+  <article>
+    <h1>Удаление аккаунта Parky</h1>
+    <p>Эта страница позволяет удалить аккаунт и связанные с ним данные, даже если вы открыли её вне приложения.</p>
+    <p class="warning"><strong>Безвозвратное действие.</strong> Будут удалены аккаунт, избранное, заявки на парковки, сообщения об ошибках и загруженные фотографии.</p>
+
+    <form id="loginForm">
+      <h2>1. Подтвердите свою личность</h2>
+      <label for="email">Электронная почта</label>
+      <input id="email" type="email" autocomplete="username" required placeholder="name@example.com">
+      <label for="password">Пароль</label>
+      <input id="password" type="password" autocomplete="current-password" minlength="6" required>
+      <button id="loginBtn" type="submit" style="background:var(--blue)">Продолжить</button>
+    </form>
+
+    <form id="deleteForm" class="hidden">
+      <h2>2. Подтвердите удаление</h2>
+      <p class="small">Введите слово <strong>УДАЛИТЬ</strong>. После выполнения войти в этот аккаунт будет невозможно.</p>
+      <label for="confirmation">Подтверждение</label>
+      <input id="confirmation" type="text" autocomplete="off" autocapitalize="characters" required placeholder="УДАЛИТЬ">
+      <button id="deleteBtn" type="submit">Удалить аккаунт навсегда</button>
+    </form>
+    <div id="message" class="message" role="status" aria-live="polite"></div>
+    <p class="small">Подробнее об обработке данных: <a href="privacy.html">политика конфиденциальности Parky</a>.</p>
+  </article>
+</main>
+<script>
+const SUPABASE_URL='https://xgzddkkrlsvtvcriokdk.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
+let accessToken='';
+const message=document.getElementById('message');
+function show(text,success=false){message.textContent=text;message.classList.toggle('success',success)}
+function busy(button,value){button.disabled=value}
+document.getElementById('loginForm').addEventListener('submit',async event=>{
+  event.preventDefault();const button=document.getElementById('loginBtn');busy(button,true);show('Проверяем данные…');
+  try{
+    const response=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY},body:JSON.stringify({email:document.getElementById('email').value.trim().toLowerCase(),password:document.getElementById('password').value})});
+    const data=await response.json().catch(()=>({}));if(!response.ok||!data.access_token)throw new Error('auth');
+    accessToken=data.access_token;document.getElementById('loginForm').classList.add('hidden');document.getElementById('deleteForm').classList.remove('hidden');show('Личность подтверждена.',true);document.getElementById('confirmation').focus();
+  }catch(error){show('Неверная почта или пароль. Проверьте данные и повторите.')}finally{busy(button,false)}
+});
+document.getElementById('deleteForm').addEventListener('submit',async event=>{
+  event.preventDefault();const button=document.getElementById('deleteBtn');
+  if(document.getElementById('confirmation').value.trim().toUpperCase()!=='УДАЛИТЬ'){show('Введите слово УДАЛИТЬ.');return}
+  busy(button,true);show('Удаляем аккаунт и связанные данные…');
+  try{
+    const response=await fetch(SUPABASE_URL+'/functions/v1/delete-account',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY,Authorization:'Bearer '+accessToken},body:JSON.stringify({confirmation:'DELETE'})});
+    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'operation_failed');
+    accessToken='';document.getElementById('deleteForm').classList.add('hidden');show('Аккаунт Parky и связанные данные удалены.',true);
+  }catch(error){show(error.message==='admin_account_protected'?'Аккаунт администратора нельзя удалить через эту страницу.':'Не удалось удалить аккаунт. Проверьте интернет и повторите.');busy(button,false)}
+});
+</script>
+</body>
+</html>

@@ -5,15 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="48x48" href="icon-48.png">
 <link rel="preconnect" href="https://api-maps.yandex.ru" crossorigin>
 <link rel="preconnect" href="https://core-renderer-tiles.maps.yandex.net" crossorigin>
 <link rel="dns-prefetch" href="https://api-maps.yandex.ru">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Parkly">
+<meta name="apple-mobile-web-app-title" content="Parky">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Parkly — парковки Ташкента</title>
+<title>Parky — парковки Ташкента</title>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link href="assets/vendor/maplibre-gl/maplibre-gl.css" rel="stylesheet">
 <style>
@@ -131,7 +132,7 @@
   .mc-meta{display:flex;align-items:center;gap:5px;font:700 12px 'Manrope';margin-top:5px}
   .mc-dist{font:800 13px 'Manrope';color:var(--blue);white-space:nowrap;display:flex;align-items:center;gap:3px}
   .mc-btn{width:100%;margin-top:12px;padding:13px;border-radius:12px;background:var(--blue);color:#fff;border:0;font:800 14px 'Manrope';cursor:pointer}
-  .mc-btn:active{background:var(--blue-d)}
+  .mc-btn:active{background:var(--blue);transform:scale(.99)}
   .mc-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 46px;gap:8px;margin-top:13px}
   .mc-actions .mc-btn{margin:0;min-width:0;padding:11px 9px;white-space:nowrap}
   .mc-btn.secondary{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
@@ -192,11 +193,13 @@
   .scr-head .act{font:700 14px 'Manrope';color:var(--blue);border:0;background:none;cursor:pointer}
 
   /* ─────────── МОДАЛКИ (bottom sheet) ─────────── */
-  .mask{position:fixed;inset:0;background:rgba(18,32,46,.5);z-index:200;display:none;align-items:flex-end}
-  .mask.open{display:flex}
+  .mask{position:fixed;inset:0;background:rgba(18,32,46,.5);z-index:200;display:flex;align-items:flex-end;
+    visibility:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s}
+  .mask.open{visibility:visible;opacity:1;pointer-events:auto;transition-delay:0s}
   .sheet{position:relative;background:var(--card);width:100%;border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;
-    animation:up .28s cubic-bezier(.2,.8,.3,1);padding-bottom:calc(20px + var(--bot))}
-  @keyframes up{from{transform:translateY(60px);opacity:0}to{transform:none;opacity:1}}
+    padding-bottom:calc(20px + var(--bot));transform:translateY(34px);opacity:1;
+    transition:transform .24s cubic-bezier(.2,.8,.3,1)}
+  .mask.open .sheet{transform:translateY(0)}
   .grabber{padding:10px 0 4px;display:flex;justify-content:center;position:sticky;top:0}
   .grabber i{width:42px;height:5px;border-radius:3px;background:var(--line)}
 
@@ -232,7 +235,7 @@
   .fc-actions{display:flex;flex-direction:column;gap:9px}
   .btn-primary{width:100%;padding:15px;border-radius:14px;background:var(--blue);color:#fff;border:0;
     font:800 15px 'Manrope';cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
-  .btn-primary:active{background:var(--blue-d)}
+  .btn-primary:active{background:var(--blue);transform:scale(.99)}
   .btn-outline{width:100%;padding:14px;border-radius:14px;background:var(--card);color:var(--blue);
     border:1.5px solid var(--line);font:800 14px 'Manrope';cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
   .btn-outline.fav-active{background:#EFF6FF;border-color:#93C5FD;color:var(--blue-d)}
@@ -320,6 +323,8 @@
   .prof-row .arr{color:var(--grey);font-size:15px}
   .prof-logout{width:calc(100% - 24px);margin:0 12px;padding:15px;border-radius:16px;background:var(--card);
     color:var(--red);border:0;font:800 15px 'Manrope';cursor:pointer;box-shadow:var(--sh-s)}
+  .prof-delete{width:calc(100% - 24px);margin:10px 12px 0;padding:13px;border-radius:16px;background:transparent;
+    color:var(--ink2);border:1px solid var(--line);font:700 14px 'Manrope';cursor:pointer}
   .empty-state{padding:60px 30px;text-align:center}
   .empty-state .ei{font-size:44px;margin-bottom:14px}
   .empty-state b{font:800 16px 'Manrope';display:block;margin-bottom:6px}
@@ -616,13 +621,17 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 }
 .search-history{display:none;position:absolute;left:0;right:0;top:64px;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 34px rgba(15,23,42,.16);padding:8px;z-index:12}
 .search-history.on{display:block;animation:fadeUp .18s ease-out}.search-history-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;color:var(--ink2);font:700 12px Manrope}.search-history-clear{border:0;background:none;color:var(--blue);font:700 12px Manrope;cursor:pointer}.search-history-item{width:100%;display:flex;align-items:center;gap:10px;border:0;background:none;color:var(--ink);padding:11px 10px;border-radius:12px;text-align:left;font:600 14px Manrope;cursor:pointer}.search-history-item:hover,.search-history-item:focus-visible{background:var(--bg);outline:none}.search-history-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.onboarding{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:none;align-items:flex-end;justify-content:center;padding:16px}.onboarding.on{display:flex}.onboarding-card{width:min(100%,520px);background:var(--card);color:var(--ink);border-radius:28px;padding:24px;box-shadow:0 24px 80px rgba(15,23,42,.3);animation:slideUp .28s cubic-bezier(.2,.8,.3,1)}.onboarding-icon{width:64px;height:64px;display:grid;place-items:center;border-radius:20px;background:#E8F0FF;color:var(--blue);font-size:30px;margin-bottom:18px}.onboarding-card h2{font:800 25px Manrope;margin:0 0 10px}.onboarding-card p{font:500 15px/1.55 Manrope;color:var(--ink2);margin:0 0 22px}.onboarding-actions{display:grid;gap:10px}.onboarding-actions button{min-height:50px;border-radius:15px;font:800 14px Manrope;cursor:pointer}.onboarding-primary{border:0;background:var(--blue);color:#fff}.onboarding-secondary{border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.onboarding{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:none;align-items:flex-end;justify-content:center;padding:16px}.onboarding.on{display:flex}.onboarding-card{width:min(100%,520px);background:var(--card);color:var(--ink);border-radius:28px;padding:24px;box-shadow:0 24px 80px rgba(15,23,42,.3);animation:slideUp .28s cubic-bezier(.2,.8,.3,1)}.onboarding-icon{width:72px;height:72px;border-radius:22px;overflow:hidden;margin-bottom:18px;box-shadow:0 10px 24px rgba(37,99,235,.28)}.onboarding-icon img{display:block;width:100%;height:100%;object-fit:cover}.onboarding-card h2{font:800 25px Manrope;margin:0 0 10px}.onboarding-card p{font:500 15px/1.55 Manrope;color:var(--ink2);margin:0 0 22px}.onboarding-actions{display:grid;gap:10px}.onboarding-actions button{min-height:50px;border-radius:15px;font:800 14px Manrope;cursor:pointer}.onboarding-primary{border:0;background:var(--blue);color:#fff}.onboarding-secondary{border:1px solid var(--line);background:var(--card);color:var(--ink)}
 
 .duplicate-mask{position:fixed;inset:0;z-index:10020;background:rgba(15,23,42,.58);display:none;align-items:flex-end;justify-content:center;padding:16px}.duplicate-mask.on{display:flex}.duplicate-dialog{width:min(100%,540px);max-height:min(78vh,660px);overflow:auto;background:var(--card);color:var(--ink);border-radius:26px;padding:22px;box-shadow:0 24px 80px rgba(15,23,42,.32);animation:slideUp .24s cubic-bezier(.2,.8,.3,1)}.duplicate-dialog h2{font:800 22px Manrope;margin:0 0 8px}.duplicate-dialog>p{font:500 14px/1.5 Manrope;color:var(--ink2);margin:0 0 16px}.duplicate-results{display:grid;gap:9px;margin-bottom:18px}.duplicate-result{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);background:var(--bg);padding:13px;border-radius:16px}.duplicate-result b{display:block;font:800 14px Manrope}.duplicate-result span{display:block;color:var(--ink2);font:500 12px/1.4 Manrope;margin-top:3px}.duplicate-distance{margin-left:auto!important;color:var(--blue)!important;font-weight:800!important;white-space:nowrap}.duplicate-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.duplicate-actions button{min-height:48px;border-radius:14px;font:800 13px Manrope;cursor:pointer}.duplicate-open{grid-column:1/-1;border:0;background:var(--blue);color:#fff}.duplicate-submit{border:1px solid var(--line);background:var(--card);color:var(--ink)}.duplicate-cancel{border:0;background:var(--bg);color:var(--ink2)}
 .photo-preview-list{display:grid;gap:9px;margin-top:10px}.photo-preview-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:8px;background:var(--bg)}.photo-preview-item img{width:58px;height:58px;object-fit:cover;border-radius:10px;background:#e2e8f0}.photo-preview-meta{min-width:0}.photo-preview-meta b,.photo-preview-meta span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.photo-preview-meta b{font:700 12px Manrope}.photo-preview-meta span{font:500 11px Manrope;color:var(--ink2);margin-top:3px}.photo-preview-remove{width:36px;height:36px;border:0;border-radius:11px;background:#fee2e2;color:#b91c1c;font-weight:900;cursor:pointer}.photo-preview-error{color:var(--red)!important;white-space:normal!important}
+.brand-splash{position:fixed;inset:0;z-index:20000;display:grid;place-items:center;background:#171719;opacity:1;visibility:visible;transition:opacity .28s ease,visibility .28s ease}.brand-splash.is-hidden{opacity:0;visibility:hidden;pointer-events:none}.brand-splash img{display:block;width:min(82vw,560px);height:auto}
 </style>
 </head>
 <body>
+<div class="brand-splash" id="brandSplash" aria-label="Parky загружается">
+  <img src="assets/branding/parky-splash-logo.png" alt="Parky">
+</div>
 
 <!-- ═══════════ ЭКРАН: КАРТА ═══════════ -->
 <div id="screen-map">
@@ -685,7 +694,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
   <div id="routeBetaMap"></div>
   <header class="route-beta-head">
     <button type="button" onclick="closeRoute()" aria-label="Закрыть маршрут">←</button>
-    <div class="route-beta-title"><small>Parkly Route Beta</small><b id="routeBetaDestination">Маршрут к парковке</b></div>
+    <div class="route-beta-title"><small>Parky Route Beta</small><b id="routeBetaDestination">Маршрут к парковке</b></div>
     <button type="button" onclick="centerRouteBetaOnUser()" aria-label="Центрировать на мне">⌖</button>
   </header>
   <div id="routeBetaPanel"></div>
@@ -699,9 +708,9 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 <div id="toast"></div>
 <div class="onboarding" id="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
   <div class="onboarding-card">
-    <div class="onboarding-icon">P</div>
-    <h2 id="onboardingTitle">Добро пожаловать в Parkly</h2>
-    <p id="onboardingText">Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.</p>
+    <div class="onboarding-icon"><img src="assets/branding/parky-app-icon.png" alt="Parky"></div>
+    <h2 id="onboardingTitle">Добро пожаловать в Parky</h2>
+    <p id="onboardingText">Ищите проверенные парковки, смотрите условия и стройте маршрут. Parky не показывает занятость мест в реальном времени.</p>
     <div class="onboarding-actions">
       <button class="onboarding-primary" id="onboardingGeo" type="button" onclick="finishOnboarding(true)">Разрешить геолокацию</button>
       <button class="onboarding-secondary" id="onboardingSkip" type="button" onclick="finishOnboarding(false)">Продолжить без геолокации</button>
@@ -725,6 +734,14 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 
 <script src="assets/vendor/maplibre-gl/maplibre-gl.js"></script>
 <script>
+function dismissBrandSplash(){
+  const splash=document.getElementById('brandSplash');
+  if(!splash||splash.classList.contains('is-hidden'))return;
+  splash.classList.add('is-hidden');
+  setTimeout(()=>splash.remove(),320);
+}
+window.addEventListener('load',()=>setTimeout(dismissBrandSplash,450),{once:true});
+setTimeout(dismissBrandSplash,1800);
 const YANDEX_API_KEY='be1856ef-50e1-40ed-abb7-80a23f99ddb3';
 const YANDEX_GEOCODER_API_KEY='4f9b7024-c973-42b5-b0b3-853f5c61c234';
 
@@ -783,15 +800,16 @@ const I18N={
   networkErr:'Не удалось загрузить парковки. Проверьте интернет и повторите.',
   sending:'Отправляю…', sendFailed:'Не удалось отправить. Проверьте интернет и повторите.',
   trafOn:'Пробки включены', trafOff:'Пробки выключены', removed:'Удалено из избранного',
-  onboardingTitle:'Добро пожаловать в Parkly',onboardingText:'Ищите проверенные парковки, смотрите условия и стройте маршрут. Parkly не показывает занятость мест в реальном времени.',allowGeo:'Разрешить геолокацию',continueNoGeo:'Продолжить без геолокации',
-  language:'Язык',languageTitle:'Язык интерфейса',languageHint:'Выберите язык Parkly. Настройка сохранится на этом устройстве.',languageChanged:'Язык изменён',
-  mySubmissions:'Мои заявки',myReports:'Мои исправления',routes:'Маршруты',parklyAccount:'Аккаунт Parkly',signOut:'Выйти',sort:'Сортировка',sortDistance:'По расстоянию',sortDistanceHint:'Ближайшие парковки сначала',sortName:'По названию',sortNameHint:'В алфавитном порядке',navAsk:'Спрашивать',navYandex:'Яндекс',navInternal:'Внутри Parkly',
+  onboardingTitle:'Добро пожаловать в Parky',onboardingText:'Ищите проверенные парковки, смотрите условия и стройте маршрут. Parky не показывает занятость мест в реальном времени.',allowGeo:'Разрешить геолокацию',continueNoGeo:'Продолжить без геолокации',
+  language:'Язык',languageTitle:'Язык интерфейса',languageHint:'Выберите язык Parky. Настройка сохранится на этом устройстве.',languageChanged:'Язык изменён',
+  mySubmissions:'Мои заявки',myReports:'Мои исправления',routes:'Маршруты',parklyAccount:'Аккаунт Parky',signOut:'Выйти',sort:'Сортировка',sortDistance:'По расстоянию',sortDistanceHint:'Ближайшие парковки сначала',sortName:'По названию',sortNameHint:'В алфавитном порядке',navAsk:'Спрашивать',navYandex:'Яндекс',navInternal:'Внутри Parky',
   theme:'Переключить тему',openNotifications:'Уведомления',notificationNew:'новых',openLegend:'Открыть обозначения на карте',openFilters:'Открыть фильтры',compass:'Компас',myLocation:'Моё местоположение',zoomIn:'Приблизить карту',zoomOut:'Отдалить карту',mainNavigation:'Основная навигация',
-  close:'Закрыть',distance:'Расстояние',coordinates:'Координаты',routeHere:'Маршрут сюда',share:'Поделиться',copyCoordinates:'Координаты',centerMap:'По центру',openYandex:'В Яндекс',pointLoading:'Определяю адрес…',pointDescription:'Точка, выбранная на карте',notDetermined:'Не определено',pointNotice:'Parkly показывает сведения, доступные по выбранным координатам. Фото, отзывы и часы работы не добавляются без подтверждённого источника.',coordinatesCopied:'Координаты скопированы',linkCopied:'Ссылка скопирована',
+  close:'Закрыть',distance:'Расстояние',coordinates:'Координаты',routeHere:'Маршрут сюда',share:'Поделиться',copyCoordinates:'Координаты',centerMap:'По центру',openYandex:'В Яндекс',pointLoading:'Определяю адрес…',pointDescription:'Точка, выбранная на карте',notDetermined:'Не определено',pointNotice:'Parky показывает сведения, доступные по выбранным координатам. Фото, отзывы и часы работы не добавляются без подтверждённого источника.',coordinatesCopied:'Координаты скопированы',linkCopied:'Ссылка скопирована',
   parking:'Парковка',streetParking:'Уличная парковка',evParking:'Парковка с зарядкой',addressUnknown:'Адрес не указан',hoursUnknown:'Время работы не указано',workMode:'Режим работы',favorite:'Избранное',photoNone:'Фото пока нет',barrier:'Со шлагбаумом',freePeriod:'Есть бесплатный период',minFreePeriod:'Минимальный бесплатный период',any:'Любой',atLeast30:'Не менее 30 минут',atLeast60:'Не менее 60 минут',atLeast120:'Не менее 120 минут',found:'Найдено',
-  routeHow:'Как построить маршрут?',routeInternal:'Внутри Parkly — Beta',routeInternalHint:'Маршрут без пробок на отдельной карте OpenStreetMap',yandexNavigator:'Яндекс Навигатор',yandexNavigatorHint:'Пробки, голосовые подсказки и перестроение',externalMapHint:'Открыть маршрут во внешней карте',appleHint:'Доступно на устройствах Apple',rememberRoute:'Использовать выбранный вариант по умолчанию',routeDisclaimer:'Конечная точка — координаты выбранной парковки. Внутренний Beta-маршрут не показывает пробки и не заменяет полноценный навигатор.',externalOpened:'Маршрут открыт во внешнем навигаторе',unitM:'м',unitKm:'км',kindHouse:'здание',kindStreet:'улица',kindMetro:'метро',kindDistrict:'район',kindLocality:'населённый пункт',kindPark:'парк',kindWater:'водоём',kindRoad:'дорога',kindObject:'объект',
+  routeHow:'Как построить маршрут?',routeInternal:'Внутри Parky — Beta',routeInternalHint:'Маршрут без пробок на отдельной карте OpenStreetMap',yandexNavigator:'Яндекс Навигатор',yandexNavigatorHint:'Пробки, голосовые подсказки и перестроение',externalMapHint:'Открыть маршрут во внешней карте',appleHint:'Доступно на устройствах Apple',rememberRoute:'Использовать выбранный вариант по умолчанию',routeDisclaimer:'Конечная точка — координаты выбранной парковки. Внутренний Beta-маршрут не показывает пробки и не заменяет полноценный навигатор.',externalOpened:'Маршрут открыт во внешнем навигаторе',unitM:'м',unitKm:'км',kindHouse:'здание',kindStreet:'улица',kindMetro:'метро',kindDistrict:'район',kindLocality:'населённый пункт',kindPark:'парк',kindWater:'водоём',kindRoad:'дорога',kindObject:'объект',
   selectPointFirst:'Сначала выберите точку парковки на карте',addressResolved:'Адрес определён по выбранной точке.',addressResolving:'Определяю адрес выбранной точки…',retryAddress:'Повторить определение адреса',pointCoordinates:'Координаты точки на карте',selectedPointUsed:'Используется выбранная вами точка на карте.',mapCenterUsed:'Используется центр карты в момент открытия формы.',accessTerms:'Условия въезда и тарифа',hasBarrier:'Есть шлагбаум',hasFreePeriod:'Есть бесплатный период',freeMinutes:'Бесплатно, минут',afterPeriodPrice:'После периода, сум',ifKnown:'Если известно',purchaseOnly:'Бесплатно только при покупке',receiptRequired:'Требуется чек',termsSource:'Источник или пояснение условий',termsSourcePh:'Фото тарифа, официальный источник или описание на месте',photoHelp:'До 5 фото. Для загрузки фотографий необходимо войти в аккаунт.',addressFound:'Найден адрес',addressByPoint:'Адрес определён по точке на карте.',addressFailed:'Не удалось определить адрес автоматически. Введите его вручную или повторите.',uploadReady:'Готово к загрузке',removePhoto:'Удалить фотографию',maxPhotos:'Можно добавить не более 5 фотографий',photoPreview:'Предпросмотр фотографии',fileTooLarge:'Файл больше 10 МБ',heicUnsupported:'HEIC/HEIF: сначала преобразуйте в JPEG',formatUnsupported:'Неподдерживаемый формат',signInForPhotos:'Войдите в аккаунт, чтобы добавить фотографии',processing:'Обрабатываю…',uploading:'Загружаю…',fileError:'Ошибка файла',photoAttachFailed:'Заявка отправлена, но фотографию прикрепить не удалось',freePeriodRequired:'Укажите продолжительность бесплатного периода',freeMinutesRequired:'Укажите бесплатный период в минутах',authError:'Ошибка авторизации',loginFirst:'Сначала войдите в аккаунт',accountCreated:'Аккаунт создан',signedIn:'Вы вошли в аккаунт',signedOut:'Вы вышли из аккаунта',notificationsOn:'Уведомления включены',notificationsOff:'Уведомления выключены',routeMethodSaved:'Способ маршрута сохранён',
   photoReadFailed:'Не удалось прочитать фотографию',authFieldsInvalid:'Введите почту и пароль не короче 6 символов',pleaseWait:'Подождите…',confirmEmail:'Проверьте почту и подтвердите регистрацию, затем войдите.',recentSearches:'Недавние запросы',clearHistory:'Очистить',
+  deleteAccount:'Удалить аккаунт',deleteAccountTitle:'Удаление аккаунта',deleteAccountWarning:'Аккаунт, избранное, заявки, исправления и загруженные фотографии будут удалены без возможности восстановления.',deleteAccountType:'Для подтверждения введите УДАЛИТЬ',deleteAccountConfirm:'Удалить аккаунт навсегда',deleteAccountMismatch:'Введите слово УДАЛИТЬ',deleteAccountFailed:'Не удалось удалить аккаунт. Проверьте интернет и повторите.',deleteAccountDone:'Аккаунт и связанные данные удалены',adminDeleteProtected:'Аккаунт администратора нельзя удалить этим способом.',
   freePeriodGeneric:'Бесплатный период',hourShort:'ч',minuteShort:'мин',freeSuffix:'бесплатно',afterPrefix:'После —',perHour:'за час',perStartedHour:'за начатый час',afterPeriodUnit:'после периода',perDay:'за сутки',parkingTermsUnit:'по условиям парковки',purchaseRequired:'Покупка обязательна',receiptNeeded:'Нужен чек',access:'Доступ',atEntry:'на въезде',atExit:'на выезде',and:'и',furtherTariff:'Дальнейший тариф',condition:'Условие',confirmation:'Подтверждение',entryExit:'Въезд/выезд',ticketRequired:'Требуется парковочный билет',entry:'Въезд',exit:'Выезд',tariffChecked:'Тариф проверен',sourceLabel:'Источник',parkingTerms:'Условия парковки',requiresPurchase:'Требуется покупка',requiresReceipt:'Требуется чек',photoNoneText:'Фото пока нет',geoposition:'Геопозиция',accuracy:'Точность',latitude:'Широта',longitude:'Долгота',compassDenied:'Нет доступа к компасу',compassRotate:'Компас включён. Поворачивайте телефон',compassOn:'Компас включён',compassOff:'Компас выключен',routeDestination:'Маршрут к парковке',guidanceStopped:'Сопровождение остановлено',routeRebuilding:'Перестраиваю маршрут',selectedPlace:'Выбранное место',rebuild:'Перестроить',followRoute:'Следуйте по выделенному маршруту',externalNavigator:'Внешний навигатор',stopRoute:'Остановить маршрут',routeAttribution:'Маршрут: openrouteservice · карта и дороги © OpenStreetMap contributors, ODbL · без пробок',currency:'сум'
  }
 };
@@ -808,15 +826,16 @@ I18N.uz={...I18N.ru,
  selectedPoint:'Tanlangan nuqta',currentPosition:'Sizning joylashuvingiz',byCar:'Avtomobilda',onFoot:'Piyoda',
  noParkArea:'Bu hududda avtoturargohlar hali qo‘shilmagan',networkErr:'Avtoturargohlarni yuklab bo‘lmadi. Internetni tekshiring.',
  routeUnavailable:'Yo‘l bo‘yicha yo‘nalish qurilmadi',startGuide:'Kuzatuvni boshlash',stopGuide:'To‘xtatish',sending:'Yuborilmoqda…'
-  ,onboardingTitle:'Parkly’ga xush kelibsiz',onboardingText:'Tekshirilgan avtoturargohlarni toping, shartlarni ko‘ring va yo‘nalish quring. Parkly bo‘sh joylarni real vaqtda ko‘rsatmaydi.',allowGeo:'Geolokatsiyaga ruxsat berish',continueNoGeo:'GPSsiz davom etish',
-  language:'Til',languageTitle:'Interfeys tili',languageHint:'Parkly tilini tanlang. Sozlama ushbu qurilmada saqlanadi.',languageChanged:'Til o‘zgartirildi',
-  mySubmissions:'Mening arizalarim',myReports:'Mening tuzatishlarim',routes:'Yo‘nalishlar',parklyAccount:'Parkly hisobi',notSignedIn:'Siz hisobga kirmagansiz',signOut:'Chiqish',sort:'Saralash',sortDistance:'Masofa bo‘yicha',sortDistanceHint:'Eng yaqin avtoturargohlar avval',sortName:'Nomi bo‘yicha',sortNameHint:'Alifbo tartibida',navAsk:'Har safar so‘rash',navYandex:'Yandex',navInternal:'Parkly ichida',
+  ,onboardingTitle:'Parky’ga xush kelibsiz',onboardingText:'Tekshirilgan avtoturargohlarni toping, shartlarni ko‘ring va yo‘nalish quring. Parky bo‘sh joylarni real vaqtda ko‘rsatmaydi.',allowGeo:'Geolokatsiyaga ruxsat berish',continueNoGeo:'GPSsiz davom etish',
+  language:'Til',languageTitle:'Interfeys tili',languageHint:'Parky tilini tanlang. Sozlama ushbu qurilmada saqlanadi.',languageChanged:'Til o‘zgartirildi',
+  mySubmissions:'Mening arizalarim',myReports:'Mening tuzatishlarim',routes:'Yo‘nalishlar',parklyAccount:'Parky hisobi',notSignedIn:'Siz hisobga kirmagansiz',signOut:'Chiqish',sort:'Saralash',sortDistance:'Masofa bo‘yicha',sortDistanceHint:'Eng yaqin avtoturargohlar avval',sortName:'Nomi bo‘yicha',sortNameHint:'Alifbo tartibida',navAsk:'Har safar so‘rash',navYandex:'Yandex',navInternal:'Parky ichida',
   theme:'Mavzuni almashtirish',openNotifications:'Bildirishnomalar',notificationNew:'yangi',openLegend:'Xarita belgilarini ochish',openFilters:'Filtrlarni ochish',compass:'Kompas',myLocation:'Mening joylashuvim',zoomIn:'Xaritani yaqinlashtirish',zoomOut:'Xaritani uzoqlashtirish',mainNavigation:'Asosiy navigatsiya',
-  close:'Yopish',distance:'Masofa',coordinates:'Koordinatalar',routeHere:'Bu yerga yo‘nalish',share:'Ulashish',copyCoordinates:'Koordinatalar',centerMap:'Markazga',openYandex:'Yandex’da',pointLoading:'Manzil aniqlanmoqda…',pointDescription:'Xaritada tanlangan nuqta',notDetermined:'Aniqlanmagan',pointNotice:'Parkly tanlangan koordinatalar bo‘yicha mavjud ma’lumotlarni ko‘rsatadi. Tasdiqlangan manbasiz rasmlar, sharhlar va ish vaqti qo‘shilmaydi.',coordinatesCopied:'Koordinatalar nusxalandi',linkCopied:'Havola nusxalandi',
+  close:'Yopish',distance:'Masofa',coordinates:'Koordinatalar',routeHere:'Bu yerga yo‘nalish',share:'Ulashish',copyCoordinates:'Koordinatalar',centerMap:'Markazga',openYandex:'Yandex’da',pointLoading:'Manzil aniqlanmoqda…',pointDescription:'Xaritada tanlangan nuqta',notDetermined:'Aniqlanmagan',pointNotice:'Parky tanlangan koordinatalar bo‘yicha mavjud ma’lumotlarni ko‘rsatadi. Tasdiqlangan manbasiz rasmlar, sharhlar va ish vaqti qo‘shilmaydi.',coordinatesCopied:'Koordinatalar nusxalandi',linkCopied:'Havola nusxalandi',
   parking:'Avtoturargoh',streetParking:'Ko‘cha avtoturargohi',evParking:'Quvvatlashli avtoturargoh',addressUnknown:'Manzil ko‘rsatilmagan',hoursUnknown:'Ish vaqti ko‘rsatilmagan',workMode:'Ish tartibi',favorite:'Sevimlilar',photoNone:'Hozircha rasm yo‘q',barrier:'Shlagbaumli',freePeriod:'Bepul davr bor',minFreePeriod:'Eng kam bepul davr',any:'Istalgan',atLeast30:'Kamida 30 daqiqa',atLeast60:'Kamida 60 daqiqa',atLeast120:'Kamida 120 daqiqa',found:'Topildi',
-  routeHow:'Yo‘nalishni qanday qurish?',routeInternal:'Parkly ichida — Beta',routeInternalHint:'OpenStreetMap asosidagi alohida xaritada tirbandliksiz yo‘nalish',yandexNavigator:'Yandex Navigator',yandexNavigatorHint:'Tirbandliklar, ovozli ko‘rsatmalar va qayta qurish',externalMapHint:'Yo‘nalishni tashqi xaritada ochish',appleHint:'Apple qurilmalarida mavjud',rememberRoute:'Tanlangan variantni standart sifatida ishlatish',routeDisclaimer:'Yakuniy nuqta — tanlangan avtoturargoh koordinatalari. Ichki Beta yo‘nalish tirbandliklarni ko‘rsatmaydi va to‘liq navigator o‘rnini bosmaydi.',externalOpened:'Yo‘nalish tashqi navigatorda ochildi',unitM:'m',unitKm:'km',kindHouse:'bino',kindStreet:'ko‘cha',kindMetro:'metro',kindDistrict:'tuman',kindLocality:'aholi punkti',kindPark:'park',kindWater:'suv havzasi',kindRoad:'yo‘l',kindObject:'obyekt',
+  routeHow:'Yo‘nalishni qanday qurish?',routeInternal:'Parky ichida — Beta',routeInternalHint:'OpenStreetMap asosidagi alohida xaritada tirbandliksiz yo‘nalish',yandexNavigator:'Yandex Navigator',yandexNavigatorHint:'Tirbandliklar, ovozli ko‘rsatmalar va qayta qurish',externalMapHint:'Yo‘nalishni tashqi xaritada ochish',appleHint:'Apple qurilmalarida mavjud',rememberRoute:'Tanlangan variantni standart sifatida ishlatish',routeDisclaimer:'Yakuniy nuqta — tanlangan avtoturargoh koordinatalari. Ichki Beta yo‘nalish tirbandliklarni ko‘rsatmaydi va to‘liq navigator o‘rnini bosmaydi.',externalOpened:'Yo‘nalish tashqi navigatorda ochildi',unitM:'m',unitKm:'km',kindHouse:'bino',kindStreet:'ko‘cha',kindMetro:'metro',kindDistrict:'tuman',kindLocality:'aholi punkti',kindPark:'park',kindWater:'suv havzasi',kindRoad:'yo‘l',kindObject:'obyekt',
   selectPointFirst:'Avval xaritada avtoturargoh nuqtasini tanlang',addressResolved:'Manzil tanlangan nuqta bo‘yicha aniqlandi.',addressResolving:'Tanlangan nuqta manzili aniqlanmoqda…',retryAddress:'Manzilni qayta aniqlash',pointCoordinates:'Xaritadagi nuqta koordinatalari',selectedPointUsed:'Siz tanlagan xarita nuqtasi ishlatiladi.',mapCenterUsed:'Forma ochilgan paytdagi xarita markazi ishlatiladi.',accessTerms:'Kirish va tarif shartlari',hasBarrier:'Shlagbaum bor',hasFreePeriod:'Bepul davr bor',freeMinutes:'Bepul daqiqalar',afterPeriodPrice:'Davrdan keyingi narx, so‘m',ifKnown:'Ma’lum bo‘lsa',purchaseOnly:'Faqat xarid bilan bepul',receiptRequired:'Chek talab qilinadi',termsSource:'Shartlar manbasi yoki izohi',termsSourcePh:'Tarif rasmi, rasmiy manba yoki joydagi tavsif',photoHelp:'5 tagacha rasm. Rasmlarni yuklash uchun hisobga kiring.',addressFound:'Manzil topildi',addressByPoint:'Manzil xarita nuqtasi bo‘yicha aniqlandi.',addressFailed:'Manzilni avtomatik aniqlab bo‘lmadi. Uni qo‘lda kiriting yoki qayta urinib ko‘ring.',uploadReady:'Yuklashga tayyor',removePhoto:'Rasmni olib tashlash',maxPhotos:'Ko‘pi bilan 5 ta rasm qo‘shish mumkin',photoPreview:'Rasmni oldindan ko‘rish',fileTooLarge:'Fayl 10 MB dan katta',heicUnsupported:'HEIC/HEIF: avval JPEG formatiga o‘tkazing',formatUnsupported:'Qo‘llab-quvvatlanmaydigan format',signInForPhotos:'Rasm qo‘shish uchun hisobga kiring',processing:'Qayta ishlanmoqda…',uploading:'Yuklanmoqda…',fileError:'Fayl xatosi',photoAttachFailed:'Ariza yuborildi, ammo rasmni biriktirib bo‘lmadi',freePeriodRequired:'Bepul davr davomiyligini kiriting',freeMinutesRequired:'Bepul davrni daqiqalarda kiriting',authError:'Kirish xatosi',loginFirst:'Avval hisobga kiring',accountCreated:'Hisob yaratildi',signedIn:'Hisobga kirdingiz',signedOut:'Hisobdan chiqdingiz',notificationsOn:'Bildirishnomalar yoqildi',notificationsOff:'Bildirishnomalar o‘chirildi',routeMethodSaved:'Yo‘nalish usuli saqlandi',
   photoReadFailed:'Rasmni o‘qib bo‘lmadi',authFieldsInvalid:'Email va kamida 6 belgili parol kiriting',pleaseWait:'Kuting…',confirmEmail:'Emailni tekshirib, ro‘yxatdan o‘tishni tasdiqlang, so‘ng hisobga kiring.',recentSearches:'So‘nggi qidiruvlar',clearHistory:'Tozalash',
+  deleteAccount:'Hisobni o‘chirish',deleteAccountTitle:'Hisobni o‘chirish',deleteAccountWarning:'Hisob, sevimlilar, arizalar, tuzatishlar va yuklangan rasmlar tiklash imkoniyatisiz o‘chiriladi.',deleteAccountType:'Tasdiqlash uchun УДАЛИТЬ deb yozing',deleteAccountConfirm:'Hisobni butunlay o‘chirish',deleteAccountMismatch:'УДАЛИТЬ so‘zini kiriting',deleteAccountFailed:'Hisobni o‘chirib bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.',deleteAccountDone:'Hisob va unga bog‘liq ma’lumotlar o‘chirildi',adminDeleteProtected:'Administrator hisobini bu usulda o‘chirib bo‘lmaydi.',
   freePeriodGeneric:'Bepul davr',hourShort:'soat',minuteShort:'daq',freeSuffix:'bepul',afterPrefix:'Keyin —',perHour:'soatiga',perStartedHour:'boshlangan soat uchun',afterPeriodUnit:'davrdan keyin',perDay:'sutkasiga',parkingTermsUnit:'avtoturargoh shartlariga ko‘ra',purchaseRequired:'Xarid majburiy',receiptNeeded:'Chek kerak',access:'Kirish',atEntry:'kirishda',atExit:'chiqishda',and:'va',furtherTariff:'Keyingi tarif',condition:'Shart',confirmation:'Tasdiqlash',entryExit:'Kirish/chiqish',ticketRequired:'Avtoturargoh bileti talab qilinadi',entry:'Kirish',exit:'Chiqish',tariffChecked:'Tarif tekshirilgan',sourceLabel:'Manba',parkingTerms:'Avtoturargoh shartlari',requiresPurchase:'Xarid talab qilinadi',requiresReceipt:'Chek talab qilinadi',photoNoneText:'Hozircha rasm yo‘q',geoposition:'Geolokatsiya',accuracy:'Aniqlik',latitude:'Kenglik',longitude:'Uzunlik',compassDenied:'Kompasga ruxsat yo‘q',compassRotate:'Kompas yoqildi. Telefonni burang',compassOn:'Kompas yoqildi',compassOff:'Kompas o‘chirildi',routeDestination:'Avtoturargohga yo‘nalish',guidanceStopped:'Kuzatuv to‘xtatildi',routeRebuilding:'Yo‘nalish qayta qurilmoqda',selectedPlace:'Tanlangan joy',rebuild:'Qayta qurish',followRoute:'Ajratilgan yo‘nalish bo‘ylab harakatlaning',externalNavigator:'Tashqi navigator',stopRoute:'Yo‘nalishni to‘xtatish',routeAttribution:'Yo‘nalish: openrouteservice · xarita va yo‘llar © OpenStreetMap contributors, ODbL · tirbandliklarsiz',currency:'so‘m'
 };
 I18N.en={...I18N.ru,
@@ -832,15 +851,16 @@ I18N.en={...I18N.ru,
  selectedPoint:'Selected point',currentPosition:'Your location',byCar:'Driving',onFoot:'Walking',
  noParkArea:'No parking places have been added in this area yet',networkErr:'Could not load parking places. Check your connection.',
  routeUnavailable:'A road route could not be built',startGuide:'Start guidance',stopGuide:'Stop',sending:'Sending…'
-  ,onboardingTitle:'Welcome to Parkly',onboardingText:'Find verified parking, review its conditions and build a route. Parkly does not show real-time availability.',allowGeo:'Allow location',continueNoGeo:'Continue without location',
-  language:'Language',languageTitle:'Interface language',languageHint:'Choose the Parkly language. This setting is saved on this device.',languageChanged:'Language changed',
-  mySubmissions:'My submissions',myReports:'My corrections',routes:'Routes',parklyAccount:'Parkly account',notSignedIn:'You are not signed in',signOut:'Sign out',sort:'Sort',sortDistance:'By distance',sortDistanceHint:'Nearest parking first',sortName:'By name',sortNameHint:'Alphabetical order',navAsk:'Ask every time',navYandex:'Yandex',navInternal:'Inside Parkly',
+  ,onboardingTitle:'Welcome to Parky',onboardingText:'Find verified parking, review its conditions and build a route. Parky does not show real-time availability.',allowGeo:'Allow location',continueNoGeo:'Continue without location',
+  language:'Language',languageTitle:'Interface language',languageHint:'Choose the Parky language. This setting is saved on this device.',languageChanged:'Language changed',
+  mySubmissions:'My submissions',myReports:'My corrections',routes:'Routes',parklyAccount:'Parky account',notSignedIn:'You are not signed in',signOut:'Sign out',sort:'Sort',sortDistance:'By distance',sortDistanceHint:'Nearest parking first',sortName:'By name',sortNameHint:'Alphabetical order',navAsk:'Ask every time',navYandex:'Yandex',navInternal:'Inside Parky',
   theme:'Switch theme',openNotifications:'Notifications',notificationNew:'new',openLegend:'Open map legend',openFilters:'Open filters',compass:'Compass',myLocation:'My location',zoomIn:'Zoom in',zoomOut:'Zoom out',mainNavigation:'Main navigation',
-  close:'Close',distance:'Distance',coordinates:'Coordinates',routeHere:'Route here',share:'Share',copyCoordinates:'Coordinates',centerMap:'Center',openYandex:'Open Yandex',pointLoading:'Finding address…',pointDescription:'Point selected on the map',notDetermined:'Not determined',pointNotice:'Parkly shows information available for the selected coordinates. Photos, reviews and opening hours are not added without a verified source.',coordinatesCopied:'Coordinates copied',linkCopied:'Link copied',
+  close:'Close',distance:'Distance',coordinates:'Coordinates',routeHere:'Route here',share:'Share',copyCoordinates:'Coordinates',centerMap:'Center',openYandex:'Open Yandex',pointLoading:'Finding address…',pointDescription:'Point selected on the map',notDetermined:'Not determined',pointNotice:'Parky shows information available for the selected coordinates. Photos, reviews and opening hours are not added without a verified source.',coordinatesCopied:'Coordinates copied',linkCopied:'Link copied',
   parking:'Parking',streetParking:'Street parking',evParking:'Parking with charging',addressUnknown:'Address not specified',hoursUnknown:'Opening hours not specified',workMode:'Opening hours',favorite:'Favorites',photoNone:'No photos yet',barrier:'With barrier',freePeriod:'Has a free period',minFreePeriod:'Minimum free period',any:'Any',atLeast30:'At least 30 minutes',atLeast60:'At least 60 minutes',atLeast120:'At least 120 minutes',found:'Found',
-  routeHow:'How would you like to navigate?',routeInternal:'Inside Parkly — Beta',routeInternalHint:'Traffic-free route on a separate OpenStreetMap map',yandexNavigator:'Yandex Navigator',yandexNavigatorHint:'Traffic, voice guidance and rerouting',externalMapHint:'Open the route in an external map',appleHint:'Available on Apple devices',rememberRoute:'Use the selected option by default',routeDisclaimer:'The destination is the selected parking coordinates. The internal Beta route does not show traffic and is not a replacement for a full navigator.',externalOpened:'Route opened in an external navigator',unitM:'m',unitKm:'km',kindHouse:'building',kindStreet:'street',kindMetro:'metro',kindDistrict:'district',kindLocality:'locality',kindPark:'park',kindWater:'body of water',kindRoad:'road',kindObject:'place',
+  routeHow:'How would you like to navigate?',routeInternal:'Inside Parky — Beta',routeInternalHint:'Traffic-free route on a separate OpenStreetMap map',yandexNavigator:'Yandex Navigator',yandexNavigatorHint:'Traffic, voice guidance and rerouting',externalMapHint:'Open the route in an external map',appleHint:'Available on Apple devices',rememberRoute:'Use the selected option by default',routeDisclaimer:'The destination is the selected parking coordinates. The internal Beta route does not show traffic and is not a replacement for a full navigator.',externalOpened:'Route opened in an external navigator',unitM:'m',unitKm:'km',kindHouse:'building',kindStreet:'street',kindMetro:'metro',kindDistrict:'district',kindLocality:'locality',kindPark:'park',kindWater:'body of water',kindRoad:'road',kindObject:'place',
   selectPointFirst:'First select the parking point on the map',addressResolved:'Address determined from the selected point.',addressResolving:'Finding the selected point address…',retryAddress:'Find the address again',pointCoordinates:'Map point coordinates',selectedPointUsed:'The point you selected on the map is used.',mapCenterUsed:'The map center at the time the form was opened is used.',accessTerms:'Entry and pricing conditions',hasBarrier:'Has a barrier',hasFreePeriod:'Has a free period',freeMinutes:'Free minutes',afterPeriodPrice:'Price after the period, UZS',ifKnown:'If known',purchaseOnly:'Free only with a purchase',receiptRequired:'Receipt required',termsSource:'Source or explanation of conditions',termsSourcePh:'Tariff photo, official source or description at the location',photoHelp:'Up to 5 photos. Sign in to upload photos.',addressFound:'Address found',addressByPoint:'Address determined from the map point.',addressFailed:'The address could not be determined automatically. Enter it manually or try again.',uploadReady:'Ready to upload',removePhoto:'Remove photo',maxPhotos:'You can add no more than 5 photos',photoPreview:'Photo preview',fileTooLarge:'File is larger than 10 MB',heicUnsupported:'HEIC/HEIF: convert to JPEG first',formatUnsupported:'Unsupported format',signInForPhotos:'Sign in to add photos',processing:'Processing…',uploading:'Uploading…',fileError:'File error',photoAttachFailed:'The submission was sent, but the photo could not be attached',freePeriodRequired:'Enter the free period duration',freeMinutesRequired:'Enter the free period in minutes',authError:'Authentication error',loginFirst:'Sign in first',accountCreated:'Account created',signedIn:'You are signed in',signedOut:'You are signed out',notificationsOn:'Notifications enabled',notificationsOff:'Notifications disabled',routeMethodSaved:'Route method saved',
   photoReadFailed:'Could not read the photo',authFieldsInvalid:'Enter an email and a password of at least 6 characters',pleaseWait:'Please wait…',confirmEmail:'Check your email and confirm registration, then sign in.',recentSearches:'Recent searches',clearHistory:'Clear',
+  deleteAccount:'Delete account',deleteAccountTitle:'Delete account',deleteAccountWarning:'Your account, favorites, submissions, corrections and uploaded photos will be permanently deleted.',deleteAccountType:'Type УДАЛИТЬ to confirm',deleteAccountConfirm:'Delete account permanently',deleteAccountMismatch:'Enter the word УДАЛИТЬ',deleteAccountFailed:'Could not delete the account. Check your connection and try again.',deleteAccountDone:'The account and associated data were deleted',adminDeleteProtected:'An administrator account cannot be deleted this way.',
   freePeriodGeneric:'Free period',hourShort:'h',minuteShort:'min',freeSuffix:'free',afterPrefix:'After —',perHour:'per hour',perStartedHour:'per started hour',afterPeriodUnit:'after the period',perDay:'per day',parkingTermsUnit:'according to parking conditions',purchaseRequired:'Purchase required',receiptNeeded:'Receipt required',access:'Access',atEntry:'at entry',atExit:'at exit',and:'and',furtherTariff:'Further tariff',condition:'Condition',confirmation:'Confirmation',entryExit:'Entry/exit',ticketRequired:'Parking ticket required',entry:'Entry',exit:'Exit',tariffChecked:'Tariff verified',sourceLabel:'Source',parkingTerms:'Parking conditions',requiresPurchase:'Purchase required',requiresReceipt:'Receipt required',photoNoneText:'No photos yet',geoposition:'Geolocation',accuracy:'Accuracy',latitude:'Latitude',longitude:'Longitude',compassDenied:'Compass access denied',compassRotate:'Compass enabled. Rotate your phone',compassOn:'Compass enabled',compassOff:'Compass disabled',routeDestination:'Route to parking',guidanceStopped:'Guidance stopped',routeRebuilding:'Rebuilding route',selectedPlace:'Selected place',rebuild:'Rebuild',followRoute:'Follow the highlighted route',externalNavigator:'External navigator',stopRoute:'Stop route',routeAttribution:'Route: openrouteservice · map and roads © OpenStreetMap contributors, ODbL · no traffic data',currency:'UZS'
 };
 let lang=(()=>{try{return ['ru','uz','en'].includes(localStorage.getItem('parkly-language'))?localStorage.getItem('parkly-language'):'ru'}catch(e){return'ru'}})();
@@ -993,7 +1013,7 @@ function fromDbRow(r){
     cctv: !!r.has_cctv, disabled: !!r.has_disabled, wash: !!r.has_wash,
     payment: (r.payment_methods||[]).map(cleanText).join(', ')||'—', rating: null,
     photo: safePhotoUrl(r.photos&&r.photos[0]),
-    verified: cleanText(r.verified_at), source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parkly':cleanText(r.source)||'Источник не указан'),
+    verified: cleanText(r.verified_at), source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parky':cleanText(r.source)||'Источник не указан'),
     legal: r.category==='STREET_ALLOWED',
     has_barrier: !!r.has_barrier,
     barrier_at_entry: !!r.barrier_at_entry,
@@ -2561,9 +2581,10 @@ function renderProfile(){
     +profRow('文',t('language'),languageLabel(lang),'openLanguageSettings()')
     +profRow('➤',t('routes'),navigationProviderLabel(localStorage.getItem('parkly_navigation_provider')),'openNavigationSettings()')
     +profRow('💬',t('support'),'','openSupport()')
-    +profRow('ⓘ',t('about'),'v1.0','openAbout()')
+    +profRow('ⓘ',t('about'),'v1.0.1','openAbout()')
     +'</div>'
-    +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?t('signOut'):t('signIn'))+'</button>';
+    +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?t('signOut'):t('signIn'))+'</button>'
+    +(authSession?'<button class="prof-delete" onclick="openDeleteAccount()">'+t('deleteAccount')+'</button>':'');
 }
 function profRow(ic,label,val,action){
   return '<div class="prof-row" onclick="'+action+'"><span class="pri">'+ic+'</span><span class="prl">'+label+'</span>'+(val!==''?'<span class="prv">'+val+'</span>':'')+'<span class="arr">›</span></div>';
@@ -2586,7 +2607,7 @@ function setLanguage(value){
 function navigationProviderLabel(provider){return ({ors:t('navInternal')+' — Beta','external-yandex':t('navYandex'),google:'Google Maps',apple:'Apple Maps'})[provider]||t('navAsk')}
 function openNavigationSettings(){
   const selected=localStorage.getItem('parkly_navigation_provider')||'';
-  const options=[['','Спрашивать каждый раз'],['external-yandex','Яндекс Навигатор'],['google','Google Maps'],...(isAppleDevice()?[['apple','Apple Maps']]:[]),['ors','Внутри Parkly — Beta']];
+  const options=[['','Спрашивать каждый раз'],['external-yandex','Яндекс Навигатор'],['google','Google Maps'],...(isAppleDevice()?[['apple','Apple Maps']]:[]),['ors','Внутри Parky — Beta']];
   const html='<div class="grabber"><i></i></div><div class="filt-head"><h2>Маршруты</h2><button class="x" onclick="closeSheet()">✕</button></div><div class="filt-body"><p class="mc-place-note" style="margin-bottom:12px">Выберите вариант по умолчанию. Его можно изменить в любое время.</p>'
     +options.map(([value,label])=>'<label class="radio-row"><span class="rl">'+label+'</span><input type="radio" name="navProvider" value="'+value+'" '+(selected===value?'checked':'')+' onchange="saveNavigationProvider(this.value)"></label>').join('')+'</div>';
   openSheet(html);
@@ -2667,7 +2688,7 @@ function openSupport(){
     +'<div class="info-card"><b>Как добавить парковку?</b><span>Нажмите «Добавить» внизу экрана, укажите точку на карте и заполните известные данные.</span></div>'
     +'<div class="info-card"><b>Почему объект появился не сразу?</b><span>Все новые парковки проходят проверку администратора. Статус виден в разделе «Мои заявки».</span></div>'
     +'<div class="info-card"><b>Как сообщить об ошибке?</b><span>Откройте карточку парковки и нажмите «Сообщить об ошибке». Ответ администратора появится в «Моих исправлениях».</span></div>'
-    +'<div class="info-card"><b>Показывает ли Parkly свободные места?</b><span>Нет. Вместимость — это общее количество мест, а не занятость в реальном времени.</span></div>'
+    +'<div class="info-card"><b>Показывает ли Parky свободные места?</b><span>Нет. Вместимость — это общее количество мест, а не занятость в реальном времени.</span></div>'
     +'</div>';
   openSheet(html);
 }
@@ -2675,11 +2696,12 @@ function openAbout(){
   const html='<div class="grabber"><i></i></div>'
     +'<div class="filt-head"><h2>О приложении</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="form-body info-list">'
-    +'<div class="info-card"><b>Parkly v1.0</b><span>Карта парковок Ташкента с поиском, фильтрами, избранным и предложением новых объектов.</span></div>'
-    +'<div class="info-card"><b>Источники данных</b><span>Данные Parkly, предложения пользователей и OpenStreetMap. Карта предоставлена сервисом Яндекс Карты.</span></div>'
-    +'<div class="legalnote" style="margin:0">ℹ️<span>Parkly не гарантирует наличие свободных мест. Перед поездкой проверяйте знаки, режим работы и условия оплаты на месте.</span></div>'
+    +'<div class="info-card"><b>Parky v1.0.7</b><span>Карта парковок Ташкента с поиском, фильтрами, избранным и предложением новых объектов.</span></div>'
+    +'<div class="info-card"><b>Источники данных</b><span>Данные Parky, предложения пользователей и OpenStreetMap. Карта предоставлена сервисом Яндекс Карты.</span></div>'
+    +'<div class="legalnote" style="margin:0">ℹ️<span>Parky не гарантирует наличие свободных мест. Перед поездкой проверяйте знаки, режим работы и условия оплаты на месте.</span></div>'
     +'<button class="btn-outline" onclick="openPrivacyInfo()">Как используются мои данные</button>'
     +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="privacy.html" target="_blank" rel="noopener">Политика конфиденциальности</a>'
+    +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="delete-account.html" target="_blank" rel="noopener">Удаление аккаунта</a>'
     +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="terms.html" target="_blank" rel="noopener">Условия использования</a>'
     +'<a class="btn-outline" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>'
     +'</div>';
@@ -2690,14 +2712,14 @@ function openPrivacyInfo(){
     +'<div class="filt-head"><h2>Использование данных</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="form-body info-list">'
     +'<div class="info-card"><b>Аккаунт</b><span>Для входа Supabase хранит адрес электронной почты и защищённые данные авторизации.</span></div>'
-    +'<div class="info-card"><b>Геолокация</b><span>Используется для показа вашего положения и расстояний. Parkly не создаёт историю поездок.</span></div>'
+    +'<div class="info-card"><b>Геолокация</b><span>Используется для показа вашего положения и расстояний. Parky не создаёт историю поездок.</span></div>'
     +'<div class="info-card"><b>Ваш вклад</b><span>Предложения парковок, фотографии и сообщения об ошибках сохраняются для модерации. Избранное синхронизируется с аккаунтом после входа.</span></div>'
     +'</div>';
   openSheet(html);
 }
 function openAuth(){
   const html='<div class="grabber"><i></i></div>'
-    +'<div class="filt-head"><h2>Аккаунт Parkly</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="filt-head"><h2>Аккаунт Parky</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="form-body">'
     +'<div class="field"><label>Электронная почта</label><input id="auth_email" type="email" autocomplete="email" placeholder="name@example.com"></div>'
     +'<div class="field"><label>Пароль</label><input id="auth_password" type="password" autocomplete="current-password" minlength="6" placeholder="Не менее 6 символов"></div>'
@@ -2747,6 +2769,47 @@ async function signOutUser(){
     if(token)await fetch(SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token}});
   }catch(e){}
   saveAuthSession(null);mySubmissions=[];myReports=[];favorites=loadFav();renderProfile();updateNotificationBadge();toast(t('signedOut'));
+}
+function openDeleteAccount(){
+  if(!authSession){openAuth();return}
+  const html='<div class="grabber"><i></i></div>'
+    +'<div class="filt-head"><h2>'+t('deleteAccountTitle')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
+    +'<div class="form-body">'
+    +'<div class="legalnote" style="margin:0 0 16px;background:#fef2f2;color:#991b1b">⚠️<span>'+t('deleteAccountWarning')+'</span></div>'
+    +'<div class="field"><label>'+t('deleteAccountType')+'</label><input id="delete_account_confirmation" type="text" autocomplete="off" autocapitalize="characters" placeholder="УДАЛИТЬ"></div>'
+    +'<div id="delete_account_message" style="font:600 12px Manrope;color:var(--red);margin-bottom:10px"></div>'
+    +'<button id="deleteAccountBtn" class="btn-primary" style="background:var(--red)" onclick="deleteAccountUser()">'+t('deleteAccountConfirm')+'</button>'
+    +'<button class="btn-outline" style="margin-top:9px" onclick="closeSheet()">'+t('cancel')+'</button>'
+    +'</div>';
+  openSheet(html);
+}
+function clearDeletedAccountLocalData(userId){
+  const keys=['parkly-auth','parkly-client-id','parkly-submission-count','parkly-search-history','parkly-lastpos','parkly-fav','parkly-fav-guest',
+    'parkly-fav-'+userId,'parkly-favorite-terms-'+userId,'parkly-favorite-terms-events-'+userId,'parkly-notifications-seen-'+userId];
+  for(const key of keys){try{localStorage.removeItem(key)}catch(e){}}
+  authSession=null;mySubmissions=[];myReports=[];favorites=[];
+}
+async function deleteAccountUser(){
+  const confirmation=cleanText(document.getElementById('delete_account_confirmation')?.value).toUpperCase();
+  const message=document.getElementById('delete_account_message');
+  const button=document.getElementById('deleteAccountBtn');
+  if(confirmation!=='УДАЛИТЬ'){if(message)message.textContent=t('deleteAccountMismatch');return}
+  const userId=authSession?.user?.id;
+  const token=await accessToken();
+  if(!userId||!token){closeSheet();openAuth();return}
+  if(button)button.disabled=true;if(message)message.textContent=t('pleaseWait');
+  try{
+    const response=await fetch(SUPABASE_URL+'/functions/v1/delete-account',{
+      method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY,Authorization:'Bearer '+token},
+      body:JSON.stringify({confirmation:'DELETE'})
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||'operation_failed');
+    clearDeletedAccountLocalData(userId);closeSheet();renderProfile();updateNotificationBadge();toast(t('deleteAccountDone'));
+  }catch(error){
+    if(message)message.textContent=error.message==='admin_account_protected'?t('adminDeleteProtected'):t('deleteAccountFailed');
+    if(button)button.disabled=false;
+  }
 }
 async function loadMySubmissions(){
   if(!authSession){mySubmissions=[];return}
@@ -2831,7 +2894,7 @@ function openLegend(){
     +'<div class="legend-item">'+pin('#9CA3AF','P')+'<div><b>'+t('lUnknown')+'</b></div></div>'
     +'<div class="legend-item"><div class="legend-mark">🚦</div><div><b>Пробки</b><span>Нажмите, чтобы включить слой пробок</span></div><button onclick="toggleTraffic()" style="margin-left:auto;padding:8px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font:700 12px Manrope;cursor:pointer">Слой</button></div>'
     +'</div>'
-    +'<div style="padding:0 18px 4px"><div class="legalnote" style="background:#EFF4FF;border-color:#CFE0FF;color:#1D4ED8">ℹ️<span>Зелёный цвет означает <b>бесплатную</b> парковку, а не наличие свободных мест. Parkly не отслеживает занятость и свободные места в реальном времени.</span></div></div>';
+    +'<div style="padding:0 18px 4px"><div class="legalnote" style="background:#EFF4FF;border-color:#CFE0FF;color:#1D4ED8">ℹ️<span>Зелёный цвет означает <b>бесплатную</b> парковку, а не наличие свободных мест. Parky не отслеживает занятость и свободные места в реальном времени.</span></div></div>';
   openSheet(html);
 }
 document.getElementById('legendbtn').onclick=openLegend;
