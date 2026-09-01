@@ -1,0 +1,10 @@
+project_id = "xgzddkkrlsvtvcriokdk"
+
+[functions.admin-users]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.parkly-geocode]
+verify_jwt = true

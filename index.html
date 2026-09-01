@@ -950,6 +950,7 @@ function safePhotoUrl(value){
    и просмотр неодобренных данных защищён правилами в самой базе (RLS). */
 const SUPABASE_URL = 'https://xgzddkkrlsvtvcriokdk.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_gKsRzYmQ6KepXMHp2jMv_w_6OdJiYTp';
 
 function loadAuthSession(){
   try{
@@ -2630,7 +2631,7 @@ function renderProfile(){
     +profRow('文',t('language'),languageLabel(lang),'openLanguageSettings()')
     +profRow('➤',t('routes'),navigationProviderLabel(localStorage.getItem('parkly_navigation_provider')),'openNavigationSettings()')
     +profRow('💬',t('support'),'','openSupport()')
-    +profRow('ⓘ',t('about'),'v1.1.1','openAbout()')
+    +profRow('ⓘ',t('about'),'v1.1.2','openAbout()')
     +'</div>'
     +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?t('signOut'):t('signIn'))+'</button>'
     +(authSession?'<button class="prof-delete" onclick="openDeleteAccount()">'+t('deleteAccount')+'</button>':'');
@@ -2745,7 +2746,7 @@ function openAbout(){
   const html='<div class="grabber"><i></i></div>'
     +'<div class="filt-head"><h2>О приложении</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="form-body info-list">'
-    +'<div class="info-card"><b>Parky v1.1.1</b><span>Главная, карта парковок Ташкента, поиск, фильтры, избранное и предложение новых объектов.</span></div>'
+    +'<div class="info-card"><b>Parky v1.1.2</b><span>Главная, карта парковок Ташкента, поиск, фильтры, избранное и предложение новых объектов.</span></div>'
     +'<div class="info-card"><b>Источники данных</b><span>Данные Parky, предложения пользователей и OpenStreetMap. Карта предоставлена сервисом Яндекс Карты.</span></div>'
     +'<div class="legalnote" style="margin:0">ℹ️<span>Parky не гарантирует наличие свободных мест. Перед поездкой проверяйте знаки, режим работы и условия оплаты на месте.</span></div>'
     +'<button class="btn-outline" onclick="openPrivacyInfo()">Как используются мои данные</button>'
@@ -3077,19 +3078,32 @@ function geocodeAddressYmaps(lat,lng){
     new Promise((_,reject)=>setTimeout(()=>reject(new Error('YMAPS_GEOCODER_TIMEOUT')),8000))
   ]);
 }
+async function geocodeAddressProxy(lat,lng){
+  const response=await fetch(SUPABASE_URL+'/functions/v1/parkly-geocode',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SUPABASE_PUBLISHABLE_KEY},
+    body:JSON.stringify({lat,lng})
+  });
+  const payload=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(payload.error||`GEOCODE_PROXY_HTTP_${response.status}`);
+  const address=cleanText(payload.address);
+  if(!address)return null;
+  return {coords:[lat,lng],label:cleanText(payload.label)||address,description:address,fullText:address,kind:'house'};
+}
 async function reverseGeocodePoint(lat,lng){
   let firstError=null;
   try{
+    const result=await geocodeAddressProxy(lat,lng);
+    if(result?.fullText||result?.description||result?.label)return result;
+  }catch(error){firstError=error;console.warn('Supabase reverse geocoder failed',error)}
+  try{
     const result=await geocodeAddressYmaps(lat,lng);
     if(result?.fullText||result?.description||result?.label)return result;
-  }catch(error){firstError=error;console.warn('Yandex Maps reverse geocoder failed',error)}
+  }catch(error){console.warn('Yandex Maps reverse geocoder failed',error)}
   try{
     const result=await geocodeAddressHttp(lng+','+lat);
     if(result?.fullText||result?.description||result?.label)return result;
-  }catch(error){
-    console.warn('Yandex HTTP reverse geocoder failed',error);
-    throw firstError||error;
-  }
+  }catch(error){console.warn('Yandex HTTP reverse geocoder failed',error)}
   throw firstError||new Error('ADDRESS_NOT_FOUND');
 }
 document.getElementById('search').addEventListener('input',e=>{
