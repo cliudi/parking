@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Parky parking sign</title>
+  <rect width="512" height="512" rx="112" fill="#2563EB"/>
+  <circle cx="256" cy="256" r="142" fill="none" stroke="#FFFFFF" stroke-width="28"/>
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M198 145h91c76 0 76 132 0 132h-37v90h-54V145zm54 50v32h32c26 0 26-32 0-32h-32z"/>
+</svg>

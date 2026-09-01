@@ -1,12 +1,12 @@
 {
-  "name": "Parkly — парковки Ташкента",
-  "short_name": "Parkly",
+  "name": "Parky — парковки Ташкента",
+  "short_name": "Parky",
   "description": "Найди парковку быстро и удобно: карта, фильтры, зарядки для электромобилей, маршруты",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F4F6F8",
-  "theme_color": "#2563EB",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0B7AFB",
   "lang": "ru",
   "icons": [
     { "src": "icon-48.png",  "sizes": "48x48",   "type": "image/png" },

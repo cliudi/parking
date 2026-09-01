@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048" role="img" aria-labelledby="title">
+  <title id="title">Parky</title>
+  <defs>
+    <linearGradient id="pinDepth" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E2EAF7"/>
+    </linearGradient>
+    <filter id="pinShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="22" stdDeviation="28" flood-color="#2563EB" flood-opacity=".24"/>
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity=".38"/>
+    </filter>
+    <filter id="textShadow" x="-15%" y="-25%" width="130%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="9" flood-color="#00102E" flood-opacity=".72"/>
+    </filter>
+  </defs>
+  <rect width="2048" height="2048" fill="#171719"/>
+  <path fill="url(#pinDepth)" filter="url(#pinShadow)" d="M1024 650c-147 0-266 119-266 266 0 174 266 462 266 462s266-288 266-462c0-147-119-266-266-266z"/>
+  <text x="1024" y="1130" text-anchor="middle" fill="#F8FAFC" filter="url(#textShadow)" font-family="Arial, Helvetica, sans-serif" font-size="356" font-weight="700" letter-spacing="10">P<tspan fill="#2563EB">ARK</tspan>Y</text>
+</svg>

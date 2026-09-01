@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#FFFFFF">
+<meta name="theme-color" content="#0B7AFB">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="48x48" href="icon-48.png">
 <link rel="preconnect" href="https://api-maps.yandex.ru" crossorigin>
@@ -20,7 +20,8 @@
 <style>
   :root{
     /* ── фирменная палитра (дизайн 3) ── */
-    --blue:#2563EB;   --blue-d:#1D4ED8;   /* платная */
+    --blue:#0B7AFB;   --blue-d:#075ECC;   /* фирменный синий */
+    --brand-navy:#123765; --blueSoft:#EAF3FF; --soft:#F3F7FC;
     --green:#16A34A;  --green-d:#128A3E;  /* бесплатная */
     --amber:#FBBF24;  --amber-d:#E8AC0F;  /* зарядка EV */
     --red:#EF4444;    --red-d:#DC2626;    /* недоступно/закрыто */
@@ -176,6 +177,7 @@
   .navitem{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
     border:0;background:none;cursor:pointer;color:var(--ink2);position:relative}
   .navitem .ni{font-size:19px;line-height:1}
+  .navitem .ni svg{display:block;width:22px;height:22px}
   .navitem span{font:700 10px 'Manrope'}
   .navitem.on{color:var(--blue)}
   .navadd{transform:translateY(-2px)}
@@ -191,6 +193,24 @@
     padding:16px 18px;display:flex;align-items:center;justify-content:space-between;z-index:2}
   .scr-head h1{font:800 19px 'Manrope'}
   .scr-head .act{font:700 14px 'Manrope';color:var(--blue);border:0;background:none;cursor:pointer}
+
+  /* ─────────── ГЛАВНАЯ ─────────── */
+  #screen-home{background:#F3F7FC;padding-top:0}
+  [data-theme="dark"] #screen-home{background:var(--bg)}
+  .home-hero{position:relative;overflow:hidden;padding:calc(20px + var(--top)) 18px 22px;color:#fff;background:linear-gradient(145deg,#0B7AFB 0%,#1268E8 55%,#123765 100%);border-radius:0 0 28px 28px;box-shadow:0 12px 32px rgba(11,122,251,.24)}
+  .home-hero::after{content:"";position:absolute;width:240px;height:240px;right:-86px;top:-92px;border:30px solid rgba(255,255,255,.10);border-radius:50%}
+  .home-brand{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+  .home-brand img{display:block;width:112px;max-height:38px;object-fit:contain;object-position:left center;filter:brightness(0) invert(1)}
+  .home-brand button{width:40px;height:40px;border:1px solid rgba(255,255,255,.25);border-radius:13px;background:rgba(255,255,255,.14);color:#fff;font-size:18px}
+  .home-copy{position:relative;z-index:1;margin-bottom:16px}.home-copy small{display:block;font:800 10px Manrope;letter-spacing:.14em;text-transform:uppercase;opacity:.76}.home-copy h1{max-width:330px;margin-top:6px;font:800 26px/1.12 Manrope}.home-copy p{max-width:350px;margin-top:7px;font:600 13px/1.45 Manrope;opacity:.84}
+  .home-search{position:relative;z-index:1;display:flex;align-items:center;gap:10px;min-height:54px;padding:0 15px;border-radius:17px;background:#fff;box-shadow:0 10px 28px rgba(4,35,82,.18)}
+  .home-search svg{width:20px;color:#6B7B91}.home-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#10213C;font:650 14px Manrope}.home-search input::placeholder{color:#8A99AD}
+  .home-switch{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.home-switch button{min-height:46px;border:1px solid rgba(255,255,255,.18);border-radius:15px;background:rgba(7,58,140,.38);color:rgba(255,255,255,.82);font:800 13px Manrope}.home-switch button.on{background:#fff;color:var(--blue);box-shadow:0 6px 18px rgba(4,35,82,.16)}
+  .home-body{padding:22px 16px 24px}.home-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.home-section-head h2{font:800 18px Manrope}.home-section-head button{border:0;background:none;color:var(--brand-navy);font:800 12px Manrope}.home-near-title{display:flex;align-items:center;gap:7px;margin-bottom:11px;font:800 16px Manrope}.home-near-title svg{width:18px;color:#EF3C86}
+  .home-radius{display:flex;gap:8px;overflow-x:auto;padding:1px 1px 18px;scrollbar-width:none}.home-radius::-webkit-scrollbar{display:none}.home-radius button{flex:0 0 auto;min-height:39px;padding:0 16px;border:1px solid #E2EAF4;border-radius:999px;background:var(--card);color:var(--ink2);box-shadow:0 4px 13px rgba(15,43,81,.06);font:800 12px Manrope}.home-radius button.on{border-color:var(--blue);background:var(--blueSoft);color:var(--blue)}
+  .home-list{display:grid;gap:12px}.home-card{display:grid;grid-template-columns:88px minmax(0,1fr) 34px;gap:12px;padding:12px;border:1px solid #E4EBF4;border-radius:20px;background:var(--card);box-shadow:0 7px 20px rgba(15,43,81,.07);cursor:pointer}.home-photo{width:88px;height:94px;border-radius:15px;overflow:hidden;background:linear-gradient(145deg,var(--blue),var(--brand-navy));display:grid;place-items:center;color:#fff}.home-photo img{width:100%;height:100%;object-fit:cover}.home-photo svg{width:48px;height:48px}.home-card-main{min-width:0}.home-card-main h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:800 14px Manrope}.home-address{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin-top:5px;color:var(--ink2);font:600 11.5px/1.4 Manrope}.home-price{margin-top:7px;color:var(--brand-navy);font:850 15px Manrope}.home-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.home-meta span{padding:4px 7px;border-radius:999px;background:var(--soft);color:var(--ink2);font:750 9.5px Manrope}.home-heart{width:34px;height:34px;border:0;border-radius:11px;background:var(--soft);color:#9BACBF;font-size:20px}.home-heart.on{background:#EAF3FF;color:var(--blue)}
+  .home-empty{padding:34px 18px;border:1px dashed var(--line);border-radius:20px;text-align:center;color:var(--ink2);font:650 13px/1.5 Manrope}.home-empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+  @media(max-width:370px){.home-copy h1{font-size:23px}.home-card{grid-template-columns:76px minmax(0,1fr) 32px}.home-photo{width:76px;height:88px}.home-body{padding-left:11px;padding-right:11px}.navitem span{font-size:8.5px}}
 
   /* ─────────── МОДАЛКИ (bottom sheet) ─────────── */
   .mask{position:fixed;inset:0;background:rgba(18,32,46,.5);z-index:200;display:flex;align-items:flex-end;
@@ -625,13 +645,32 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 
 .duplicate-mask{position:fixed;inset:0;z-index:10020;background:rgba(15,23,42,.58);display:none;align-items:flex-end;justify-content:center;padding:16px}.duplicate-mask.on{display:flex}.duplicate-dialog{width:min(100%,540px);max-height:min(78vh,660px);overflow:auto;background:var(--card);color:var(--ink);border-radius:26px;padding:22px;box-shadow:0 24px 80px rgba(15,23,42,.32);animation:slideUp .24s cubic-bezier(.2,.8,.3,1)}.duplicate-dialog h2{font:800 22px Manrope;margin:0 0 8px}.duplicate-dialog>p{font:500 14px/1.5 Manrope;color:var(--ink2);margin:0 0 16px}.duplicate-results{display:grid;gap:9px;margin-bottom:18px}.duplicate-result{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);background:var(--bg);padding:13px;border-radius:16px}.duplicate-result b{display:block;font:800 14px Manrope}.duplicate-result span{display:block;color:var(--ink2);font:500 12px/1.4 Manrope;margin-top:3px}.duplicate-distance{margin-left:auto!important;color:var(--blue)!important;font-weight:800!important;white-space:nowrap}.duplicate-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.duplicate-actions button{min-height:48px;border-radius:14px;font:800 13px Manrope;cursor:pointer}.duplicate-open{grid-column:1/-1;border:0;background:var(--blue);color:#fff}.duplicate-submit{border:1px solid var(--line);background:var(--card);color:var(--ink)}.duplicate-cancel{border:0;background:var(--bg);color:var(--ink2)}
 .photo-preview-list{display:grid;gap:9px;margin-top:10px}.photo-preview-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:8px;background:var(--bg)}.photo-preview-item img{width:58px;height:58px;object-fit:cover;border-radius:10px;background:#e2e8f0}.photo-preview-meta{min-width:0}.photo-preview-meta b,.photo-preview-meta span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.photo-preview-meta b{font:700 12px Manrope}.photo-preview-meta span{font:500 11px Manrope;color:var(--ink2);margin-top:3px}.photo-preview-remove{width:36px;height:36px;border:0;border-radius:11px;background:#fee2e2;color:#b91c1c;font-weight:900;cursor:pointer}.photo-preview-error{color:var(--red)!important;white-space:normal!important}
-.brand-splash{position:fixed;inset:0;z-index:20000;display:grid;place-items:center;background:#171719;opacity:1;visibility:visible;transition:opacity .28s ease,visibility .28s ease}.brand-splash.is-hidden{opacity:0;visibility:hidden;pointer-events:none}.brand-splash img{display:block;width:min(82vw,560px);height:auto}
+.brand-splash{position:fixed;inset:0;z-index:20000;display:grid;place-items:center;background:#FFFFFF;opacity:1;visibility:visible;transition:opacity .28s ease,visibility .28s ease}.brand-splash.is-hidden{opacity:0;visibility:hidden;pointer-events:none}.brand-splash img{display:block;width:min(72vw,420px);height:auto}
 </style>
 </head>
 <body>
 <div class="brand-splash" id="brandSplash" aria-label="Parky загружается">
   <img src="assets/branding/parky-splash-logo.png" alt="Parky">
 </div>
+
+<!-- ═══════════ ЭКРАН: ГЛАВНАЯ ═══════════ -->
+<section class="screen on" id="screen-home" aria-label="Главная">
+  <div class="home-hero">
+    <div class="home-brand"><img src="assets/branding/parky-wordmark.png" alt="Parky"><button type="button" onclick="openNotifications()" aria-label="Уведомления">🔔</button></div>
+    <div class="home-copy"><small>PARKY</small><h1 id="homeHeadline">Парковка рядом — без лишних кругов</h1><p id="homeSubtitle">Находите проверенные парковки, условия въезда и маршрут в одном приложении.</p></div>
+    <label class="home-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <input id="homeSearch" autocomplete="off" placeholder="Адрес, район или парковка" oninput="renderHomeList()" onkeydown="if(event.key==='Enter')homeSearchOnMap()">
+    </label>
+    <div class="home-switch"><button class="on" type="button" onclick="switchTab('map')" id="homeMapButton">Карта</button><button type="button" onclick="renderHome()" id="homeListButton">Список</button></div>
+  </div>
+  <div class="home-body">
+    <div class="home-near-title"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg><span id="homeNearTitle">Рядом со мной</span></div>
+    <div class="home-radius" id="homeRadius"></div>
+    <div class="home-section-head"><h2 id="homeParkingTitle">Ближайшие парковки</h2><button type="button" onclick="switchTab('map')" id="homeAllButton">Все →</button></div>
+    <div class="home-list" id="homeParkingList"></div>
+  </div>
+</section>
 
 <!-- ═══════════ ЭКРАН: КАРТА ═══════════ -->
 <div id="screen-map">
@@ -750,7 +789,8 @@ const I18N={
  ru:{
   searchPh:'Найти улицу, объект или парковку',
   qAll:'Все', qFree:'Бесплатные', qPaid:'Платные', qEv:'Зарядка',
-  navMap:'Карта', navFav:'Избранное', navAdd:'Добавить', navProfile:'Профиль',
+  navHome:'Главная',navMap:'Карта', navFav:'Избранное', navAdd:'Добавить', navProfile:'Профиль',
+  homeHeadline:'Парковка рядом — без лишних кругов',homeSubtitle:'Находите проверенные парковки, условия въезда и маршрут в одном приложении.',homeSearchPh:'Адрес, район или парковка',homeNear:'Рядом со мной',homeParkingTitle:'Ближайшие парковки',homeAll:'Все →',homeEmpty:'Рядом ничего не найдено',homeEmptyHint:'Измените радиус или откройте карту, чтобы посмотреть другие районы.',homeMap:'Карта',homeList:'Список',
   showDetails:'Показать детали', goRoute:'Построить маршрут', go:'Поехать',
   addFav:'Добавить в избранное', inFav:'В избранном', report:'Сообщить об ошибке',
   free:'Бесплатно', capUnknown:'Не указано', approx:'Примерно', places:'мест',
@@ -815,7 +855,8 @@ const I18N={
 };
 I18N.uz={...I18N.ru,
  searchPh:'Ko‘cha, joy yoki avtoturargohni qidiring',qAll:'Barchasi',qFree:'Bepul',qPaid:'Pullik',qEv:'Quvvatlash',
- navMap:'Xarita',navFav:'Sevimlilar',navAdd:'Qo‘shish',navProfile:'Profil',showDetails:'Batafsil',goRoute:'Yo‘nalish qurish',
+ navHome:'Bosh sahifa',navMap:'Xarita',navFav:'Sevimlilar',navAdd:'Qo‘shish',navProfile:'Profil',showDetails:'Batafsil',goRoute:'Yo‘nalish qurish',
+ homeHeadline:'Yaqin avtoturargoh — ortiqcha aylanishsiz',homeSubtitle:'Tekshirilgan joylar, kirish shartlari va yo‘nalish bir ilovada.',homeSearchPh:'Manzil, tuman yoki avtoturargoh',homeNear:'Menga yaqin',homeParkingTitle:'Eng yaqin avtoturargohlar',homeAll:'Barchasi →',homeEmpty:'Yaqinda hech narsa topilmadi',homeEmptyHint:'Radiusni o‘zgartiring yoki boshqa hududlarni ko‘rish uchun xaritani oching.',homeMap:'Xarita',homeList:'Ro‘yxat',
  addFav:'Sevimlilarga qo‘shish',inFav:'Sevimlilarda',report:'Xato haqida xabar berish',free:'Bepul',approx:'Taxminan',places:'joy',
  filters:'Filtrlar',filtType:'Avtoturargoh turi',filtExtra:'Qo‘shimcha',filtPrice:'Narx',fAll:'Barchasi',fPaid:'Pullik',fFree:'Bepul',
  apply:'Qo‘llash',reset:'Tozalash',favTitle:'Sevimlilar',edit:'Tahrirlash',done:'Tayyor',favEmpty:'Hozircha bo‘sh',
@@ -840,7 +881,8 @@ I18N.uz={...I18N.ru,
 };
 I18N.en={...I18N.ru,
  searchPh:'Find a street, place or parking',qAll:'All',qFree:'Free',qPaid:'Paid',qEv:'Charging',
- navMap:'Map',navFav:'Favorites',navAdd:'Add',navProfile:'Profile',showDetails:'Show details',goRoute:'Build route',
+ navHome:'Home',navMap:'Map',navFav:'Favorites',navAdd:'Add',navProfile:'Profile',showDetails:'Show details',goRoute:'Build route',
+ homeHeadline:'Nearby parking without extra circles',homeSubtitle:'Verified parking, entry conditions and directions in one app.',homeSearchPh:'Address, district or parking',homeNear:'Near me',homeParkingTitle:'Nearest parking',homeAll:'All →',homeEmpty:'Nothing found nearby',homeEmptyHint:'Change the radius or open the map to explore other areas.',homeMap:'Map',homeList:'List',
  addFav:'Add to favorites',inFav:'In favorites',report:'Report an error',free:'Free',approx:'Approx.',places:'spaces',
  filters:'Filters',filtType:'Parking type',filtExtra:'More',filtPrice:'Price',fAll:'All',fPaid:'Paid',fFree:'Free',
  apply:'Apply',reset:'Reset',favTitle:'Favorites',edit:'Edit',done:'Done',favEmpty:'Nothing here yet',
@@ -884,6 +926,9 @@ function updateLocalizedStaticUi(){
   const labels={themebtn:'theme',notificationsBtn:'openNotifications',legendbtn:'openLegend',filtbtn:'openFilters',compassbtn:'compass',locbtn:'myLocation',zin:'zoomIn',zout:'zoomOut'};
   Object.entries(labels).forEach(([id,key])=>{const element=document.getElementById(id);if(!element)return;element.setAttribute('aria-label',t(key));element.setAttribute('title',t(key))});
   document.getElementById('bottomnav')?.setAttribute('aria-label',t('mainNavigation'));
+  const homeValues={homeHeadline:'homeHeadline',homeSubtitle:'homeSubtitle',homeNearTitle:'homeNear',homeParkingTitle:'homeParkingTitle',homeAllButton:'homeAll',homeMapButton:'homeMap',homeListButton:'homeList'};
+  Object.entries(homeValues).forEach(([id,key])=>{const element=document.getElementById(id);if(element)element.textContent=t(key)});
+  const homeSearch=document.getElementById('homeSearch');if(homeSearch)homeSearch.placeholder=t('homeSearchPh');
 }
 
 /* В production показываем только данные из Supabase. Вымышленные точки
@@ -1012,7 +1057,7 @@ function fromDbRow(r){
     ev: !!r.has_ev, ev_details: (r.ev_connectors||[]).map(cleanText).join(', ')||null,
     cctv: !!r.has_cctv, disabled: !!r.has_disabled, wash: !!r.has_wash,
     payment: (r.payment_methods||[]).map(cleanText).join(', ')||'—', rating: null,
-    photo: safePhotoUrl(r.photos&&r.photos[0]),
+    photo: safePhotoUrl(r.photos&&r.photos[0]), distance_m:Number(r.distance_m),
     verified: cleanText(r.verified_at), source: r.source==='OSM'?'OpenStreetMap':(r.source==='ADMIN'?'Команда Parky':cleanText(r.source)||'Источник не указан'),
     legal: r.category==='STREET_ALLOWED',
     has_barrier: !!r.has_barrier,
@@ -1088,6 +1133,7 @@ async function loadParkingsFromDB(lat, lng, radius){
     lastMarkerSignature='';
     requestAnimationFrame(()=>{drawStreetSegments();drawMarkers(true)});
     if(activeTab==='fav')renderFav();
+    if(activeTab==='home')renderHome();
     return true;
   }catch(e){
     if(e.name==='AbortError'&&controller!==parkingLoadController)return false;
@@ -1135,7 +1181,7 @@ function markerColor(p){
   if(p.ev && p.price_type==='free') return '#16A34A';   // зелёный+жёлтый комбо рисуем отдельно
   if(p.ev) return '#FBBF24';
   if(p.price_type==='free') return '#16A34A';
-  if(p.price_type==='paid') return '#2563EB';
+  if(p.price_type==='paid') return '#0B7AFB';
   return '#9CA3AF';
 }
 function catIcon(p){
@@ -1145,7 +1191,7 @@ function catIcon(p){
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 let ymap=null, markers={}, meMark=null, meCircle=null, traffic=null,selectedPointMark=null;
-let mePos=null, watchId=null, activeTab='map', selectedId=null;
+let mePos=null, watchId=null, activeTab='home', selectedId=null;
 let selectedStart=null,selectedDestination=null,selectedPointRequest=0,addAddressRequest=0;
 let quickFilter='all';
 let favorites=loadFav();
@@ -1323,7 +1369,7 @@ async function setSelectedPoint(coords,label){
   selectedPointMark.events.add('click',showSelectedPointCard);ymap.geoObjects.add(selectedPointMark);showSelectedPointCard();
   selectedPointMark.events.add('dragend',()=>{const next=selectedPointMark.geometry.getCoordinates();setSelectedPoint(next)});
   if(!label){
-    try{const details=await geocodeAddressHttp(selectedDestination.lng+','+selectedDestination.lat);if(requestId!==selectedPointRequest||!selectedDestination)return;
+    try{const details=await reverseGeocodePoint(selectedDestination.lat,selectedDestination.lng);if(requestId!==selectedPointRequest||!selectedDestination)return;
       if(details){selectedDestination.label=cleanText(details.label)||t('selectedPoint');selectedDestination.name=selectedDestination.label;selectedDestination.address=cleanText(details.fullText||details.description||details.label);selectedDestination.description=cleanText(details.description||details.fullText);selectedDestination.kind=cleanText(details.kind);selectedPointMark.properties.set('hintContent',selectedDestination.label)}}catch(error){console.warn('Reverse geocoding failed',error)}
     if(requestId===selectedPointRequest&&selectedDestination){selectedDestination.loading=false;showSelectedPointCard()}
   }
@@ -1821,6 +1867,7 @@ async function ensurePermission(){
 let pendingCenter=null;
 function putMe(lat,lng,acc,rough){
   mePos={lat,lng};meAcc=acc||0;
+  if(activeTab==='home')requestAnimationFrame(renderHome);
   if(!ymap){pendingCenter={lat,lng,acc,rough};return}   // карта ещё грузится — применим позже
   const isRough = rough || (acc||0)>ROUGH_OVER;
   if(!meCircle){meCircle=new ymaps.Circle([[lat,lng],Math.max(acc||30,20)],{},
@@ -2293,7 +2340,7 @@ async function resolveAddAddress(force){
   const requestId=++addAddressRequest;
   if(status)status.textContent=t('addressResolving');if(retry)retry.style.display='none';
   try{
-    const details=await geocodeAddressHttp(lng+','+lat);
+    const details=await reverseGeocodePoint(lat,lng);
     if(requestId!==addAddressRequest||!document.getElementById('a_addr'))return;
     const address=cleanText(details?.fullText||details?.description||details?.label);
     if(!address)throw new Error('ADDRESS_NOT_FOUND');
@@ -2581,7 +2628,7 @@ function renderProfile(){
     +profRow('文',t('language'),languageLabel(lang),'openLanguageSettings()')
     +profRow('➤',t('routes'),navigationProviderLabel(localStorage.getItem('parkly_navigation_provider')),'openNavigationSettings()')
     +profRow('💬',t('support'),'','openSupport()')
-    +profRow('ⓘ',t('about'),'v1.0.1','openAbout()')
+    +profRow('ⓘ',t('about'),'v1.1.1','openAbout()')
     +'</div>'
     +'<button class="prof-logout" onclick="'+(authSession?'signOutUser()':'openAuth()')+'">'+(authSession?t('signOut'):t('signIn'))+'</button>'
     +(authSession?'<button class="prof-delete" onclick="openDeleteAccount()">'+t('deleteAccount')+'</button>':'');
@@ -2600,7 +2647,7 @@ function setLanguage(value){
   lang=value;try{localStorage.setItem('parkly-language',value)}catch(e){}
   document.documentElement.lang=value;
   updateLocalizedStaticUi();
-  buildQchips();buildNav();updateNotificationBadge();closeSheet();renderProfile();
+  buildQchips();buildNav();updateNotificationBadge();closeSheet();renderProfile();renderHome();
   if(document.getElementById('screen-fav')?.classList.contains('active'))renderFav();
   toast(t('languageChanged'));
 }
@@ -2696,7 +2743,7 @@ function openAbout(){
   const html='<div class="grabber"><i></i></div>'
     +'<div class="filt-head"><h2>О приложении</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="form-body info-list">'
-    +'<div class="info-card"><b>Parky v1.0.7</b><span>Карта парковок Ташкента с поиском, фильтрами, избранным и предложением новых объектов.</span></div>'
+    +'<div class="info-card"><b>Parky v1.1.1</b><span>Главная, карта парковок Ташкента, поиск, фильтры, избранное и предложение новых объектов.</span></div>'
     +'<div class="info-card"><b>Источники данных</b><span>Данные Parky, предложения пользователей и OpenStreetMap. Карта предоставлена сервисом Яндекс Карты.</span></div>'
     +'<div class="legalnote" style="margin:0">ℹ️<span>Parky не гарантирует наличие свободных мест. Перед поездкой проверяйте знаки, режим работы и условия оплаты на месте.</span></div>'
     +'<button class="btn-outline" onclick="openPrivacyInfo()">Как используются мои данные</button>'
@@ -2899,9 +2946,60 @@ function openLegend(){
 }
 document.getElementById('legendbtn').onclick=openLegend;
 
+/* ═══════════ ГЛАВНАЯ ═══════════ */
+let homeRadiusKm=5;
+function homeDistance(p){
+  if(mePos)return dist(mePos.lat,mePos.lng,p.lat,p.lng);
+  return Number.isFinite(p.distance_m)?p.distance_m/1000:Infinity;
+}
+function setHomeRadius(value){homeRadiusKm=Number(value)||5;renderHome()}
+function homeParkingIcon(){return '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4"><path d="M12 52V12h40v40"/><path d="M23 44V26c0-5 4-9 9-9s9 4 9 9v18"/><path d="M23 32h18"/><path d="M19 44h26"/></svg>'}
+function homeRows(){
+  const query=cleanText(document.getElementById('homeSearch')?.value).toLowerCase();
+  return PARKINGS.map(p=>({p,d:homeDistance(p)}))
+    .filter(row=>(!query||(row.p.name+' '+row.p.addr).toLowerCase().includes(query))&&(!mePos||row.d<=homeRadiusKm))
+    .sort((a,b)=>a.d-b.d||String(a.p.name).localeCompare(String(b.p.name),lang))
+    .slice(0,12);
+}
+function renderHomeList(){
+  const list=document.getElementById('homeParkingList');if(!list)return;
+  const rows=homeRows();
+  if(!rows.length){list.innerHTML='<div class="home-empty"><b>'+t('homeEmpty')+'</b>'+t('homeEmptyHint')+'</div>';return}
+  list.innerHTML=rows.map(({p,d})=>{
+    const photo=p.photo?'<img src="'+escapeHtml(p.photo)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':homeParkingIcon();
+    const distance=Number.isFinite(d)?(d<1?Math.max(1,Math.round(d*1000))+' '+t('unitM'):d.toFixed(1)+' '+t('unitKm')):'';
+    const type=p.ev?t('evParking'):(p.ptype==='street'?t('streetParking'):t('parking'));
+    const meta=[distance,type,p.is247?t('open247'):''].filter(Boolean);
+    return '<article class="home-card" onclick="openHomeParking(\''+p.id+'\')">'
+      +'<div class="home-photo">'+photo+'</div><div class="home-card-main"><h3>'+escapeHtml(p.name)+'</h3>'
+      +'<div class="home-address">'+escapeHtml(p.addr||t('addressUnknown'))+'</div><div class="home-price">'+escapeHtml(priceLabel(p))+'</div>'
+      +'<div class="home-meta">'+meta.map(item=>'<span>'+escapeHtml(item)+'</span>').join('')+'</div></div>'
+      +'<button class="home-heart '+(favorites.includes(p.id)?'on':'')+'" type="button" aria-label="'+escapeHtml(t(favorites.includes(p.id)?'inFav':'addFav'))+'" onclick="event.stopPropagation();toggleHomeFavorite(\''+p.id+'\')">'+(favorites.includes(p.id)?'♥':'♡')+'</button></article>';
+  }).join('');
+}
+function renderHome(){
+  const radius=document.getElementById('homeRadius');
+  if(radius)radius.innerHTML=[.5,1,2,5].map(value=>'<button type="button" class="'+(homeRadiusKm===value?'on':'')+'" onclick="setHomeRadius('+value+')">'+(value<1?'500 '+t('unitM'):value.toFixed(1)+' '+t('unitKm'))+'</button>').join('');
+  renderHomeList();
+}
+async function toggleHomeFavorite(id){await toggleFav(id,null);renderHomeList()}
+function openHomeParking(id){switchTab('map');setTimeout(()=>selectParking(id),40)}
+function homeSearchOnMap(){
+  const query=cleanText(document.getElementById('homeSearch')?.value);if(!query)return;
+  const mapSearch=document.getElementById('search');mapSearch.value=query;switchTab('map');mapSearch.dispatchEvent(new Event('change'));
+}
+
 /* ═══════════ НАВИГАЦИЯ ПО ЭКРАНАМ ═══════════ */
+function navIcon(key){
+  const icons={
+    home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>',
+    map:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>',
+    fav:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg>',
+    profile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4.2 3.5-6.4 8-6.4s7.2 2.2 8 6.4"/></svg>'
+  };return icons[key]||'';
+}
 function buildNav(){
-  const items=[['map','◉',t('navMap')],['fav','★',t('navFav')],['add','＋',t('navAdd')],['profile','◍',t('navProfile')]];
+  const items=[['home',navIcon('home'),t('navHome')],['map',navIcon('map'),t('navMap')],['add','＋',t('navAdd')],['fav',navIcon('fav'),t('navFav')],['profile',navIcon('profile'),t('navProfile')]];
   document.getElementById('bottomnav').innerHTML=items.map(([k,ic,l])=>
     k==='add'
     ?'<button class="navitem navadd" data-tab="add"><span class="ni">＋</span><span>'+l+'</span></button>'
@@ -2915,8 +3013,10 @@ function buildNav(){
 }
 function switchTab(tab){
   activeTab=tab;
+  document.getElementById('screen-home').classList.toggle('on',tab==='home');
   document.getElementById('screen-fav').classList.toggle('on',tab==='fav');
   document.getElementById('screen-profile').classList.toggle('on',tab==='profile');
+  if(tab==='home')renderHome();
   if(tab==='fav')renderFav();
   if(tab==='profile'){
     renderProfile();
@@ -2958,6 +3058,37 @@ async function geocodeAddressHttp(query){
   if(position.length!==2||!position.every(Number.isFinite))return null;
   const meta=object?.metaDataProperty?.GeocoderMetaData||{};
   return {coords:[position[1],position[0]],label:object?.name||meta?.text||query,description:object?.description||meta?.Address?.formatted||meta?.text||'',fullText:meta?.text||'',kind:meta?.kind||''};
+}
+function geocodeAddressYmaps(lat,lng){
+  if(!window.ymaps||typeof ymaps.geocode!=='function')return Promise.resolve(null);
+  return Promise.race([
+    ymaps.geocode([lat,lng],{results:1}).then(result=>{
+      const object=result?.geoObjects?.get?.(0);
+      if(!object)return null;
+      const coords=object.geometry?.getCoordinates?.()||[lat,lng];
+      const properties=object.properties;
+      const fullText=cleanText(object.getAddressLine?.()||properties?.get?.('text')||properties?.get?.('name'));
+      const label=cleanText(properties?.get?.('name')||fullText);
+      const description=cleanText(properties?.get?.('description')||fullText);
+      return {coords,label:label||fullText,description,fullText:fullText||description||label,kind:cleanText(properties?.get?.('metaDataProperty.GeocoderMetaData.kind'))};
+    }),
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('YMAPS_GEOCODER_TIMEOUT')),8000))
+  ]);
+}
+async function reverseGeocodePoint(lat,lng){
+  let firstError=null;
+  try{
+    const result=await geocodeAddressYmaps(lat,lng);
+    if(result?.fullText||result?.description||result?.label)return result;
+  }catch(error){firstError=error;console.warn('Yandex Maps reverse geocoder failed',error)}
+  try{
+    const result=await geocodeAddressHttp(lng+','+lat);
+    if(result?.fullText||result?.description||result?.label)return result;
+  }catch(error){
+    console.warn('Yandex HTTP reverse geocoder failed',error);
+    throw firstError||error;
+  }
+  throw firstError||new Error('ADDRESS_NOT_FOUND');
 }
 document.getElementById('search').addEventListener('input',e=>{
   const q=e.target.value.toLowerCase().trim();
@@ -3001,7 +3132,7 @@ function applyTheme(dark){
   document.documentElement.setAttribute('data-theme', dark?'dark':'light');
   PIN_CACHE.clear();
   document.getElementById('themebtn').textContent = dark?'☀️':'🌙';
-  document.querySelector('meta[name="theme-color"]').setAttribute('content',dark?'#0B1220':'#FFFFFF');
+  document.querySelector('meta[name="theme-color"]').setAttribute('content',dark?'#0B1220':'#0B7AFB');
   try{localStorage.setItem('pl-theme', dark?'dark':'light')}catch(e){}
   PIN_CACHE.clear();
   if(ymap){
@@ -3021,7 +3152,7 @@ document.getElementById('themebtn').onclick=()=>{isDark=!isDark;applyTheme(isDar
 
 document.documentElement.lang=lang;
 updateLocalizedStaticUi();
-initOnboarding();loadYandex();buildQchips();buildNav();loadParkingsFromDB();updateNotificationBadge();
+initOnboarding();loadYandex();buildQchips();buildNav();renderHome();loadParkingsFromDB();updateNotificationBadge();
 if(authSession){
   loadRemoteFavorites();
   Promise.all([loadMySubmissions(),loadMyReports()]).then(()=>{renderProfile();updateNotificationBadge()});

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Parkly — панель управления</title>
+<link rel="icon" type="image/png" sizes="48x48" href="icon-48.png">
+<title>Parky — панель управления</title>
 <meta name="theme-color" content="#0f172a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=be1856ef-50e1-40ed-abb7-80a23f99ddb3"></script>
@@ -22,7 +23,8 @@ button{cursor:pointer} .hidden{display:none!important} .muted{color:var(--muted)
 .app{min-height:100vh;display:grid;grid-template-columns:var(--sidebar) 1fr}
 .sidebar{position:sticky;top:0;height:100vh;height:100dvh;min-height:0;background:#0f172a;color:#fff;padding:24px 18px;display:flex;flex-direction:column;overflow:hidden;z-index:20}
 .logo{display:flex;gap:12px;align-items:center;padding:0 8px 22px;border-bottom:1px solid rgba(255,255,255,.1)}
-.logo-mark{width:42px;height:42px;border-radius:14px;background:linear-gradient(145deg,#3b82f6,#1d4ed8);display:grid;place-items:center;font-weight:900;font-size:20px;box-shadow:0 8px 20px rgba(37,99,235,.35)}
+.logo-mark{width:42px;height:42px;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;box-shadow:0 8px 20px rgba(37,99,235,.24)}
+.logo-mark img{display:block;width:100%;height:100%;object-fit:cover}
 .logo strong{display:block;font-size:18px} .logo small{color:#94a3b8}
 .nav{display:grid;gap:7px;margin-top:18px;padding:6px 2px 12px;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(148,163,184,.45) transparent;-webkit-overflow-scrolling:touch}
 .nav::-webkit-scrollbar{width:6px}.nav::-webkit-scrollbar-thumb{background:rgba(148,163,184,.42);border-radius:999px}.nav::-webkit-scrollbar-track{background:transparent}
@@ -196,7 +198,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
   <div class="login-visual">
     <div>
       <div class="logo" style="border:0;padding:0">
-        <div class="logo-mark">P</div><div><strong>Parkly</strong><small>Панель управления</small></div>
+        <div class="logo-mark"><img src="assets/branding/parky-app-icon.png" alt=""></div><div><strong>Parky</strong><small>Панель управления</small></div>
       </div>
       <div style="margin-top:90px">
         <h1>Управляйте парковками в одном месте</h1>
@@ -206,13 +208,13 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
     <div class="login-points">
       <div class="login-point">✓ Безопасный вход через Supabase</div>
       <div class="login-point">✓ Доступ только для администраторов</div>
-      <div class="login-point">✓ Изменения сразу попадают в базу Parkly</div>
+      <div class="login-point">✓ Изменения сразу попадают в базу Parky</div>
     </div>
   </div>
   <div class="login-box-wrap">
     <div class="login-box">
       <div class="logo" style="color:#172033;border:0;padding:0">
-        <div class="logo-mark">P</div><div><strong>Parkly</strong><small style="color:#667085">Панель управления</small></div>
+        <div class="logo-mark"><img src="assets/branding/parky-app-icon.png" alt=""></div><div><strong>Parky</strong><small style="color:#667085">Панель управления</small></div>
       </div>
       <h2 style="margin-top:28px">Вход</h2>
       <div class="muted">Используйте учётную запись администратора</div>
@@ -228,7 +230,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 
 <div id="adminView" class="app hidden">
   <aside id="sidebar" class="sidebar">
-    <div class="logo"><div class="logo-mark">P</div><div><strong>Parkly</strong><small>Панель управления</small></div></div>
+    <div class="logo"><div class="logo-mark"><img src="assets/branding/parky-app-icon.png" alt=""></div><div><strong>Parky</strong><small>Панель управления</small></div></div>
     <nav class="nav">
       <button class="nav-item active" id="parkingsNav">▦ Все парковки</button>
       <button class="nav-item" id="pendingNav">◷ Парковки на модерации</button>
@@ -1515,7 +1517,7 @@ function renderAdminUsers(){
   $('userRows').innerHTML=adminUsers.map(user=>`<tr><td data-label="Пользователь"><div class="parking-title">${escapeHtml(user.email||'Без электронной почты')}</div><div class="parking-sub">${escapeHtml(user.id)}</div></td><td data-label="Роль"><span class="badge badge-info">${escapeHtml(user.role||'Пользователь')}</span></td><td data-label="Создан">${user.created_at?new Date(user.created_at).toLocaleDateString('ru-RU'):'—'}</td><td data-label="Последний вход">${user.last_sign_in_at?new Date(user.last_sign_in_at).toLocaleString('ru-RU'):'—'}</td><td data-label="Статус"><span class="badge ${user.banned?'badge-rejected':'badge-approved'}">${user.banned?'Заблокирован':'Активен'}</span></td><td data-label="Действия"><button class="btn ${user.banned?'btn-secondary':'btn-danger'} table-btn" onclick="setUserBlocked('${user.id}',${!user.banned})">${user.banned?'Разблокировать':'Заблокировать'}</button></td></tr>`).join('');
 }
 window.setUserBlocked=async(userId,blocked)=>{
-  const confirmed=await parklyConfirm({title:blocked?'Заблокировать пользователя?':'Разблокировать пользователя?',message:blocked?'Пользователь потеряет возможность входить и отправлять материалы.':'Пользователь снова сможет войти в Parkly.',confirmText:blocked?'Заблокировать':'Разблокировать',danger:blocked});if(!confirmed)return;
+  const confirmed=await parklyConfirm({title:blocked?'Заблокировать пользователя?':'Разблокировать пользователя?',message:blocked?'Пользователь потеряет возможность входить и отправлять материалы.':'Пользователь снова сможет войти в Parky.',confirmText:blocked?'Заблокировать':'Разблокировать',danger:blocked});if(!confirmed)return;
   const action=beginAdminAction(`user:${userId}`,blocked?'Блокирую…':'Разблокирую…');if(!action)return;
   try{const {data,error}=await sb.functions.invoke('admin-users',{body:{action:blocked?'ban':'unban',user_id:userId}});if(error||!data?.ok){toast(data?.error||'Не удалось изменить статус пользователя','error');return}toast(data.audit_logged===false?'Статус изменён, но запись аудита не сохранилась':(blocked?'Пользователь заблокирован':'Пользователь разблокирован'),data.audit_logged===false?'error':'success');await loadAdminUsers()}finally{endAdminAction(action)}
 };
@@ -2204,7 +2206,7 @@ window.confirmParking=async id=>{
     toast('Исправьте обязательные данные перед публикацией','error');
     return;
   }
-  if(!await parklyConfirm({title:'Опубликовать парковку?',message:`«${p.name||''}» станет видна всем пользователям Parkly.`,confirmText:'Опубликовать'}))return;
+  if(!await parklyConfirm({title:'Опубликовать парковку?',message:`«${p.name||''}» станет видна всем пользователям Parky.`,confirmText:'Опубликовать'}))return;
   try{await prepareParkingPhotosForPublication(p)}catch(error){
     await editParking(id);formMessage($('formMsg'),'Парковка не опубликована: не удалось подготовить фотографии. '+(error.message||''));return;
   }
