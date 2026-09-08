@@ -20,3 +20,6 @@ assert(html.includes('Наличие свободного места не гар
 assert(html.includes('Параллельно дороге'));assert(!html.includes('<script>'));
 for(const lang of ['ru','uz','en']){context.lang=lang;assert(vm.runInContext('streetCopy().notice.length>20',context))}
 console.log('Street geometry, nearest destination, bounds, translations and escaping: OK');
+for(const orientation of ['parallel','perpendicular','angled'])assert(vm.runInContext(`streetOrientationGraphic('${orientation}').includes('<svg')`,context));
+assert.equal(vm.runInContext("streetOrientationGraphic('unspecified')",context),'');
+assert(vm.runInContext("decodeURIComponent(streetPointIcon({price_type:'free'},false)).includes('<circle')",context));

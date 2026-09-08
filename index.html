@@ -774,6 +774,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 </div>
 
 <link rel="stylesheet" href="assets/street-parking.css">
+<link rel="stylesheet" href="assets/street-reference.css">
 <script src="assets/street-geometry.js"></script>
 <script src="assets/street-public.js"></script>
 <script src="assets/vendor/maplibre-gl/maplibre-gl.js"></script>
@@ -1171,7 +1172,7 @@ function drawStreetSegments(){
     if(zoom<13||!visible.has(key))return;
     wanted.add(key);
     const parking=PARKINGS.find(p=>String(p.id)===String(segment.parking_id));
-    const color=parking.price_type==='free'?'#16a34a':'#1677ff';
+    const color=parking.price_type==='free'?'#18b981':'#2478ff';
     const selected=String(selectedId)===key,width=zoom<15?4:6;
     const signature=color+'|'+width+'|'+selected+'|'+JSON.stringify(segment.path),existing=streetLines.get(key);
     if(existing&&existing.signature===signature)return;
@@ -1493,31 +1494,8 @@ function specialParkingMarker(p,selected){
   return {href:family[variant],size};
 }
 function markerOptions(p,selected){
-  const special=specialParkingMarker(p,selected);
-  if(special){
-    return {
-      iconLayout:'default#image',iconImageHref:special.href,iconImageSize:special.size,
-      iconImageOffset:[-Math.round(special.size[0]/2),-Math.round(special.size[1]*.92)],
-      iconShape:{type:'Rectangle',coordinates:[[0,0],[special.size[0],special.size[1]]]},
-      interactivityModel:'default#transparent',cursor:'pointer',zIndex:selected?1000:140,
-      hasBalloon:false,hasHint:false
-    };
-  }
-  const isEvOnly=p.category==='EV_STATION';
-  const symbol=isEvOnly?'⚡':'P';
-  const combo=p.ev&&!isEvOnly;
-  const size=markerSizeByZoom(selected);
-  return {
-    iconLayout:'default#image',
-    iconImageHref:svgPinData(markerColor(p),symbol,combo,selected),
-    iconImageSize:size,
-    iconImageOffset:[-Math.round(size[0]/2),-Math.round(size[1]*.88)],
-    iconShape:{type:'Rectangle',coordinates:[[0,0],[size[0],size[1]]]},
-    interactivityModel:'default#transparent',
-    cursor:'pointer',
-    zIndex:selected?1000:120,
-    hasBalloon:false,hasHint:false
-  };
+  const diameter=selected?42:((ymap?ymap.getZoom():15)<14?30:36);
+  return {iconLayout:'default#image',iconImageHref:streetPointIcon(p,selected),iconImageSize:[diameter,diameter],iconImageOffset:[-diameter/2,-diameter/2],iconShape:{type:'Circle',coordinates:[diameter/2,diameter/2],radius:diameter/2},interactivityModel:'default#transparent',cursor:'pointer',zIndex:selected?1000:120,hasBalloon:false,hasHint:false};
 }
 
 function markerLimitByZoom(z){
@@ -2953,12 +2931,13 @@ async function openMyReports(){
 
 /* ═══════════ ЛЕГЕНДА ═══════════ */
 function openLegend(){
-  const pin=(c,b)=>'<div class="legend-mark"><div class="pin" style="width:30px;height:30px;border-radius:50% 50% 50% 3px;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;background:'+c+';border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.2)"><b style="transform:rotate(-45deg);color:#fff;font:800 12px Manrope">'+b+'</b></div></div>';
+  const pin=(c,b)=>'<div class="legend-mark"><div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:'+c+';border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.15)"><b style="color:#fff;font:800 16px Manrope,Arial,sans-serif">'+b+'</b></div></div>';
   const html='<div class="grabber" onclick="closeSheet()"><i></i></div>'
     +'<div class="filt-head"><h2>'+t('legend')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="legend-body">'
-    +'<div class="legend-item">'+pin('#2563EB','P')+'<div><b>'+t('lPaid')+'</b></div></div>'
-    +'<div class="legend-item">'+pin('#16A34A','P')+'<div><b>'+t('lFree')+'</b></div></div>'
+    +'<div class="legend-item">'+pin('#2478e9','P')+'<div><b>'+t('parking')+'</b></div></div>'
+    +'<div class="legend-item"><div class="legend-mark"><span class="street-legend-line"></span></div><div><b>'+t('streetParking')+' · '+t('free')+'</b></div></div>'
+    +'<div class="legend-item"><div class="legend-mark"><span class="street-legend-line paid"></span></div><div><b>'+t('streetParking')+' · '+t('fPaid')+'</b></div></div>'
     +'<div class="legend-item">'+pin('#FBBF24','⚡')+'<div><b>'+t('lEv')+'</b></div></div>'
     +'<div class="legend-item">'+pin('#EF4444','P')+'<div><b>Недоступно / закрыто</b></div></div>'
     +'<div class="legend-item">'+pin('#9CA3AF','P')+'<div><b>'+t('lUnknown')+'</b></div></div>'

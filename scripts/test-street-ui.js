@@ -86,7 +86,17 @@ function fakeMapRuntime(){
     await page.locator('.street-photo-dialog').waitFor({state:'detached'});
     assert(await page.locator('#sheet').isVisible(),'Closing the photo must keep its card open');
     await page.locator('#sheet').evaluate(el=>el.scrollTop=0);
+    await page.evaluate(()=>document.activeElement?.blur());
     await page.screenshot({path:'release/street-parking-checks/mobile-card.png',animations:'disabled'});
+    for(const width of [320,390,768]){
+      await page.setViewportSize({width,height:844});
+      for(const theme of ['light','dark']){
+        await page.evaluate(theme=>document.documentElement.setAttribute('data-theme',theme),theme);
+        assert.equal(await page.locator('#sheet').evaluate(el=>el.scrollWidth>el.clientWidth),false,`${width}px ${theme}: card overflow`);
+        assert.equal(await page.locator('.street-orientation').count(),1);
+        await page.screenshot({path:`release/street-parking-checks/card-${width}-${theme}.png`,animations:'disabled'});
+      }
+    }
     assert.deepEqual(errors,[]);
     console.log('Mobile editor, vertices, reversal, unknown-price guard, atomic save payload, card and map filters: OK (isolated map/API doubles)');
     if(process.env.PARKY_REAL_MAP==='1'){

@@ -1,0 +1,28 @@
+/* Reference-inspired street card and crisp code-native map symbols. */
+.street-card{--street-ink:#0d2949;--street-muted:#61748b;--street-soft:#f4f7fb;--street-border:#e7edf4;color:var(--street-ink);background:#fff;font:500 14px/1.5 Manrope,Arial,sans-serif;border-radius:24px 24px 0 0}
+.sheet:has(>.street-card){max-height:82dvh;background:#fff}.street-card .grabber{padding-bottom:2px}.street-card-body{padding:0 20px 20px}
+.street-toolbar{display:flex;align-items:center;justify-content:space-between;padding:0 18px 14px}.street-toolbar>span{font-size:17px;font-weight:800;letter-spacing:-.6px}
+.street-round{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:0 0 44px;border:1px solid var(--street-border,#e7edf4);border-radius:50%;background:#fff;color:var(--street-ink,#0d2949);box-shadow:0 3px 12px #1535550b;cursor:pointer}
+.street-round:focus-visible,.street-photo:focus-visible,.street-route:focus-visible{outline:3px solid #1677ff;outline-offset:3px}
+.street-round[aria-pressed="true"]{color:#216ee8;background:#eaf2fd}.street-round[aria-pressed="true"] svg{fill:#216ee833}
+.street-icon{width:20px;height:20px;flex:0 0 20px;vertical-align:middle}
+.street-card h2{margin:0;font-size:21px;font-weight:800;line-height:1.3;letter-spacing:-.45px;overflow-wrap:anywhere}.street-subtitle{margin:4px 0 10px;font-size:14px}
+.street-price{display:inline-block;max-width:100%;padding:3px 9px;border-radius:6px;font-size:15px;font-weight:800;line-height:1.5;overflow-wrap:anywhere;color:#fff}.street-price.is-free{background:#087e55}.street-price.is-paid{background:#216ee8}
+.street-details{margin-top:14px}.street-facts{display:flex;flex-direction:column;align-items:flex-start;gap:7px}
+.street-fact{display:flex;align-items:center;gap:9px;padding:7px 10px;max-width:100%;border:1px solid #edf1f6;background:#fff;border-radius:8px;box-shadow:0 2px 8px #122d4810;font-size:13px}
+.street-schedule{display:flex;align-items:center;gap:9px;margin-top:13px;font-size:13px;color:var(--street-muted)}
+.street-method{display:flex;align-items:center;gap:13px;margin:16px 0;padding:10px;background:var(--street-soft);border-radius:12px;font-size:13px}.street-orientation{width:92px;height:55px;flex:0 0 92px}
+.street-card h3{font:800 15px/1.4 Manrope,Arial,sans-serif;margin:16px 0 8px}
+.street-photo{margin:8px 0;border-color:var(--street-border,#e7edf4);border-radius:12px;background:var(--street-soft,#f4f7fb)}
+.street-notice{display:flex;align-items:flex-start;gap:10px;margin-top:13px;padding:12px;background:#eaf2fd;border-radius:12px;font-size:12px;line-height:1.6}
+.street-notice>.street-icon{color:#2478df;margin-top:2px;fill:#2478df;stroke:white;width:26px;height:26px;flex-basis:26px}.street-notice p{margin:0}
+.street-direction-note{color:var(--street-muted);font-size:11px;margin:10px 2px 0;line-height:1.5}.street-extra p{margin:4px 0;overflow-wrap:anywhere}
+.street-actions{display:flex;gap:10px;align-items:center;margin-top:18px}.street-route{display:flex;align-items:center;justify-content:center;gap:9px;flex:1;min-height:48px;padding:10px;border:0;border-radius:14px;background:#216ee8;color:white;font:800 14px/1.4 Manrope,Arial,sans-serif;cursor:pointer}
+.street-menu{position:relative}.street-menu summary{list-style:none}.street-menu summary::-webkit-details-marker{display:none}
+.street-menu>div{position:absolute;right:0;top:50px;min-width:190px;padding:5px;background:#fff;border:1px solid var(--street-border);border-radius:12px;box-shadow:0 8px 28px #122d4826;z-index:4}
+.street-menu button{display:block;width:100%;min-height:44px;border:0;background:transparent;color:var(--street-ink);text-align:left;padding:10px;font:600 13px Manrope,Arial,sans-serif;cursor:pointer}
+.street-legend-line{display:block;width:36px;height:7px;border-radius:6px;flex:0 0 36px;background:#18b981;box-shadow:0 0 0 2px white,0 0 0 3px #18b98133}.street-legend-line.paid{background:#2478ff;box-shadow:0 0 0 2px white,0 0 0 3px #2478ff55}
+html[data-theme="dark"] .street-card{--street-ink:#e5edf9;--street-muted:#a8b9cb;--street-soft:#203247;--street-border:#34485f;background:#17283a}
+html[data-theme="dark"] .sheet:has(>.street-card),html[data-theme="dark"] .street-round,html[data-theme="dark"] .street-fact,html[data-theme="dark"] .street-menu>div{background:#17283a}
+html[data-theme="dark"] .street-fact{border-color:#34485f}html[data-theme="dark"] .street-notice{background:#213d5f}
+@media(min-width:700px){.sheet:has(>.street-card){max-width:460px}.street-card-body{padding:0 24px 24px}}
