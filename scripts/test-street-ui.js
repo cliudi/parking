@@ -76,6 +76,14 @@ function fakeMapRuntime(){
       const segmentId=PARKINGS[0].id;streetSegmentIds=new Set();drawMarkers(true);
       if(streetLines.size||objectManager.items.length)throw Error('Unavailable segment must not turn into P');
       streetSegmentIds=new Set([segmentId]);drawMarkers(true);
+      const oldParking=PARKINGS[0],oldSegment=streetSegments[0];
+      PARKINGS.push({...oldParking,id:'legacy-point',price_type:'unknown'});
+      streetSegments.push({parking_id:'legacy-point',path:null,details:{legacy_point:true}});
+      streetSegmentIds.add('legacy-point');drawMarkers(true);
+      if(objectManager.items.length!==1||streetLines.size!==1)throw Error('Legacy point must coexist with the new line');
+      const destination=streetDestination(PARKINGS[1]);
+      if(destination.lat!==oldParking.lat||destination.lng!==oldParking.lng)throw Error('Legacy route must use its original coordinates');
+      PARKINGS.pop();streetSegments.pop();streetSegmentIds.delete('legacy-point');drawMarkers(true);
     });
     fs.mkdirSync('release/street-parking-checks',{recursive:true});
     await page.locator('#brandSplash').waitFor({state:'hidden'});

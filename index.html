@@ -1136,7 +1136,7 @@ async function loadParkingsFromDB(lat, lng, radius){
     const accessById=await loadParkingAccess(rows,controller.signal);
     if(controller!==parkingLoadController)return false;
     streetSegments=segments;streetSegmentIds=new Set(segments.map(s=>String(s.parking_id)));
-    PARKINGS=rows.map(row=>fromDbRow({...row,...(accessById.get(String(row.id))||{})})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&(p.category!=='STREET_ALLOWED'||(streetSegmentIds.has(p.id)&&['free','paid'].includes(p.price_type))));
+    PARKINGS=rows.map(row=>fromDbRow({...row,...(accessById.get(String(row.id))||{})})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&streetVisible(p));
     rememberFavoriteTermsChanges();
     lastParkingLoadKey=requestKey;lastParkingLoadAt=Date.now();
     lastMarkerSignature='';
@@ -1161,7 +1161,7 @@ async function loadStreetSegments(signal){
     const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/street_parking_segments_v2',{method:'POST',signal,headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},body:'{}'});
     if(!res.ok){console.warn('Уличные участки недоступны:',res.status);return []}
     const rows=await res.json();
-    return (Array.isArray(rows)?rows:[]).filter(x=>ParkyStreetGeometry.valid(x.path));
+    return (Array.isArray(rows)?rows:[]).filter(x=>x.details?.legacy_point===true||ParkyStreetGeometry.valid(x.path));
   }catch(e){if(e.name==='AbortError')throw e;console.warn('Уличные участки недоступны:',e);return []}
 }
 function drawStreetSegments(){
@@ -1169,7 +1169,7 @@ function drawStreetSegments(){
   const wanted=new Set(),visible=new Set(filteredParkings().map(p=>String(p.id))),zoom=ymap.getZoom();
   streetSegments.forEach(segment=>{
     const key=String(segment.parking_id);
-    if(zoom<13||!visible.has(key))return;
+    if(zoom<13||!visible.has(key)||!ParkyStreetGeometry.valid(segment.path))return;
     wanted.add(key);
     const parking=PARKINGS.find(p=>String(p.id)===String(segment.parking_id));
     const color=parking.price_type==='free'?'#18b981':'#2478ff';
@@ -1413,7 +1413,7 @@ function sharePoint(point){
   if(navigator.share)navigator.share({title:point.label||t('selectedPoint'),url}).catch(()=>{});else{navigator.clipboard&&navigator.clipboard.writeText(url);toast(t('linkCopied'))}
 }
 function filteredParkings(){
-  let v=PARKINGS.filter(p=>p.category!=='STREET_ALLOWED'||(streetSegmentIds.has(String(p.id))&&['free','paid'].includes(p.price_type)));
+  let v=PARKINGS.filter(p=>streetVisible(p));
   if(advFilters.objectKind==='point')v=v.filter(p=>p.category!=='STREET_ALLOWED');
   if(advFilters.objectKind==='street')v=v.filter(p=>p.category==='STREET_ALLOWED');
   if(quickFilter==='free')v=v.filter(p=>p.price_type==='free');
@@ -1595,7 +1595,7 @@ function drawMarkers(force){
   if(!ymap)return;
   drawStreetSegments();
   ensureObjectManager();
-  const wanted=visibleParkings().filter(p=>p.category!=='STREET_ALLOWED'&&!streetSegmentIds.has(String(p.id)));
+  const wanted=visibleParkings().filter(p=>p.category!=='STREET_ALLOWED'||streetLegacyPoint(p));
   visibleParkingMap=new Map(wanted.map(p=>[String(p.id),p]));
   const theme=document.documentElement.getAttribute('data-theme')||'light';
   const zoomBucket=markerZoomBucket();
@@ -1637,7 +1637,7 @@ function selectParking(id){
   const p=PARKINGS.find(x=>String(x.id)===String(id));if(!p)return;
   selectedId=p.id;updateSelection(p.id);showMiniCard(p.id);
   const s=streetSegment(p);
-  if(ymap&&s){ymap.setBounds(new ymaps.Polyline(s.path).geometry.getBounds(),{checkZoomRange:true,zoomMargin:60});drawStreetSegments()}
+  if(ymap&&s&&ParkyStreetGeometry.valid(s.path)){ymap.setBounds(new ymaps.Polyline(s.path).geometry.getBounds(),{checkZoomRange:true,zoomMargin:60});drawStreetSegments()}
   else if(ymap)ymap.panTo([p.lat,p.lng],{duration:300});
 }
 

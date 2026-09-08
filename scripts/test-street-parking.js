@@ -15,6 +15,12 @@ const context=vm.createContext({ParkyStreetGeometry:G,streetSegments:[{parking_i
 vm.runInContext(fs.readFileSync('assets/street-public.js','utf8'),context);
 assert.equal(vm.runInContext("streetDestination({id:'s',category:'STREET_ALLOWED'}).lng",context),69.01);
 assert.equal(vm.runInContext("streetDestination({id:'missing',category:'STREET_ALLOWED'})",context),null);
+context.streetSegments.push({parking_id:'legacy',path:null,details:{legacy_point:true}});
+context.streetSegmentIds=new Set(['s','legacy']);
+assert(vm.runInContext("streetVisible({id:'legacy',category:'STREET_ALLOWED',price_type:'unknown'})",context));
+assert(!vm.runInContext("streetVisible({id:'missing',category:'STREET_ALLOWED',price_type:'unknown'})",context));
+assert.equal(vm.runInContext("streetDestination({id:'legacy',category:'STREET_ALLOWED',lat:41,lng:69}).lat",context),41);
+assert(vm.runInContext("streetInfoHtml({id:'legacy',category:'STREET_ALLOWED'}).includes('ещё не уточнены')",context));
 const html=vm.runInContext("streetInfoHtml({id:'s',category:'STREET_ALLOWED'},true)",context);
 assert(html.includes('Наличие свободного места не гарантируется.'));
 assert(html.includes('Параллельно дороге'));assert(!html.includes('<script>'));

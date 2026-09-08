@@ -1,4 +1,6 @@
 function streetSegment(p){return streetSegments.find(s=>String(s.parking_id)===String(p.id))}
+function streetLegacyPoint(p){return p.category==='STREET_ALLOWED'&&streetSegment(p)?.details?.legacy_point===true}
+function streetVisible(p){return p.category!=='STREET_ALLOWED'||(streetSegmentIds.has(String(p.id))&&(streetLegacyPoint(p)||(!!streetSegment(p)&&['free','paid'].includes(p.price_type))))}
 function streetObjectFilterHtml(){
   const labels=({ru:['Тип объекта','Все объекты','Обычные парковки','Уличные участки'],en:['Object type','All objects','Parking lots','Street sections'],uz:['Obyekt turi','Barcha obyektlar','Avtoturargohlar','Ko‘cha uchastkalari']})[lang]||['Тип объекта','Все объекты','Обычные парковки','Уличные участки'];
   return '<div class="filt-group"><h3>'+labels[0]+'</h3>'+['','point','street'].map((value,i)=>'<button class="btn-outline" style="margin-bottom:8px" aria-pressed="'+String((advFilters.objectKind||'')===value)+'" onclick="setStreetObjectFilter(\''+value+'\')">'+((advFilters.objectKind||'')===value?'✓ ':'')+labels[i+1]+'</button>').join('')+'</div>';
@@ -6,6 +8,7 @@ function streetObjectFilterHtml(){
 function setStreetObjectFilter(value){if(['','point','street'].includes(value)){advFilters.objectKind=value;openFilters()}}
 function streetDestination(p){
   if(p.category!=='STREET_ALLOWED')return p;
+  if(streetLegacyPoint(p))return p;
   const s=streetSegment(p),nearest=s&&ParkyStreetGeometry.nearest(s.path,mePos?[mePos.lat,mePos.lng]:null);
   return nearest?{...p,...nearest}:null;
 }
@@ -35,6 +38,7 @@ function streetPointIcon(p,selected){
 function streetInfoHtml(p,withPhotos=false){
   if(p.category!=='STREET_ALLOWED')return '';
   const s=streetSegment(p),c=streetCopy();if(!s)return '<p>'+escapeHtml(c.missing)+'</p>';
+  if(streetLegacyPoint(p)){const notice=({ru:'Ранее опубликованная парковка. Границы участка и способ постановки ещё не уточнены. Проверьте дорожные знаки и разметку на месте.',en:'Previously published parking. Section boundaries and parking orientation have not been confirmed. Check signs and road markings on site.',uz:'Avval e’lon qilingan avtoturargoh. Uchastka chegaralari va to‘xtash usuli hali aniqlanmagan. Joydagi belgilar va chiziqlarni tekshiring.'})[lang];return '<div class="street-notice">'+streetIcon('info')+'<p>'+escapeHtml(notice||c.missing)+'</p></div>'}
   const d=s.details||{},side=({ru:{right:'Правая сторона улицы',left:'Левая сторона улицы',both:'Обе стороны улицы'}})[lang]?.[d.parking_side]||c[d.parking_side]||c.unspecified;
   const rows=[['side',side],['car',c[d.parking_orientation]||c.unspecified],['length',c.length+': ≈ '+Math.round(s.length_m||ParkyStreetGeometry.length(s.path))+' '+t('unitM')]];
   let html='<section class="street-details"><div class="street-facts">'+rows.map(([icon,text])=>'<div class="street-fact">'+streetIcon(icon)+'<span>'+escapeHtml(text)+'</span></div>').join('')+'</div>';
