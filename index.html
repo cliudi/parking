@@ -776,6 +776,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 <link rel="stylesheet" href="assets/street-parking.css">
 <link rel="stylesheet" href="assets/street-reference.css">
 <link rel="stylesheet" href="assets/ui-polish.css">
+<link rel="stylesheet" href="assets/form-controls.css">
 <script src="assets/street-geometry.js"></script>
 <script src="assets/street-public.js"></script>
 <script src="assets/vendor/maplibre-gl/maplibre-gl.js"></script>
@@ -2332,11 +2333,12 @@ function openAdd(){
       +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">🕐 '+t('hasFreePeriod')+'</span><input id="a_free_period" type="checkbox" onchange="updateSubmissionAccessFields()"></label>'
     +'</div>'
     +'<div id="a_access_fields" style="display:none">'
+      +'<div id="a_free_fields" hidden>'
       +'<div class="field-row"><div class="field"><label>'+t('freeMinutes')+'</label><input id="a_free_minutes" type="number" min="1" inputmode="numeric" placeholder="60"></div>'
       +'<div class="field"><label>'+t('afterPeriodPrice')+'</label><input id="a_after_price" type="number" min="0" inputmode="numeric" placeholder="'+t('ifKnown')+'"></div></div>'
       +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">'+t('purchaseOnly')+'</span><input id="a_purchase" type="checkbox"></label>'
       +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">'+t('receiptRequired')+'</span><input id="a_receipt" type="checkbox"></label>'
-      +'<div class="field"><label>'+t('termsSource')+'</label><input id="a_tariff_source" placeholder="'+t('termsSourcePh')+'"></div>'
+      +'</div><div class="field"><label>'+t('termsSource')+'</label><input id="a_tariff_source" placeholder="'+t('termsSourcePh')+'"></div>'
     +'</div>'
     +'<div class="field-row">'
       +'<div class="field"><label>'+t('fCap')+'</label><input id="a_cap" type="number" inputmode="numeric" placeholder="'+t('phCap')+'"></div>'
@@ -2354,6 +2356,11 @@ function openAdd(){
     +'</div>';
   openSheet(html);
   const addressInput=document.getElementById('a_addr');
+  updateSubmissionAccessFields();
+  document.getElementById('a_cost').addEventListener('change',()=>{
+    if(document.getElementById('a_cost').value!=='paid')document.getElementById('a_free_period').checked=false;
+    updateSubmissionAccessFields();
+  });
   if(addressInput)addressInput.addEventListener('input',()=>{addressInput.dataset.manuallyEdited='true'});
   if(!knownAddress)resolveAddAddress(false);
 }
@@ -2385,6 +2392,12 @@ function updateSubmissionAccessFields(){
   const barrier=Boolean(document.getElementById('a_barrier')?.checked);
   const freePeriod=Boolean(document.getElementById('a_free_period')?.checked);
   box.style.display=(barrier||freePeriod)?'block':'none';
+  const freeBox=document.getElementById('a_free_fields');freeBox.hidden=!freePeriod;
+  freeBox.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=!freePeriod);
+  document.getElementById('a_tariff_source').disabled=!(barrier||freePeriod);
+  const cost=document.getElementById('a_cost');
+  if(freePeriod&&cost.value!=='paid'){cost.dataset.beforeFreePeriod=cost.value;cost.value='paid'}
+  if(!freePeriod&&cost.dataset.beforeFreePeriod){if(cost.value==='paid')cost.value=cost.dataset.beforeFreePeriod;delete cost.dataset.beforeFreePeriod}
 }
 const submissionPhotoUrls=[];
 function formatFileSize(bytes){return bytes<1024*1024?Math.max(1,Math.round(bytes/1024))+' КБ':(bytes/1024/1024).toFixed(1)+' МБ'}
@@ -2481,13 +2494,14 @@ async function submitAdd(){
   const freeMinutes=Number(document.getElementById('a_free_minutes')?.value);
   const afterPrice=Number(document.getElementById('a_after_price')?.value);
   if(hasFreePeriod&&(!Number.isFinite(freeMinutes)||freeMinutes<1)){toast(t('freePeriodRequired'));if(btn){btn.disabled=false;btn.textContent=t('done')}return}
+  if(hasFreePeriod&&(!Number.isInteger(freeMinutes)||(document.getElementById('a_after_price').value.trim()!==''&&(!Number.isFinite(afterPrice)||afterPrice<0)))){toast(invalidAccessTariffMessage());if(btn){btn.disabled=false;btn.textContent=t('done')}return}
   const accessNotes=[];
   if(hasBarrier)accessNotes.push('Есть шлагбаум');
   if(hasFreePeriod)accessNotes.push('Бесплатный период: '+freeMinutes+' мин');
   if(hasFreePeriod&&document.getElementById('a_after_price')?.value.trim()!=='')accessNotes.push('После периода: '+afterPrice.toLocaleString('ru-RU')+' сум');
-  if(document.getElementById('a_purchase')?.checked)accessNotes.push('Требуется покупка');
-  if(document.getElementById('a_receipt')?.checked)accessNotes.push('Требуется чек');
-  const tariffSource=cleanText(document.getElementById('a_tariff_source')?.value);
+  if(hasFreePeriod&&document.getElementById('a_purchase')?.checked)accessNotes.push('Требуется покупка');
+  if(hasFreePeriod&&document.getElementById('a_receipt')?.checked)accessNotes.push('Требуется чек');
+  const tariffSource=(hasBarrier||hasFreePeriod)?cleanText(document.getElementById('a_tariff_source')?.value):'';
   if(tariffSource)accessNotes.push('Источник/пояснение: '+tariffSource);
   const userNote=cleanText(document.getElementById('a_note').value);
   const payload={
@@ -2497,7 +2511,7 @@ async function submitAdd(){
     lat:Number(document.getElementById('a_lat').value),
     lng:Number(document.getElementById('a_lng').value),
     category:category==='EV'?'EV_STATION':category,
-    price_type:document.getElementById('a_cost').value,
+    price_type:hasFreePeriod?'paid':document.getElementById('a_cost').value,
     price_note:cleanText(document.getElementById('a_rate').value),
     capacity:Number.isFinite(capacity)&&capacity>=0?capacity:null,
     kind:document.getElementById('a_type').value,
@@ -2569,25 +2583,34 @@ function openAccessReport(id){
     +'<div class="filt-body">'
     +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">🚧 Есть шлагбаум</span><input id="r_barrier" type="checkbox" '+(p.has_barrier?'checked':'')+'></label>'
     +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">🕐 Есть бесплатный период</span><input id="r_free_period" type="checkbox" '+(p.has_free_period?'checked':'')+'></label>'
-    +'<div class="field"><label>Бесплатно, минут</label><input id="r_free_minutes" type="number" min="1" value="'+(p.free_period_minutes||'')+'" placeholder="Если известно"></div>'
+    +'<div id="r_free_fields"><div class="field"><label>Бесплатно, минут</label><input id="r_free_minutes" type="number" min="1" value="'+(p.free_period_minutes||'')+'" placeholder="Если известно"></div>'
     +'<div class="field"><label>Цена после периода, сум</label><input id="r_after_price" type="number" min="0" value="'+(p.price_after_free_period??'')+'" placeholder="Если известно"></div>'
     +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">Требуется покупка</span><input id="r_purchase" type="checkbox" '+(p.requires_purchase?'checked':'')+'></label>'
     +'<label class="check-row"><span class="rl" style="flex:1;font:700 14px Manrope">Требуется чек</span><input id="r_receipt" type="checkbox" '+(p.requires_receipt?'checked':'')+'></label>'
-    +'<div class="field"><label>Источник или пояснение</label><textarea id="r_access_note" placeholder="Что изменилось и откуда получены сведения?"></textarea></div>'
+    +'</div><div class="field"><label>Источник или пояснение</label><textarea id="r_access_note" placeholder="Что изменилось и откуда получены сведения?"></textarea></div>'
     +'<button class="btn-primary" onclick="sendAccessReport(\''+id+'\')">Отправить исправление</button>'
     +'</div>';
   openSheet(html);
+  document.getElementById('r_free_period').onchange=updateReportAccessFields;
+  updateReportAccessFields();
 }
+function updateReportAccessFields(){
+  const enabled=document.getElementById('r_free_period').checked,box=document.getElementById('r_free_fields');
+  box.hidden=!enabled;box.querySelectorAll('input').forEach(el=>el.disabled=!enabled);
+}
+function invalidAccessTariffMessage(){return ({ru:'Укажите целое количество минут больше нуля и цену не меньше нуля.',en:'Enter a positive whole number of minutes and a non-negative price.',uz:'Daqiqalarni musbat butun son, narxni esa noldan kam bo‘lmagan son bilan kiriting.'})[lang]}
 function sendAccessReport(id){
   const freePeriod=Boolean(document.getElementById('r_free_period')?.checked);
   const minutes=cleanText(document.getElementById('r_free_minutes')?.value);
   if(freePeriod&&(!Number(minutes)||Number(minutes)<1)){toast(t('freeMinutesRequired'));return}
+  const after=cleanText(document.getElementById('r_after_price')?.value);
+  if(freePeriod&&(!Number.isInteger(Number(minutes))||(after!==''&&(!Number.isFinite(Number(after))||Number(after)<0)))){toast(invalidAccessTariffMessage());return}
   const lines=[
     'Шлагбаум: '+(document.getElementById('r_barrier')?.checked?'да':'нет'),
     'Бесплатный период: '+(freePeriod?(minutes+' мин'):'нет'),
-    'Цена после периода: '+(cleanText(document.getElementById('r_after_price')?.value)||'неизвестна'),
-    'Требуется покупка: '+(document.getElementById('r_purchase')?.checked?'да':'нет'),
-    'Требуется чек: '+(document.getElementById('r_receipt')?.checked?'да':'нет')
+    'Цена после периода: '+(freePeriod?(cleanText(document.getElementById('r_after_price')?.value)||'неизвестна'):'не применяется'),
+    'Требуется покупка: '+(freePeriod&&document.getElementById('r_purchase')?.checked?'да':'нет'),
+    'Требуется чек: '+(freePeriod&&document.getElementById('r_receipt')?.checked?'да':'нет')
   ];
   const note=cleanText(document.getElementById('r_access_note')?.value);if(note)lines.push('Источник/пояснение: '+note);
   return sendReport(id,'other',lines.join('\n'));

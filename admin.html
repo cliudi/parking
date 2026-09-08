@@ -194,6 +194,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 }
 </style>
 </head>
+<link rel="stylesheet" href="assets/form-controls.css">
 <body>
 
 <section id="loginView" class="login-page">
@@ -1714,6 +1715,9 @@ function updateAccessTariffFields(){
   $('barrierFields').classList.toggle('hidden',!$('has_barrier').checked);
   $('freePeriodFields').classList.toggle('hidden',!$('has_free_period').checked);
   $('tariffVerificationMethodField').classList.toggle('hidden',!$('tariff_admin_verified').checked);
+  for(const [box,flag] of [['barrierFields','has_barrier'],['freePeriodFields','has_free_period'],['tariffVerificationMethodField','tariff_admin_verified']]){
+    $(box).querySelectorAll('input,select,textarea').forEach(el=>el.disabled=!$(flag).checked);
+  }
 }
 $('has_barrier').addEventListener('change',updateAccessTariffFields);
 $('has_free_period').addEventListener('change',updateAccessTariffFields);
@@ -2316,10 +2320,14 @@ $('parkingForm').addEventListener('submit',async e=>{
     tariff_admin_verified:$('tariff_admin_verified').checked,
     tariff_verification_method:val('tariff_verification_method')||null
   };
-  if(accessData.has_free_period&&(!accessData.free_period_minutes||accessData.free_period_minutes<1)){
+  if(!accessData.has_barrier){accessData.barrier_at_entry=false;accessData.barrier_at_exit=false;accessData.requires_ticket=false;accessData.entry_rules='';accessData.exit_rules=''}
+  if(!accessData.has_free_period){accessData.free_period_minutes=null;accessData.price_after_free_period=null;accessData.price_after_free_period_unit='unknown';accessData.requires_purchase=false;accessData.requires_receipt=false}
+  if(!accessData.tariff_admin_verified)accessData.tariff_verification_method=null;
+  if(accessData.has_free_period&&(!Number.isInteger(accessData.free_period_minutes)||accessData.free_period_minutes<1)){
     showParkingFormError('Укажите продолжительность бесплатного периода в минутах.','free_period_minutes');return
   }
   const automaticName=val('address')||normalizeDistrict(val('district'))||'Парковка';
+  if(accessData.has_free_period&&accessData.price_after_free_period!==null&&(!Number.isFinite(accessData.price_after_free_period)||accessData.price_after_free_period<0)){showParkingFormError('Цена после периода не может быть отрицательной.','price_after_free_period');return}
   const data={
     id:val('id')||null,name:val('name')||automaticName,address:val('address'),district:normalizeDistrict(val('district')),city:normalizeCity(val('city')),
     lat:coords[0],lng:coords[1],category:val('category'),kind:val('kind'),

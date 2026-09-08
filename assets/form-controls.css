@@ -1,0 +1,7 @@
+/* Native checkboxes stay checkboxes, even inside a styled text-input field. */
+input[type="checkbox"],input[type="radio"]{appearance:auto!important;-webkit-appearance:auto!important;width:22px!important;height:22px!important;min-width:22px!important;min-height:22px!important;max-width:22px!important;padding:0!important;flex:0 0 22px;accent-color:#1677ff;box-shadow:none!important;cursor:pointer;vertical-align:middle}
+label.check-row,.field label.check-row{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:52px;margin:0;padding:12px 2px;text-transform:none;letter-spacing:normal;cursor:pointer}
+.check-card{min-height:48px;cursor:pointer}.check-card:has(input:checked),label.check-row:has(input:checked){color:#1461ba}
+input[type="checkbox"]:focus-visible,input[type="radio"]:focus-visible{outline:3px solid #398cff!important;outline-offset:4px}
+[hidden]{display:none!important}
+html[data-theme="dark"] label.check-row:has(input:checked){color:#a8cfff}
