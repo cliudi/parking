@@ -152,6 +152,24 @@ function fakeMapRuntime(){
       await page.screenshot({path:`release/street-parking-checks/home-polish-${width}.png`,animations:'disabled'});
     }
     console.log('Mobile editor, vertices, reversal, unknown-price guard, atomic save payload, card and map filters: OK (isolated map/API doubles)');
+    await page.evaluate(async()=>{
+      parkingLoadController?.abort();lastParkingLoadKey='';
+      const originalFetch=window.fetch;let releaseAccess,releaseSegments,attempts=0;
+      const record={id:'loading-test',name:'Loading fixture',lat_out:41,lng_out:69,category:'OFFICIAL',price_type:'free',photos:[]};
+      window.fetch=async(url)=>{
+        if(String(url).includes('parkings_nearby')){attempts++;return new Response(JSON.stringify([record]),{status:attempts===1?503:200})}
+        if(String(url).includes('street_parking_segments_v2'))return new Promise(resolve=>releaseSegments=()=>resolve(new Response('[]')));
+        return new Promise(resolve=>releaseAccess=()=>resolve(new Response(JSON.stringify([{id:record.id,has_barrier:true}]))));
+      };
+      try{
+        if(!await loadParkingsFromDB(41,69,12000))throw Error('Primary load failed');
+        if(attempts!==2||!PARKINGS.some(p=>p.id===record.id))throw Error('Primary rows must render before optional data, with retry');
+        releaseAccess();releaseSegments();
+        await new Promise(resolve=>setTimeout(resolve,50));
+        if(!PARKINGS.find(p=>p.id===record.id)?.has_barrier)throw Error('Optional details must enrich primary rows');
+      }finally{window.fetch=originalFetch;parkingLoadController?.abort()}
+    });
+    console.log('Primary loading, transient retry and non-blocking enrichment: OK');
     if(process.env.PARKY_REAL_MAP==='1'){
       const real=await browser.newPage({viewport:{width:390,height:844}});
       await real.route('**/*',route=>{
