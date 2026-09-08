@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
 
 const files = ['index.html', 'admin.html', 'privacy.html', 'terms.html'];
 const requiredUserIds = [
@@ -17,6 +19,11 @@ for (const file of files) {
     .filter((source) => source.trim());
 
   for (const source of scripts) new Function(source);
+  for (const match of html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
+    if (/^(https?:|\/\/)/.test(match[1])) continue;
+    const asset = path.resolve(path.dirname(file), match[1].split('?')[0]);
+    new vm.Script(fs.readFileSync(asset, 'utf8'), {filename: asset});
+  }
 
   if (file === 'index.html') {
     for (const id of requiredUserIds) {

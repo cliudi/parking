@@ -773,6 +773,9 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
   </div>
 </div>
 
+<link rel="stylesheet" href="assets/street-parking.css">
+<script src="assets/street-geometry.js"></script>
+<script src="assets/street-public.js"></script>
 <script src="assets/vendor/maplibre-gl/maplibre-gl.js"></script>
 <script>
 function dismissBrandSplash(){
@@ -1053,10 +1056,11 @@ function fromDbRow(r){
     price_type: r.price_type,
     price_val: r.price_hour||0,
     price_text: r.price_hour ? r.price_hour.toLocaleString('ru')+' сум/час' : null,
+    price_note: cleanText(r.price_note),
     price_day: r.price_day ? Number(r.price_day).toLocaleString('ru')+' сум/сутки' : null,
     cap: r.capacity, cap_est: !!r.capacity_est,
     hours: cleanText(r.hours)||'—', is247: !!r.is_247,
-    ptype: r.kind||'open', height: r.height_limit ? Number(r.height_limit)+' м' : null,
+    ptype: r.category==='STREET_ALLOWED'?'street':(r.kind||'open'), height: r.height_limit ? Number(r.height_limit)+' м' : null,
     ev: !!r.has_ev, ev_details: (r.ev_connectors||[]).map(cleanText).join(', ')||null,
     cctv: !!r.has_cctv, disabled: !!r.has_disabled, wash: !!r.has_wash,
     payment: (r.payment_methods||[]).map(cleanText).join(', ')||'—', rating: null,
@@ -1084,7 +1088,7 @@ function fromDbRow(r){
 async function loadParkingAccess(rows,signal){
   const ids=(rows||[]).map(row=>String(row.id)).filter(Boolean);
   if(!ids.length)return new Map();
-  const select='id,has_barrier,barrier_at_entry,barrier_at_exit,requires_ticket,entry_rules,exit_rules,has_free_period,free_period_minutes,price_after_free_period,price_after_free_period_unit,requires_purchase,requires_receipt,tariff_note,tariff_verified_at,tariff_source_ref';
+  const select='id,price_day,price_note,has_barrier,barrier_at_entry,barrier_at_exit,requires_ticket,entry_rules,exit_rules,has_free_period,free_period_minutes,price_after_free_period,price_after_free_period_unit,requires_purchase,requires_receipt,tariff_note,tariff_verified_at,tariff_source_ref';
   const filter='in.('+ids.join(',')+')';
   try{
     const res=await fetch(SUPABASE_URL+'/rest/v1/parkings?select='+encodeURIComponent(select)+'&id='+encodeURIComponent(filter),{
@@ -1124,13 +1128,14 @@ async function loadParkingsFromDB(lat, lng, radius){
       headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
       body:JSON.stringify(body)
     });
-    const [res]=await Promise.all([parkingPromise,loadStreetSegments()]);
+    const [res,segments]=await Promise.all([parkingPromise,loadStreetSegments(controller.signal)]);
     if(!res.ok)throw new Error('db http '+res.status);
     const rows=await res.json();
     if(!Array.isArray(rows))throw new Error('db response');
     const accessById=await loadParkingAccess(rows,controller.signal);
     if(controller!==parkingLoadController)return false;
-    PARKINGS=rows.map(row=>fromDbRow({...row,...(accessById.get(String(row.id))||{})})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+    streetSegments=segments;streetSegmentIds=new Set(segments.map(s=>String(s.parking_id)));
+    PARKINGS=rows.map(row=>fromDbRow({...row,...(accessById.get(String(row.id))||{})})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&(p.category!=='STREET_ALLOWED'||(streetSegmentIds.has(p.id)&&['free','paid'].includes(p.price_type))));
     rememberFavoriteTermsChanges();
     lastParkingLoadKey=requestKey;lastParkingLoadAt=Date.now();
     lastMarkerSignature='';
@@ -1150,30 +1155,34 @@ async function loadParkingsFromDB(lat, lng, radius){
 }
 
 let streetSegments=[],streetLines=new Map(),streetSegmentIds=new Set();
-async function loadStreetSegments(){
+async function loadStreetSegments(signal){
   try{
-    const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/street_parking_segments',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},body:'{}'});
-    if(!res.ok){streetSegments=[];streetSegmentIds=new Set();return}
+    const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/street_parking_segments_v2',{method:'POST',signal,headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},body:'{}'});
+    if(!res.ok){console.warn('Уличные участки недоступны:',res.status);return []}
     const rows=await res.json();
-    streetSegments=(Array.isArray(rows)?rows:[]).filter(x=>Array.isArray(x.path)&&x.path.length>=2);
-    streetSegmentIds=new Set(streetSegments.map(x=>String(x.parking_id)));
-  }catch(e){console.warn('Уличные участки недоступны:',e)}
+    return (Array.isArray(rows)?rows:[]).filter(x=>ParkyStreetGeometry.valid(x.path));
+  }catch(e){if(e.name==='AbortError')throw e;console.warn('Уличные участки недоступны:',e);return []}
 }
 function drawStreetSegments(){
   if(!ymap||!window.ymaps)return;
-  const wanted=new Set();
+  const wanted=new Set(),visible=new Set(filteredParkings().map(p=>String(p.id))),zoom=ymap.getZoom();
   streetSegments.forEach(segment=>{
-    const key=String(segment.parking_id);wanted.add(key);
+    const key=String(segment.parking_id);
+    if(zoom<13||!visible.has(key))return;
+    wanted.add(key);
     const parking=PARKINGS.find(p=>String(p.id)===String(segment.parking_id));
-    const color=parking?markerColor(parking):'#2563EB';
-    const signature=color+'|'+JSON.stringify(segment.path),existing=streetLines.get(key);
+    const color=parking.price_type==='free'?'#16a34a':'#1677ff';
+    const selected=String(selectedId)===key,width=zoom<15?4:6;
+    const signature=color+'|'+width+'|'+selected+'|'+JSON.stringify(segment.path),existing=streetLines.get(key);
     if(existing&&existing.signature===signature)return;
-    if(existing)ymap.geoObjects.remove(existing.line);
-    const line=new ymaps.Polyline(segment.path,{hintContent:parking?.name||'Разрешённая уличная парковка'},{strokeColor:color,strokeWidth:7,strokeOpacity:.86});
+    if(existing){ymap.geoObjects.remove(existing.line);existing.ends?.forEach(p=>ymap.geoObjects.remove(p))}
+    const line=new ymaps.Polyline(segment.path,{hintContent:escapeHtml(parking.name)+' · '+escapeHtml(priceLabel(parking))},{strokeColor:['#ffffff',color],strokeWidth:[width+4,width],strokeOpacity:[.95,1]});
     line.events.add('click',()=>selectParking(String(segment.parking_id)));
-    ymap.geoObjects.add(line);streetLines.set(key,{line,signature});
+    const ends=[];
+    if(selected){[segment.path[0],segment.path[segment.path.length-1]].forEach((point,i)=>{const marker=new ymaps.Placemark(point,{iconContent:i===0?'1 →':'2',hintContent:i===0?streetCopy().start:streetCopy().end},{preset:'islands#blueCircleIcon'});ymap.geoObjects.add(marker);ends.push(marker)})}
+    ymap.geoObjects.add(line);streetLines.set(key,{line,signature,ends});
   });
-  streetLines.forEach((entry,key)=>{if(!wanted.has(key)){ymap.geoObjects.remove(entry.line);streetLines.delete(key)}});
+  streetLines.forEach((entry,key)=>{if(!wanted.has(key)){ymap.geoObjects.remove(entry.line);entry.ends?.forEach(p=>ymap.geoObjects.remove(p));streetLines.delete(key)}});
 }
 
 /* цвет/иконка маркера по типу (ПДД разд.7.3: зелёный=бесплатно, синий=платно, серый=неизвестно) */
@@ -1303,6 +1312,7 @@ function dist(a,b,c,d){
 }
 function distText(p){
   if(!mePos) return '';
+  p=streetDestination(p);if(!p)return '';
   const km=dist(mePos.lat,mePos.lng,p.lat,p.lng);
   return km<1?Math.round(km*1000)+' '+t('unitM'):km.toFixed(1)+' '+t('unitKm');
 }
@@ -1402,7 +1412,9 @@ function sharePoint(point){
   if(navigator.share)navigator.share({title:point.label||t('selectedPoint'),url}).catch(()=>{});else{navigator.clipboard&&navigator.clipboard.writeText(url);toast(t('linkCopied'))}
 }
 function filteredParkings(){
-  let v=PARKINGS.slice();
+  let v=PARKINGS.filter(p=>p.category!=='STREET_ALLOWED'||(streetSegmentIds.has(String(p.id))&&['free','paid'].includes(p.price_type)));
+  if(advFilters.objectKind==='point')v=v.filter(p=>p.category!=='STREET_ALLOWED');
+  if(advFilters.objectKind==='street')v=v.filter(p=>p.category==='STREET_ALLOWED');
   if(quickFilter==='free')v=v.filter(p=>p.price_type==='free');
   if(quickFilter==='paid')v=v.filter(p=>p.price_type==='paid');
   if(quickFilter==='ev')v=v.filter(p=>p.ev);
@@ -1603,8 +1615,9 @@ function ensureObjectManager(){
 }
 function drawMarkers(force){
   if(!ymap)return;
+  drawStreetSegments();
   ensureObjectManager();
-  const wanted=visibleParkings().filter(p=>!streetSegmentIds.has(String(p.id)));
+  const wanted=visibleParkings().filter(p=>p.category!=='STREET_ALLOWED'&&!streetSegmentIds.has(String(p.id)));
   visibleParkingMap=new Map(wanted.map(p=>[String(p.id),p]));
   const theme=document.documentElement.getAttribute('data-theme')||'light';
   const zoomBucket=markerZoomBucket();
@@ -1645,11 +1658,13 @@ function updateSelection(id){
 function selectParking(id){
   const p=PARKINGS.find(x=>String(x.id)===String(id));if(!p)return;
   selectedId=p.id;updateSelection(p.id);showMiniCard(p.id);
-  if(ymap)ymap.panTo([p.lat,p.lng],{duration:300});
+  const s=streetSegment(p);
+  if(ymap&&s){ymap.setBounds(new ymaps.Polyline(s.path).geometry.getBounds(),{checkZoomRange:true,zoomMargin:60});drawStreetSegments()}
+  else if(ymap)ymap.panTo([p.lat,p.lng],{duration:300});
 }
 
 /* ═══════════ МИНИ-КАРТОЧКА ═══════════ */
-function priceLabel(p){return p.price_type==='free'?t('free'):(p.price_text||'—')}
+function priceLabel(p){return p.price_type==='free'?t('free'):(p.price_text||p.price_day||'—')}
 function freePeriodLabel(minutes){
   const value=Number(minutes);
   if(!Number.isFinite(value)||value<=0)return t('freePeriodGeneric');
@@ -1701,6 +1716,7 @@ function statusLabel(p){
 }
 function showMiniCard(id){
   const p=PARKINGS.find(x=>x.id===id);if(!p)return;
+  if(p.category==='STREET_ALLOWED'){document.getElementById('minicard').classList.remove('on');openStreetCard(p);return}
   const el=document.getElementById('minicard');
   const d=distText(p)||'—';
   const cap=p.cap?(p.cap_est?t('approx').toLowerCase()+' ':'')+p.cap+' '+t('places'):t('capUnknown');
@@ -1715,12 +1731,13 @@ function showMiniCard(id){
     +(p.legal?'<div class="mc-place-note">⚠️ '+escapeHtml(t('legalStreet'))+'</div>':'')+'</div>';
   el.classList.add('on');
 }
-function closeMiniCard(){selectedId=null;updateSelection(null);document.getElementById('minicard').classList.remove('on')}
+function closeMiniCard(){selectedId=null;updateSelection(null);drawStreetSegments();document.getElementById('minicard').classList.remove('on')}
 
 /* ═══════════ ПОЛНАЯ КАРТОЧКА ═══════════ */
 function typeLabel(pt){return t(pt==='street'?'tStreet':pt==='open'?'tOpen':pt==='covered'?'tCovered':pt==='underground'?'tUnderground':'tOfficial')}
 function openFullCard(id){
   const p=PARKINGS.find(x=>x.id===id);if(!p)return;
+  if(p.category==='STREET_ALLOWED'){openStreetCard(p);return}
   const isFav=favorites.includes(id);
   const photo=p.photo
     ?'<div class="fc-photo" style="background-image:url('+p.photo+')">'
@@ -1790,6 +1807,7 @@ function closeSheet(){document.getElementById('mask').classList.remove('open')}
 document.getElementById('mask').onclick=e=>{if(e.target.id==='mask')closeSheet()};
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return;
+  if(document.querySelector('.street-photo-dialog[open]'))return;
   if(document.getElementById('duplicateMask')?.classList.contains('on')){event.preventDefault();resolveDuplicateDialog('cancel');return}
   if(document.getElementById('mask')?.classList.contains('open')){event.preventDefault();closeSheet();return}
   hideSearchHistory();
@@ -1802,6 +1820,7 @@ function openFilters(){
   let html='<div class="grabber"><i></i></div>'
     +'<div class="filt-head"><h2>'+t('filters')+'</h2><button class="x" onclick="closeSheet()">✕</button></div>'
     +'<div class="filt-body">'
+    +streetObjectFilterHtml()
     +'<div class="filt-group"><h3>'+t('filtPrice')+'</h3>'
     +priceOpts.map(([k,l])=>'<div class="radio-row'+(advFilters.price===k?' sel':'')+'" onclick="setFiltPrice(\''+k+'\')"><span class="rl">'+t(l)+'</span><span class="radio-mark"></span></div>').join('')
     +'</div>'
@@ -2146,6 +2165,7 @@ async function initRouteBetaMap(target){
 }
 async function openRouteBeta(target,mode){
   if(!target)return;if(!mePos){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!mePos){toast(t('geoDeny'));return}}
+  target=streetDestination(target);if(!target){toast(streetCopy().missing);return}
   routeTarget=target;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');
   const screen=document.getElementById('routeBetaScreen');screen.classList.add('on');screen.setAttribute('aria-hidden','false');document.getElementById('bottomnav').classList.add('hidden');document.getElementById('routeBetaDestination').textContent=target.name||target.label||t('routeDestination');
   try{await initRouteBetaMap(target);setTimeout(()=>routeBetaMap.resize(),0);await buildRouteToTarget(target,routeMode)}catch(error){console.warn('Route Beta init failed',error);routeFailed(target)}
@@ -2153,7 +2173,7 @@ async function openRouteBeta(target,mode){
 function centerRouteBetaOnUser(){userPanned=false;if(routeBetaMap&&mePos)routeBetaMap.easeTo({center:[mePos.lng,mePos.lat],zoom:17,duration:300})}
 async function routeTo(id){const p=PARKINGS.find(x=>x.id===id);if(p)requestNavigation(p)}
 function routeToSelectedPoint(){if(selectedDestination)requestNavigation({...selectedDestination})}
-function requestNavigation(target){const preferred=localStorage.getItem('parkly_navigation_provider');if(preferred)launchNavigationProvider(preferred,target);else openNavigationChooser(target)}
+function requestNavigation(target){target=streetDestination(target);if(!target){toast(streetCopy().missing);return}const preferred=localStorage.getItem('parkly_navigation_provider');if(preferred)launchNavigationProvider(preferred,target);else openNavigationChooser(target)}
 function isAppleDevice(){return /iPad|iPhone|iPod|Macintosh/i.test(navigator.userAgent)}
 function navigationUrl(provider,target,mode='auto'){
   const destination=`${Number(target.lat).toFixed(6)},${Number(target.lng).toFixed(6)}`,origin=mePos?`${mePos.lat.toFixed(6)},${mePos.lng.toFixed(6)}`:'';
@@ -2579,7 +2599,7 @@ async function sendReport(id,reason,providedComment){
 
 /* ═══════════ ИЗБРАННОЕ ═══════════ */
 function favoriteSortMode(){try{return localStorage.getItem('parkly-favorite-sort')||'distance'}catch(e){return'distance'}}
-function favoriteDistance(parking){return mePos?dist(mePos.lat,mePos.lng,parking.lat,parking.lng):Infinity}
+function favoriteDistance(parking){const target=streetDestination(parking);return mePos&&target?dist(mePos.lat,mePos.lng,target.lat,target.lng):Infinity}
 function setFavoriteSort(mode){try{localStorage.setItem('parkly-favorite-sort',mode)}catch(e){};closeSheet();renderFav()}
 function openFavoriteSort(){
   const current=favoriteSortMode();
@@ -2952,7 +2972,7 @@ document.getElementById('legendbtn').onclick=openLegend;
 /* ═══════════ ГЛАВНАЯ ═══════════ */
 let homeRadiusKm=5;
 function homeDistance(p){
-  if(mePos)return dist(mePos.lat,mePos.lng,p.lat,p.lng);
+  if(mePos)return favoriteDistance(p);
   return Number.isFinite(p.distance_m)?p.distance_m/1000:Infinity;
 }
 function setHomeRadius(value){homeRadiusKm=Number(value)||5;renderHome()}

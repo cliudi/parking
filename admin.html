@@ -260,6 +260,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <div class="topbar-actions">
         <button id="refreshBtn" class="btn btn-secondary hide-mobile">↻ Обновить</button>
         <button id="addBtn" class="btn btn-primary">＋ Добавить парковку</button>
+        <button id="addStreetBtn" class="btn btn-secondary">＋ Добавить уличную парковку</button>
       </div>
     </header>
 
@@ -278,7 +279,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
           <option value="NEEDS_INFO">Нужны сведения</option><option value="REJECTED">Отклонено</option><option value="DRAFT">Черновик</option><option value="ARCHIVED">В архиве</option>
         </select>
         <select id="categoryFilter" class="control">
-          <option value="">Все категории</option><option value="OFFICIAL">Официальная</option><option value="STREET_ALLOWED">Разрешённая уличная</option>
+          <option value="">Все категории</option><option value="__POINT">Обычные парковки (точки)</option><option value="OFFICIAL">Официальная</option><option value="STREET_ALLOWED">Уличные участки (линии)</option>
           <option value="PRIVATE">Частная</option><option value="EV_STATION">Зарядная станция</option>
         </select>
         <select id="qualityFilter" class="control">
@@ -572,6 +573,24 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 
         <section id="streetSection" class="form-section hidden">
           <div class="section-title">Разрешённый участок вдоль дороги</div>
+          <p>Нарисуйте только непрерывный разрешённый участок. Нажимайте на карту для добавления точек; перетаскивайте пронумерованные вершины. «+» между ними добавляет изгиб.</p>
+          <div id="streetMapTools">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">
+            <button id="streetDraw" class="btn btn-primary" type="button" aria-pressed="false">Добавлять точки на карте</button>
+            <button id="streetRemove" class="btn btn-secondary" type="button" disabled>Удалить выбранную вершину</button>
+            <button id="streetReverse" class="btn btn-secondary" type="button">Развернуть направление</button>
+          </div>
+          <output id="streetLength" aria-live="polite"></output>
+          <p id="streetDirection"></p>
+          </div>
+          <div class="grid">
+            <div class="field"><label for="parking_side">Сторона относительно направления 1 → 2</label><select id="parking_side" class="control"><option value="">Выберите сторону</option><option value="right">Правая сторона</option><option value="left">Левая сторона</option><option value="both">Обе стороны — одинаковые правила</option></select></div>
+            <div class="field"><label for="parking_orientation">Как разрешено ставить автомобиль</label><select id="parking_orientation" class="control"><option value="unspecified">Не указано</option><option value="parallel">Параллельно дороге</option><option value="perpendicular">Перпендикулярно дороге</option><option value="angled">Под углом</option><option value="partly_sidewalk">Частично на тротуаре</option><option value="fully_sidewalk">Полностью на тротуаре — прямо разрешено знаком</option><option value="according_to_sign">Согласно знаку</option><option value="other">Другое</option></select></div>
+            <div class="field"><label for="street_days">Дни действия</label><input id="street_days" class="control" maxlength="120" placeholder="Например, Пн–Пт"></div>
+            <div class="field"><label for="street_restrictions">Ограничения</label><input id="street_restrictions" class="control" maxlength="1000" placeholder="Например, только для легковых"></div>
+            <div class="field"><label for="street_notes">Примечание к участку</label><textarea id="street_notes" class="control" maxlength="1000"></textarea></div>
+          </div>
+          <p>Время действия задаётся ниже в «Режим работы». Фотографию реального знака добавьте в разделе фотографий с типом «Дорожный знак». Она желательна, но не обязательна. Неизвестная стоимость — только черновик.</p>
           <div class="field">
             <label>Точки линии</label>
             <textarea id="street_path" class="control" placeholder="41.36670, 69.28880&#10;41.36710, 69.28940"></textarea>
@@ -640,6 +659,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
 
 <div id="toast" class="toast hidden"></div>
 
+<script src="assets/street-geometry.js"></script>
 <script>
 const SUPABASE_URL='https://xgzddkkrlsvtvcriokdk.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnemRka2tybHN2dHZjcmlva2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDk2MTMsImV4cCI6MjEwMDYyNTYxM30.FIwW6nFGVdUpClwQCu1ztaGdRDVwIqasyGO01AD3Tys';
@@ -1000,6 +1020,7 @@ function showSection(section,options={}){
   $('usersPanel').classList.toggle('hidden',section!=='users');
   $('osmPanel').classList.toggle('hidden',section!=='osm');
   $('addBtn').classList.toggle('hidden',section!=='parkings');
+  $('addStreetBtn').classList.toggle('hidden',section!=='parkings');
   updateSidebarActiveState(section);
   setSidebarOpen(false);
   if(section==='parkings')loadParkings();
@@ -1039,6 +1060,13 @@ async function loadParkingsLegacy(existingRequestId){
     const {data,error}=await sb.rpc('admin_list_parkings',{p_search:null,p_status:null,p_limit:500,p_offset:offset});
     if(requestId!==parkingLoadRequestId)return;
     if(error){$('rows').innerHTML='';toast(error.message,'error');return}
+    const streetIds=(data||[]).filter(p=>p.category==='STREET_ALLOWED').map(p=>p.id);
+    if(streetIds.length){
+      const {data:segments,error:segmentError}=await sb.rpc('admin_street_segments',{p_ids:streetIds});
+      if(requestId!==parkingLoadRequestId)return;
+      if(segmentError){toast('Не удалось загрузить линии участков. Проверьте обновление базы.','error');return}
+      (data||[]).forEach(p=>{const s=(segments||[]).find(s=>s.parking_id===p.id);if(s)Object.assign(p,{street_path:s.path,street_details:s.details,legal_note:s.legal_note})});
+    }
     loaded.push(...(data||[]));
     if(!data||data.length<500)break;
   }
@@ -1055,7 +1083,7 @@ function filtered(){
     const photoCount=Array.isArray(p.photos)?p.photos.filter(Boolean).length:0;
     const updated=p.updated_at?new Date(p.updated_at).getTime():0;
     return (!q||[p.name,p.address,p.district].some(x=>String(x||'').toLowerCase().includes(q)))
-      &&(!status||p.status===status)&&(!category||p.category===category)
+      &&(!status||p.status===status)&&(!category||(category==='__POINT'?p.category!=='STREET_ALLOWED':p.category===category))
       &&(!quality||(quality==='attention'?issues.length>0:issues.includes(quality)))
       &&(!source||p.source===source)&&(!photo||(photo==='with'?photoCount>0:photoCount===0))
       &&(fromTime==null||updated>=fromTime)&&(toTime==null||updated<=toTime);
@@ -1184,7 +1212,7 @@ function initDraftMap(){
 function renderDraftMap(fit=false){
   if(!draftMap)return;
   const allFiltered=draftMapFilteredRecords(),zoom=draftMap.getZoom(),bounds=!fit&&zoom>=11?draftMap.getBounds():null;
-  const visible=bounds?allFiltered.filter(p=>Number(p.lat)>=bounds[0][0]&&Number(p.lat)<=bounds[1][0]&&Number(p.lng)>=bounds[0][1]&&Number(p.lng)<=bounds[1][1]):allFiltered;
+  const visible=bounds?allFiltered.filter(p=>p.category==='STREET_ALLOWED'?ParkyStreetGeometry.intersects(p.street_path,bounds):Number(p.lat)>=bounds[0][0]&&Number(p.lat)<=bounds[1][0]&&Number(p.lng)>=bounds[0][1]&&Number(p.lng)<=bounds[1][1]):allFiltered;
   const shouldThin=zoom<11&&!val('draftMapSearch')&&visible.length>180;
   const step=shouldThin?Math.ceil(visible.length/180):1,filteredList=shouldThin?visible.filter((_,index)=>index%step===0):visible;
   const selectedRecord=allFiltered.find(p=>String(p.id)===String(draftMapSelectedId));
@@ -1195,6 +1223,15 @@ function renderDraftMap(fit=false){
   list.forEach(p=>{
     const id=String(p.id),coords=[Number(p.lat),Number(p.lng)],selected=id===String(draftMapSelectedId),compare=draftMapCompareIds.has(id);
     let marker=draftMapMarkers.get(id);
+    const street=p.category==='STREET_ALLOWED';
+    if(marker&&Boolean(marker.parklyStreet)!==street){draftMap.geoObjects.remove(marker);draftMapMarkers.delete(id);marker=null}
+    if(street){
+      if(!ParkyStreetGeometry.valid(p.street_path)){if(marker){draftMap.geoObjects.remove(marker);draftMapMarkers.delete(id)}return}
+      if(!marker){marker=new ymaps.Polyline(p.street_path,{},{});marker.parklyStreet=true;marker.events.add('click',()=>openDraftMapCard(id));draftMap.geoObjects.add(marker);draftMapMarkers.set(id,marker)}
+      marker.geometry.setCoordinates(p.street_path);
+      marker.options.set({strokeColor:['#fff',p.status==='APPROVED'?(p.price_type==='free'?'#16a34a':'#1677ff'):'#8491a3'],strokeWidth:[selected?12:9,selected?8:5],strokeStyle:p.status==='APPROVED'?'solid':'dash'});
+      return;
+    }
     if(!marker){
       marker=new ymaps.Placemark(coords,{},draftMapMarkerOptions(p,selected,compare));
       marker.events.add('click',()=>openDraftMapCard(id));
@@ -1264,6 +1301,7 @@ function setDraftMapPendingCoordinates(coords){
 }
 window.startDraftMapMove=id=>{
   const parking=records.find(p=>String(p.id)===String(id)),marker=draftMapMarkers.get(String(id));if(!parking||!marker)return;
+  if(parking.category==='STREET_ALLOWED'){editParking(id);return}
   draftMapMoveState={id:String(id),original:[Number(parking.lat),Number(parking.lng)],pending:[Number(parking.lat),Number(parking.lng)]};
   draftMap.setCenter(draftMapMoveState.original,Math.max(16,draftMap.getZoom()),{duration:200});
   marker.options.set({draggable:true,zIndex:2000});draftMapMarkerSignatures.delete(String(id));renderDraftMapCard(parking);
@@ -1682,10 +1720,10 @@ $('has_free_period').addEventListener('change',updateAccessTariffFields);
 $('tariff_admin_verified').addEventListener('change',updateAccessTariffFields);
 $('addStreetPoint').onclick=()=>{
   const lat=val('lat'),lng=val('lng');if(!lat||!lng){toast('Сначала выберите точку на карте','error');return}
-  $('street_path').value+=($('street_path').value.trim()?'\n':'')+lat+', '+lng;markParkingFormDirty();
+  streetEditorAppend([Number(lat),Number(lng)]);
 };
 const PHOTO_LIMIT=5,PHOTO_MAX_BYTES=10*1024*1024;
-const photoTypeLabels={general:'Общий вид',entrance:'Въезд',barrier:'Шлагбаум',tariff:'Тариф',rules:'Правила',ev:'EV',other:'Другое'};
+const photoTypeLabels={general:'Общий вид',entrance:'Въезд',barrier:'Шлагбаум',tariff:'Тариф',rules:'Правила',ev:'EV',parking_sign:'Дорожный знак',orientation:'Способ постановки',start:'Начало участка',end:'Конец участка',overview:'Общий вид улицы',restrictions:'Ограничения',other:'Другое'};
 const photoStatusLabels={ready:'Готово к загрузке',uploading:'Загружается…',uploaded:'Загружено',error:'Ошибка'};
 let parkingPhotoItems=[];
 
@@ -1713,7 +1751,7 @@ function renderPhotoManager(){
         <div class="photo-meta">${formatPhotoSize(item.size)}${item.error?` · ${escapeHtml(item.error)}`:''}</div>
         <span class="photo-status ${status}">${photoStatusLabels[status]||status}</span>
         <div class="photo-fields">
-          <select class="control" onchange="updateManagedPhoto('${item.key}','photo_type',this.value)">${Object.entries(photoTypeLabels).map(([value,label])=>`<option value="${value}"${item.photo_type===value?' selected':''}>${label}</option>`).join('')}</select>
+          <select class="control" onchange="updateManagedPhoto('${item.key}','photo_type',this.value)">${Object.entries(photoTypeLabels).filter(([value])=>val('category')==='STREET_ALLOWED'||!['parking_sign','orientation','start','end','overview','restrictions'].includes(value)).map(([value,label])=>`<option value="${value}"${item.photo_type===value?' selected':''}>${label}</option>`).join('')}</select>
           <input class="control" maxlength="300" value="${escapeHtml(item.caption||'')}" placeholder="Подпись к фото" oninput="updateManagedPhoto('${item.key}','caption',this.value)">
         </div>
       </div>
@@ -1823,7 +1861,8 @@ async function saveOneManagedPhoto(item,parkingId,targetBucket,sortOrder){
       newlyUploadedPath=path;
       publicUrl=targetBucket==='parking-photos'?sb.storage.from(targetBucket).getPublicUrl(path).data.publicUrl:null;
     }
-    const {data:id,error}=await sb.rpc('admin_save_parking_photo',{p_parking_id:parkingId,p_photo_id:item.id||null,p_storage_bucket:targetBucket,p_storage_path:path,p_public_url:publicUrl,p_photo_type:item.photo_type||'general',p_caption:item.caption||null,p_sort_order:sortOrder});
+    const photoRpc=['parking_sign','orientation','start','end','overview','restrictions'].includes(item.photo_type)?'admin_save_street_photo':'admin_save_parking_photo';
+    const {data:id,error}=await sb.rpc(photoRpc,{p_parking_id:parkingId,p_photo_id:item.id||null,p_storage_bucket:targetBucket,p_storage_path:path,p_public_url:publicUrl,p_photo_type:item.photo_type||'general',p_caption:item.caption||null,p_sort_order:sortOrder});
     if(error)throw error;
     const oldBucket=item.storage_bucket,oldPath=item.storage_path;
     if(item.id&&oldBucket&&oldPath&&(oldBucket!==targetBucket||oldPath!==path))await sb.storage.from(oldBucket).remove([oldPath]);
@@ -2033,7 +2072,11 @@ function refreshCoordMap(recenter=false){
         draggable:true,preset:'islands#blueParkingIcon'
       });
       coordPlacemark.events.add('dragend',()=>setCoordinates(coordPlacemark.geometry.getCoordinates(),{user:true}));
-      coordMap.events.add('click',event=>setCoordinates(event.get('coords'),{user:true}));
+      coordMap.events.add('click',event=>{
+        if(val('category')==='STREET_ALLOWED'){
+          if(streetDrawing)streetEditorAppend(event.get('coords'));
+        }else setCoordinates(event.get('coords'),{user:true});
+      });
       if(savedCoords){coordMap.geoObjects.add(coordPlacemark);coordPlacemarkAdded=true}
     }else{
       coordMap.container.fitToViewport();
@@ -2041,6 +2084,7 @@ function refreshCoordMap(recenter=false){
       if(savedCoords)writeCoordinates(savedCoords);
       else if(coordPlacemarkAdded){coordMap.geoObjects.remove(coordPlacemark);coordPlacemarkAdded=false}
     }
+    renderStreetEditor();
   });
 }
 function stopNewParkingLocationWatch(){
@@ -2104,9 +2148,9 @@ function unlockBodyScroll(){
 function parseStreetPath(){
   const lines=val('street_path').split(/\n+/).map(x=>x.trim()).filter(Boolean);
   if(!lines.length)return null;
-  const points=lines.map(line=>line.split(',').map(Number));
-  if(points.length<2||points.some(p=>p.length!==2||!Number.isFinite(p[0])||!Number.isFinite(p[1])))
-    throw new Error('Для уличного участка укажите минимум две точки в формате: широта, долгота');
+  const points=lines.map(line=>line.split(',').map(x=>x.trim()===''?NaN:Number(x)));
+  if(!ParkyStreetGeometry.valid(points))
+    throw new Error('Укажите 2–200 разных последовательных точек (широта, долгота), длина участка — до 50 км.');
   return points;
 }
 function openForm(p=null,submissionId=null,osmCandidateId=null){
@@ -2126,6 +2170,8 @@ function openForm(p=null,submissionId=null,osmCandidateId=null){
   $('payment_methods').value=(data.payment_methods||[]).join(', ');
   initializePhotoManager(data);
   $('street_path').value=(data.street_path||[]).map(point=>point.join(', ')).join('\n');
+  ['parking_side','parking_orientation','street_days','street_restrictions','street_notes'].forEach(k=>$(k).value=data.street_details?.[k]||(k==='parking_orientation'?'unspecified':''));
+  resetStreetEditor();
   $('legal_note').value=data.legal_note||'Перед парковкой проверьте дорожные знаки и разметку.';
   $('streetSection').classList.toggle('hidden',data.category!=='STREET_ALLOWED');
   ['is_247','capacity_est','has_ev','has_cctv','has_disabled','has_barrier','barrier_at_entry','barrier_at_exit','requires_ticket','has_free_period','requires_purchase','requires_receipt','tariff_admin_verified'].forEach(k=>$(k).checked=Boolean(data[k]));
@@ -2153,6 +2199,11 @@ async function closeForm(force=false){
 }
 window.editParking=async id=>{
   const parking=records.find(x=>x.id===id);if(!parking)return;
+  if(parking.category==='STREET_ALLOWED'){
+    const {data:segments,error}=await sb.rpc('admin_street_segments',{p_ids:[id]});
+    if(error||!segments?.[0]){toast('Не удалось загрузить участок. Обновите список и проверьте подключение.','error');return}
+    Object.assign(parking,{street_path:segments[0].path,street_details:segments[0].details,legal_note:segments[0].legal_note});
+  }
   const [{data:access,error:accessError},{data:photoMetadata,error:photoError}]=await Promise.all([
     sb.rpc('admin_get_parking_access',{p_id:id}),sb.rpc('admin_list_parking_photos',{p_parking_id:id})
   ]);
@@ -2248,10 +2299,12 @@ $('parkingForm').addEventListener('submit',async e=>{
   e.preventDefault();formMessage($('formMsg'),'');
   const action=beginAdminAction('parking-form','Сохраняю…',e.submitter||$('parkingForm').querySelector('[type="submit"]'));if(!action)return;
   try{
-  const coords=readCoordinates();
-  if(!coords){showParkingFormError('Проверьте координаты парковки. Можно использовать точку или запятую.',['lat','lng']);return}
   let streetPath=null;
   try{streetPath=val('category')==='STREET_ALLOWED'?parseStreetPath():null}catch(error){showParkingFormError(error.message,'street_path');return}
+  if(val('category')==='STREET_ALLOWED'&&!streetPath){showParkingFormError('Нарисуйте начало и конец уличного участка.','street_path');return}
+  if(streetPath&&val('status')==='APPROVED'&&(!val('parking_side')||!['free','paid'].includes(val('price_type')))){showParkingFormError('Перед публикацией выберите сторону улицы и стоимость: бесплатно или платно.','parking_side');return}
+  const coords=streetPath?streetPath[0]:readCoordinates();
+  if(!coords){showParkingFormError('Проверьте координаты парковки. Можно использовать точку или запятую.',['lat','lng']);return}
   const accessData={
     has_barrier:$('has_barrier').checked,barrier_at_entry:$('barrier_at_entry').checked,
     barrier_at_exit:$('barrier_at_exit').checked,requires_ticket:$('requires_ticket').checked,
@@ -2289,16 +2342,21 @@ $('parkingForm').addEventListener('submit',async e=>{
   if(stagedApproval)data.status='DRAFT';
   const submissionId=editingSubmissionId;
   const osmCandidateId=editingOsmCandidateId;
-  const {data:saved,error}=await sb.rpc('admin_save_parking',{p_data:data});
+  const {data:saved,error}=streetPath
+    ?await sb.rpc('admin_save_street_parking',{p_data:{...data,kind:'street'},p_access:accessData,p_path:streetPath,p_details:streetDetailsFromForm(),p_legal_note:val('legal_note')||null})
+    :await sb.rpc('admin_save_parking',{p_data:data});
   if(error){showParkingFormError(error.message,publicationErrorField(error.message));return}
   const savedParkingId=typeof saved==='string'?saved:(saved&&saved.id?saved.id:data.id);
   if(savedParkingId){
+    $('id').value=savedParkingId;
+    if(!streetPath){
     const {error:accessError}=await sb.rpc('admin_save_parking_access',{p_id:savedParkingId,p_data:accessData});
     if(accessError){formMessage($('formMsg'),'Основные данные сохранены, но условия доступа не сохранены: '+accessError.message);return}
     const {error:pathError}=await sb.rpc('admin_set_parking_street_path',{
       p_parking_id:savedParkingId,p_path:streetPath,p_legal_note:val('legal_note')||null
     });
     if(pathError){formMessage($('formMsg'),'Парковка сохранена, но линия участка не сохранена: '+pathError.message);return}
+    }
     try{await savePhotoManager(savedParkingId,stagedApproval?'DRAFT':requestedStatus)}
     catch(error){formMessage($('formMsg'),'Парковка сохранена, но фотографии не обработаны: '+(error.message||'неизвестная ошибка'));return}
     if(stagedApproval){
@@ -2334,5 +2392,6 @@ $('parkingForm').addEventListener('submit',async e=>{
 });
 checkSession();
 </script>
+<script src="assets/street-editor.js"></script>
 </body>
 </html>

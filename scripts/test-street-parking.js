@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const G=require('../assets/street-geometry.js');
+const path=[[41,69],[41,69.01],[41.01,69.01]];
+assert(G.valid(path));
+for(const p of [null,[],[[41,69]],[[41,69],[41,69]],[[null,69],[41,69]],[[91,69],[41,69]],[[41,'69'],[41,69.01]],[[41,69],[42,69]],Array(201).fill([41,69])])assert(!G.valid(p),JSON.stringify(p));
+assert(Math.abs(G.length([[0,0],[0,.001]])-111.195)<.01);
+const near=G.nearest(path,[41.008,69.011]);
+assert(Math.abs(near.lat-41.008)<1e-8);assert.equal(near.lng,69.01);
+assert.deepEqual(G.nearest(path,null),{lat:41,lng:69});
+assert.deepEqual(G.nearest(path,[40.99,68.99]),{lat:41,lng:69});
+assert(G.intersects([[41,69],[41,69.02]],[[40.999,69.009],[41.001,69.011]]));
+const context=vm.createContext({ParkyStreetGeometry:G,streetSegments:[{parking_id:'s',path,details:{parking_side:'right',parking_orientation:'parallel',street_notes:'<script>alert(1)</script>'},photos:[]}],mePos:{lat:41.008,lng:69.011},lang:'ru',escapeHtml:s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;'),t:s=>s,safePhotoUrl:()=>''});
+vm.runInContext(fs.readFileSync('assets/street-public.js','utf8'),context);
+assert.equal(vm.runInContext("streetDestination({id:'s',category:'STREET_ALLOWED'}).lng",context),69.01);
+assert.equal(vm.runInContext("streetDestination({id:'missing',category:'STREET_ALLOWED'})",context),null);
+const html=vm.runInContext("streetInfoHtml({id:'s',category:'STREET_ALLOWED'},true)",context);
+assert(html.includes('Наличие свободного места не гарантируется.'));
+assert(html.includes('Параллельно дороге'));assert(!html.includes('<script>'));
+for(const lang of ['ru','uz','en']){context.lang=lang;assert(vm.runInContext('streetCopy().notice.length>20',context))}
+console.log('Street geometry, nearest destination, bounds, translations and escaping: OK');
