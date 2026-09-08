@@ -1494,6 +1494,10 @@ function specialParkingMarker(p,selected){
   return {href:family[variant],size};
 }
 function markerOptions(p,selected){
+  if(streetLegacyPoint(p)&&['free','paid'].includes(p.price_type)&&!p.closed&&!p.ev&&!p.has_barrier&&!p.has_free_period){
+    const size=selected?68:54;
+    return {iconLayout:'default#image',iconImageHref:'assets/street-brand/pin.png',iconImageSize:[size,size],iconImageOffset:[-size*.5,-size*.85],iconShape:{type:'Rectangle',coordinates:[[size*.18,size*.08],[size*.8,size*.87]]},interactivityModel:'default#transparent',cursor:'pointer',zIndex:selected?1000:120,hasBalloon:false,hasHint:false};
+  }
   const diameter=selected?42:((ymap?ymap.getZoom():15)<14?30:36);
   return {iconLayout:'default#image',iconImageHref:streetPointIcon(p,selected),iconImageSize:[diameter,diameter],iconImageOffset:[-diameter/2,-diameter/2],iconShape:{type:'Circle',coordinates:[diameter/2,diameter/2],radius:diameter/2},interactivityModel:'default#transparent',cursor:'pointer',zIndex:selected?1000:120,hasBalloon:false,hasHint:false};
 }

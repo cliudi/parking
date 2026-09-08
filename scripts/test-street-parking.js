@@ -29,3 +29,6 @@ console.log('Street geometry, nearest destination, bounds, translations and esca
 for(const orientation of ['parallel','perpendicular','angled'])assert(vm.runInContext(`streetOrientationGraphic('${orientation}').includes('<svg')`,context));
 assert.equal(vm.runInContext("streetOrientationGraphic('unspecified')",context),'');
 assert(vm.runInContext("decodeURIComponent(streetPointIcon({price_type:'free'},false)).includes('<circle')",context));
+const artwork=vm.runInContext('streetBrandArtwork()',context);
+assert(artwork.includes('assets/street-brand/section.png'));
+assert(artwork.includes('assets/street-brand/sign.png'));

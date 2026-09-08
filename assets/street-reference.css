@@ -1,4 +1,5 @@
 /* Reference-inspired street card and crisp code-native map symbols. */
+.street-brand-art{display:flex;justify-content:center;margin:2px 0 12px}.street-brand-art img{display:block;width:min(100%,280px);height:auto;object-fit:contain}.street-brand-help{margin:12px 0;color:#61748b;font-size:12px}.street-brand-help summary{cursor:pointer;min-height:32px}.street-brand-help img{display:block;width:160px;height:160px;object-fit:contain;margin:8px auto}.street-brand-help[open]{padding:10px;border:1px solid #e7edf4;border-radius:12px}
 .street-card{--street-ink:#0d2949;--street-muted:#61748b;--street-soft:#f4f7fb;--street-border:#e7edf4;color:var(--street-ink);background:#fff;font:500 14px/1.5 Manrope,Arial,sans-serif;border-radius:24px 24px 0 0}
 .sheet:has(>.street-card){max-height:82dvh;background:#fff}.street-card .grabber{padding-bottom:2px}.street-card-body{padding:0 20px 20px}
 .street-toolbar{display:flex;align-items:center;justify-content:space-between;padding:0 18px 14px}.street-toolbar>span{font-size:17px;font-weight:800;letter-spacing:-.6px}
