@@ -775,6 +775,7 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
 
 <link rel="stylesheet" href="assets/street-parking.css">
 <link rel="stylesheet" href="assets/street-reference.css">
+<link rel="stylesheet" href="assets/ui-polish.css">
 <script src="assets/street-geometry.js"></script>
 <script src="assets/street-public.js"></script>
 <script src="assets/vendor/maplibre-gl/maplibre-gl.js"></script>
@@ -1784,8 +1785,29 @@ function shareParking(id){
 }
 
 /* ═══════════ SHEET (модалка) ═══════════ */
-function openSheet(html){document.getElementById('sheet').innerHTML=html;document.getElementById('mask').classList.add('open')}
-function closeSheet(){document.getElementById('mask').classList.remove('open')}
+let sheetReturnFocus=null;
+function openSheet(html){
+  const mask=document.getElementById('mask'),sheet=document.getElementById('sheet');
+  if(!mask.classList.contains('open'))sheetReturnFocus=document.activeElement;
+  sheet.innerHTML=html;sheet.scrollTop=0;sheet.tabIndex=-1;
+  sheet.setAttribute('role','dialog');sheet.setAttribute('aria-modal','true');
+  sheet.setAttribute('aria-label',sheet.querySelector('h1,h2,h3')?.textContent||'Parky');
+  mask.classList.add('open');sheet.focus({preventScroll:true});
+}
+function closeSheet(){
+  document.getElementById('mask').classList.remove('open');
+  if(sheetReturnFocus?.isConnected)sheetReturnFocus.focus({preventScroll:true});
+  sheetReturnFocus=null;
+}
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Tab'||!document.getElementById('mask').classList.contains('open')||document.querySelector('dialog[open]'))return;
+  const sheet=document.getElementById('sheet');
+  const controls=[...sheet.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary,[tabindex="0"]')].filter(el=>el.getClientRects().length);
+  const first=controls[0],last=controls[controls.length-1],active=document.activeElement;
+  if(!first){event.preventDefault();sheet.focus();return}
+  if(event.shiftKey&&(active===first||active===sheet||!sheet.contains(active))){event.preventDefault();last.focus()}
+  else if(!event.shiftKey&&(active===last||active===sheet||!sheet.contains(active))){event.preventDefault();first.focus()}
+});
 document.getElementById('mask').onclick=e=>{if(e.target.id==='mask')closeSheet()};
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return;

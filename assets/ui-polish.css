@@ -1,0 +1,53 @@
+/* Parky interface: restrained motion, readable surfaces, touch-sized controls. */
+:root{--ui-ease:cubic-bezier(.22,.72,.24,1);--ui-fast:140ms;--ui-motion:260ms;--ui-shadow:0 8px 28px #1237650a;--ui-font:Manrope,system-ui,-apple-system,"Segoe UI",sans-serif}
+body,button,input,textarea,select,h1,h2,h3,.home-address,.home-price,.home-meta span,.navitem span{font-family:var(--ui-font)}
+.screen *,.sheet *,.bottomnav *{font-family:var(--ui-font)!important}
+button,input,textarea,select{-webkit-tap-highlight-color:transparent}
+button{touch-action:manipulation}
+button:focus-visible,a:focus-visible,summary:focus-visible,[tabindex="0"]:focus-visible{outline:3px solid #398cff;outline-offset:3px}
+button:disabled{cursor:wait;opacity:.58}
+.home-hero{background:linear-gradient(125deg,#087cff,#1469e9 65%,#164d94);box-shadow:0 10px 26px #116ee51c;padding-bottom:26px;border-radius:0 0 30px 30px}
+.home-copy h1{font-size:clamp(25px,4vw,34px);line-height:1.15;letter-spacing:-.8px;max-width:480px}
+.home-copy p{font-size:14px;line-height:1.6;opacity:.94;max-width:480px}
+.home-brand{margin-bottom:24px}.home-brand button{width:44px;height:44px}
+.home-search{border:1px solid #ffffff80;box-shadow:0 6px 18px #103c7914;min-height:56px}
+.home-search:focus-within{box-shadow:0 0 0 3px #badaff,0 8px 24px #103c7920}
+.home-search input{font-size:16px}.home-search input::placeholder{color:#65768c}
+.home-body{padding:24px 16px 32px}.home-section-head{margin:4px 0 16px}
+.home-section-head button{min-height:44px;padding:8px}.home-section-head h2{letter-spacing:-.4px}
+.home-radius button{min-height:44px;color:var(--ink);box-shadow:none}
+.home-radius button.on{background:#eaf3ff;color:#0959bb;border-color:#8bbdff}
+.home-card{grid-template-columns:88px minmax(0,1fr) 44px;gap:12px;padding:14px;border-radius:22px;border-color:var(--line);box-shadow:var(--ui-shadow)}
+.home-card-main h3{font-size:15px;line-height:1.4;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.home-address{font-size:12px;line-height:1.5}.home-price{font-size:17px;line-height:1.35;letter-spacing:-.3px}
+.home-meta span{font-size:10px;line-height:1.4;padding:4px 8px}.home-heart{width:44px;height:44px;border-radius:14px;color:#61748b}
+.home-photo{height:104px;border-radius:16px}.home-list{gap:14px}
+.bottomnav{box-shadow:0 -4px 20px #12376508;background:var(--card)}
+.navitem{min-width:0;min-height:56px}.navitem .ni{padding:5px 12px;border-radius:13px;transition:background-color var(--ui-fast),color var(--ui-fast),transform var(--ui-fast)}
+.navitem.on:not(.navadd) .ni{background:var(--blueSoft,#eaf3ff)}.navitem.on::after{display:none}
+.navadd .ni{padding:0;border-radius:16px;box-shadow:0 5px 14px #087cff40}.navitem span{font-size:11px}
+.btn-primary,.street-route{box-shadow:0 5px 14px #116ee51c}.btn-outline{box-shadow:none}
+.btn-primary,.btn-outline,.street-route,.home-heart,.home-radius button,.home-switch button,.cbtn,.street-round{transition:transform var(--ui-fast) var(--ui-ease),box-shadow var(--ui-fast),border-color var(--ui-fast),background-color var(--ui-fast)}
+.btn-primary:active,.btn-outline:active,.street-route:active,.home-heart:active,.home-radius button:active,.home-switch button:active,.street-round:active{transform:scale(.97)}
+.navitem:active .ni{transform:scale(.93)}
+/* Do not fade the entire sheet with its backdrop: it caused a dark flash. */
+.mask{opacity:1;background:transparent;transition:background-color var(--ui-motion) ease,visibility 0s linear var(--ui-motion)}
+.mask.open{opacity:1;background:rgba(13,29,49,.38);transition-delay:0s}
+.sheet{transform:translateY(42px);transition:transform var(--ui-motion) var(--ui-ease);box-shadow:0 -12px 50px #0c22301a;overscroll-behavior:contain;scrollbar-width:thin;scroll-padding-bottom:24px}
+.mask.open .sheet{transform:translateY(0)}
+.field input,.field select,.field textarea{font-size:16px;min-height:50px;border-radius:15px;transition:border-color var(--ui-fast),box-shadow var(--ui-fast)}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#398cff;box-shadow:0 0 0 3px #398cff20}
+.street-card-body{padding-top:2px}.street-brand-art img{width:min(100%,220px)}.street-brand-help{margin:8px 0 18px}
+.street-fact{box-shadow:none;background:var(--street-soft);border-color:transparent;padding:8px 11px}.street-notice{line-height:1.6}
+.screen.on{animation:parky-screen-in var(--ui-motion) var(--ui-ease)}
+@keyframes parky-screen-in{from{opacity:.7;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(hover:hover) and (pointer:fine){.home-card:hover{border-color:#a6cafa;box-shadow:0 10px 28px #12376512}.btn-primary:hover,.street-route:hover{box-shadow:0 8px 20px #116ee530}.home-heart:hover{color:var(--blue)}}
+@media(min-width:760px){.home-body{max-width:1080px;margin-inline:auto;padding:30px 28px 40px}.home-list{grid-template-columns:repeat(2,minmax(0,1fr))}.home-hero{padding-left:max(28px,calc((100vw - 1024px)/2));padding-right:max(28px,calc((100vw - 1024px)/2))}.home-copy h1{max-width:600px}.home-search{max-width:760px}.home-switch{max-width:760px}}
+@media(max-width:370px){.home-card{grid-template-columns:64px minmax(0,1fr) 44px;gap:9px;padding:11px}.home-photo{width:64px;height:86px}.home-card-main h3{font-size:13px}.home-price{font-size:15px}.home-body{padding-inline:12px}.navitem span{font-size:10px}.navitem .ni{padding-inline:9px}}
+html[data-theme="dark"]{--ui-shadow:0 8px 28px #00000018}
+html[data-theme="dark"] .home-hero{background:linear-gradient(125deg,#1251a1,#163969);box-shadow:none}
+html[data-theme="dark"] .home-radius button.on{background:#1f3c60;color:#acd0ff;border-color:#45698f}
+html[data-theme="dark"] .home-price,html[data-theme="dark"] .home-section-head button{color:#d6e8ff}
+html[data-theme="dark"] .home-heart,html[data-theme="dark"] .street-brand-help{color:#b7c8dc}
+html[data-theme="dark"] .mask.open{background:rgba(0,8,20,.55)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.btn-primary:active,.btn-outline:active,.street-route:active,.home-heart:active,.home-radius button:active,.home-switch button:active,.street-round:active,.navitem:active .ni{transform:none}}

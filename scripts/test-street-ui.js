@@ -106,6 +106,20 @@ function fakeMapRuntime(){
       }
     }
     assert.deepEqual(errors,[]);
+    await page.emulateMedia({reducedMotion:'reduce'});
+    assert.equal(await page.locator('#sheet').evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
+    assert.equal(await page.locator('#sheet').getAttribute('role'),'dialog');
+    await page.locator('#sheet').focus();
+    await page.keyboard.press('Tab');
+    assert(await page.locator('#sheet').evaluate(el=>el.contains(document.activeElement)&&el!==document.activeElement));
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    await page.evaluate(()=>{closeSheet();switchTab('home')});
+    for(const width of [320,390,1024]){
+      await page.setViewportSize({width,height:844});
+      await page.evaluate(()=>document.documentElement.setAttribute('data-theme','light'));
+      assert.equal(await page.locator('#screen-home').evaluate(el=>el.scrollWidth>el.clientWidth),false,'Home must not overflow');
+      await page.screenshot({path:`release/street-parking-checks/home-polish-${width}.png`,animations:'disabled'});
+    }
     console.log('Mobile editor, vertices, reversal, unknown-price guard, atomic save payload, card and map filters: OK (isolated map/API doubles)');
     if(process.env.PARKY_REAL_MAP==='1'){
       const real=await browser.newPage({viewport:{width:390,height:844}});
