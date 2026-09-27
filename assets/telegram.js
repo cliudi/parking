@@ -59,13 +59,64 @@
     }
     app.onEvent('themeChanged',theme);theme();
     function layout(){
-      const height=Number(app.viewportHeight);
+      const height=document.fullscreenElement?window.innerHeight:Number(app.viewportHeight);
       if(height>0)root.style.setProperty('--parky-tg-height',height+'px');
       for(const side of ['top','bottom','left','right']){
         const device=Math.max(0,Number(app.safeAreaInset?.[side])||0);
         const content=Math.max(0,Number(app.contentSafeAreaInset?.[side])||0);
         root.style.setProperty('--parky-tg-'+side,(device+content)+'px');
       }
+    }
+    function desktopFullscreen(){
+      const desktop=['tdesktop','macos','unigram'].includes(app.platform)||(['web','weba','webk'].includes(app.platform)&&matchMedia('(hover: hover) and (pointer: fine)').matches);
+      if(!desktop)return;
+      root.classList.add('telegram-desktop');
+      const bar=document.createElement('div');bar.className='telegram-windowbar';
+      const brand=document.createElement('span');brand.textContent='Parky';
+      const button=document.createElement('button');button.type='button';button.id='telegramFullscreen';
+      bar.append(brand,button);document.body.append(bar);
+      let pending=false,timer=null,nativeUnsupported=false;
+      const text=()=>({
+        ru:{enter:'На весь экран',exit:'Выйти из полного экрана',unavailable:'Полный экран недоступен в этой версии Telegram. Разверните окно кнопкой □ в его заголовке.',fallback:'Telegram не включил полный экран. Нажмите кнопку ещё раз, чтобы попробовать режим браузера.',failed:'Не удалось переключить экран. Можно повторить или развернуть окно кнопкой □.'},
+        en:{enter:'Full screen',exit:'Exit full screen',unavailable:'Full screen is unavailable in this Telegram version. Maximize the window using its title bar.',fallback:'Telegram could not enter full screen. Press again to try browser full screen.',failed:'Could not switch display mode. Try again or maximize the window.'},
+        uz:{enter:'To‘liq ekran',exit:'To‘liq ekrandan chiqish',unavailable:'Bu Telegram versiyasida to‘liq ekran mavjud emas. Oynani sarlavhadagi □ tugmasi bilan kattalashtiring.',fallback:'Telegram to‘liq ekranga o‘tmadi. Brauzer rejimini sinash uchun yana bosing.',failed:'Ekran rejimi o‘zgarmadi. Qayta urinib ko‘ring yoki oynani kattalashtiring.'}
+      })[lang]||{};
+      const browserAvailable=()=>!!document.fullscreenEnabled&&typeof root.requestFullscreen==='function';
+      function render(){
+        const full=!!app.isFullscreen||!!document.fullscreenElement;
+        const title=full?text().exit:text().enter;
+        button.textContent=(full?'↙ ':'⛶ ')+title;button.title=title;
+        button.setAttribute('aria-label',title);button.setAttribute('aria-pressed',String(full));
+        button.setAttribute('aria-busy',String(pending));button.disabled=pending;
+      }
+      function settled(){
+        clearTimeout(timer);timer=null;pending=false;render();layout();
+        requestAnimationFrame(()=>{window.dispatchEvent(new Event('resize'));ymap?.container?.fitToViewport()});
+      }
+      function failed(event){
+        if(!pending)return;
+        if(event?.error==='ALREADY_FULLSCREEN'&&app.isFullscreen){settled();return}
+        if(event?.error==='UNSUPPORTED')nativeUnsupported=true;
+        settled();toast(nativeUnsupported?(browserAvailable()?text().fallback:text().unavailable):text().failed);
+      }
+      button.onclick=()=>{
+        if(pending)return;
+        const native=supported('8.0')&&!nativeUnsupported&&typeof app.requestFullscreen==='function'&&typeof app.exitFullscreen==='function';
+        if(!document.fullscreenElement&&!app.isFullscreen&&!native&&!browserAvailable()){toast(text().unavailable);return}
+        pending=true;render();timer=setTimeout(()=>failed({error:'TIMEOUT'}),5000);
+        try{
+          if(document.fullscreenElement)Promise.resolve(document.exitFullscreen()).then(settled).catch(()=>failed());
+          else if(app.isFullscreen){if(typeof app.exitFullscreen!=='function')failed();else app.exitFullscreen()}
+          else if(native)app.requestFullscreen();
+          // Browser fallback must also run directly from an explicit click.
+          else Promise.resolve(root.requestFullscreen()).then(settled).catch(()=>failed());
+        }catch(e){failed()}
+      };
+      if(supported('8.0')){app.onEvent('fullscreenChanged',settled);app.onEvent('fullscreenFailed',failed)}
+      document.addEventListener('fullscreenchange',settled);
+      new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['lang']});
+      render();
+      // Fullsize remains the launch default. No automatic fullscreen request.
     }
     const on=id=>document.getElementById(id)?.classList.contains('on');
     const sheetOpen=()=>document.getElementById('mask')?.classList.contains('open');
@@ -95,6 +146,7 @@
       if(activeTab!=='home')switchTab('home');
     }
     app.onEvent('viewportChanged',layout);
+    window.addEventListener('resize',layout);
     if(supported('8.0')){
       app.onEvent('safeAreaChanged',layout);
       app.onEvent('contentSafeAreaChanged',layout);
@@ -108,7 +160,7 @@
     }
     observer.observe(document.getElementById('bottomnav'),{childList:true});
     observer.observe(document.body,{subtree:true,attributes:true,attributeFilter:['open']});
-    layout();sync();app.ready();app.expand();
+    desktopFullscreen();layout();sync();app.ready();app.expand();
     window.dispatchEvent(new Event('parky:telegram-ready'));
   }
   if(window.Telegram?.WebApp){connect();return}
