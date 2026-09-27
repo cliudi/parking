@@ -15,7 +15,24 @@ window.ParkyLocation=(()=>{
     if(node)node.textContent=[busy?c.search:'',label(),sample&&sample.source!=='manual'?(sample.unknown?c.unknown:'±'+Math.round(sample.acc)+' '+t('unitM')):'',error].filter(Boolean).join(' · ');
     document.getElementById('manualLocationButton').textContent=c.button;
     const badge=document.getElementById('accbadge');
-    if(badge&&sample){badge.textContent=label()+(sample.source==='manual'?'':sample.unknown?' · '+c.unknown:' · ±'+Math.round(sample.acc)+' '+t('unitM'));badge.className='accbadge on '+(stale()||sample.acc>100?'bad':'good')}
+    if(badge){
+      const message=choosing?c.pick:busy?c.search:error||(!sample?c.none:label()+(sample.source==='manual'?'':sample.unknown?' · '+c.unknown:' · ±'+Math.round(sample.acc)+' '+t('unitM')));
+      const actions=(!sample||!!error)&&!busy&&!choosing;
+      const signature=JSON.stringify([message,actions,lang]);
+      if(badge.dataset.state!==signature){
+        badge.dataset.state=signature;badge.replaceChildren();
+        const text=document.createElement('span');text.textContent=message;badge.append(text);
+        if(actions){
+          const row=document.createElement('div');row.className='location-actions';
+          for(const [title,action] of [
+            [({ru:'Определить',en:'Locate me',uz:'Aniqlash'})[lang],()=>request(true)],
+            [({ru:'На карте',en:'Choose on map',uz:'Xaritadan'})[lang],pick]
+          ]){const button=document.createElement('button');button.type='button';button.textContent=title;button.onclick=event=>{event.stopPropagation();action()};row.append(button)}
+          badge.append(row);
+        }
+      }
+      badge.className='accbadge on '+(error||!sample||stale()||sample.acc>100?'bad':'good');
+    }
     if(!window.ParkyDestination?.active())document.getElementById('homeNearTitle').textContent=label();
     const usable=!!origin();
     if(lastUsable!==usable){lastUsable=usable;requestAnimationFrame(()=>renderHomeList())}
@@ -65,11 +82,9 @@ window.ParkyLocation=(()=>{
     const receive=p=>{if(accept(p,id)){got=true;if(sample.acc<=60){complete()}}};
     const failure=e=>{if(id!==generation)return;if(e?.code===1){denied=true;complete()}};
     timer=setTimeout(complete,22000);
-    try{
-      if(window.ParkyTelegram?.locationAvailable()){
-        if(!explicit){complete();return done}
-        ParkyTelegram.location().then(p=>{receive(p);complete()}).catch(e=>{failure(e);complete()});
-      }else{
+    const startDevice=async()=>{
+      if(id!==generation||!busy)return;
+      try{
         const geo=GeoPlugin();
         if(!geo&&!navigator.geolocation)throw Error('Location unavailable');
         if(geo&&!await ensurePermission()){failure({code:1});return done}
@@ -88,8 +103,19 @@ window.ParkyLocation=(()=>{
           navigator.geolocation.getCurrentPosition(receive,failure,quick);
           navigator.geolocation.getCurrentPosition(receive,failure,precise);
         }
-      }
-    }catch(e){complete()}
+      }catch(e){failure(e);complete()}
+    };
+    if(window.ParkyTelegram?.locationAvailable()){
+      if(!explicit){complete();return done}
+      ParkyTelegram.location().then(p=>{receive(p);complete()}).catch(e=>{
+        if(id!==generation||!busy)return;
+        // A denial is final. Only an unavailable/failed Telegram provider may
+        // fall back to the device API; never IP-based or saved coordinates.
+        if(e?.code===1){failure(e);return}
+        clearTimeout(timer);timer=setTimeout(complete,22000);
+        startDevice();
+      });
+    }else startDevice();
     return done;
   }
   function pick(){

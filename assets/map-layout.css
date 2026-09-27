@@ -1,0 +1,7 @@
+#minicard{
+  max-height:calc(100dvh - var(--top,0px) - var(--bot,0px) - var(--nav,60px) - 160px);
+  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  scroll-padding:12px;touch-action:pan-y;
+}
+/* Map controls are behind the open card; do not leave status text above it. */
+.map-card-open .sidefabs>.accbadge{visibility:hidden}

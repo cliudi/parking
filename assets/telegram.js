@@ -10,13 +10,27 @@
     root.classList.add('telegram-app');
     const supported=v=>typeof app.isVersionAtLeast==='function'&&app.isVersionAtLeast(v);
     const manager=supported('8.0')?app.LocationManager:null;
+    // Share initialization: some hosts expose the API but never initialize it.
     // Initialization alone does not request the user's position.
-    if(manager)manager.init();
+    let initializing=null;
+    const initialize=()=>{
+      if(!manager)return Promise.reject({code:2});
+      if(manager.isInited)return Promise.resolve();
+      if(initializing)return initializing;
+      initializing=new Promise((resolve,reject)=>{
+        const timeout=setTimeout(()=>reject({code:3}),4000);
+        try{manager.init(()=>{clearTimeout(timeout);resolve()})}
+        catch(e){clearTimeout(timeout);reject(e)}
+      }).finally(()=>{initializing=null});
+      return initializing;
+    };
+    initialize().catch(()=>{});
     window.ParkyTelegram={
-      locationAvailable:()=>!!manager,
+      locationAvailable:()=>!!manager&&(!manager.isInited||manager.isLocationAvailable),
       location:()=>new Promise((resolve,reject)=>{
         let settled=false;
-        const timeout=setTimeout(()=>{settled=true;reject({code:3})},20000);
+        const timeout=setTimeout(()=>{settled=true;reject({code:3})},10000);
+        const fail=e=>{if(settled)return;settled=true;clearTimeout(timeout);reject(e)};
         const finish=(p)=>{
           if(settled)return;settled=true;clearTimeout(timeout);
           if(!p){reject({code:1});return}
@@ -24,10 +38,10 @@
         };
         const request=()=>{
           if(settled)return;
-          if(!manager.isLocationAvailable){settled=true;clearTimeout(timeout);reject({code:2});return}
+          if(!manager.isLocationAvailable){fail({code:2});return}
           manager.getLocation(finish);
         };
-        try{manager.isInited?request():manager.init(request)}catch(e){settled=true;clearTimeout(timeout);reject(e)}
+        initialize().then(request).catch(fail);
       }),
       openLink:url=>{
         if(!supported('6.1'))return false;

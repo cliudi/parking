@@ -15,3 +15,6 @@
 }
 .sidefabs>.accbadge.bad{color:#92400e}
 html[data-theme="dark"] .sidefabs>.accbadge.bad{color:#FBBF24}
+.location-actions{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;pointer-events:auto}
+.location-actions button{min-height:44px;padding:6px 10px;border:1px solid var(--line,#dde5ef);border-radius:10px;background:var(--card,#fff);color:var(--ink,#0b2440);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.location-actions button:focus-visible{outline:2px solid #0b7afb;outline-offset:2px}
