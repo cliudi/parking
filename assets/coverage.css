@@ -10,4 +10,10 @@
 #coverageList{max-height:250px;overflow:auto;display:grid;gap:6px}
 #coverageList button{text-align:left;white-space:normal;min-height:44px}
 #coverageMessage{padding:0 16px 12px;line-height:1.5}
+.draft-ready-tools{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line)}
+.draft-ready-tools label{display:flex;align-items:center;gap:8px;min-height:44px;font-weight:700}
+.draft-ready-tools input{width:20px;height:20px;accent-color:#159b64}
+.draft-ready-tools span{font-size:12px;line-height:1.5;color:var(--muted)}
+.draft-ready-tools small{flex-basis:100%;color:var(--muted);line-height:1.5}
+#draftReadyRetry[hidden]{display:none!important}
 @media(max-width:820px){.coverage-layout{grid-template-columns:1fr}#coverageMap{height:45vh;min-height:280px}}

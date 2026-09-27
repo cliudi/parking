@@ -331,6 +331,13 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         <label><input id="draftMapDuplicates" type="checkbox"> Возможный дубль</label>
       </div>
       <div id="draftMapCounts" class="draft-map-counts"></div>
+      <div class="draft-ready-tools">
+        <label><input type="checkbox" id="draftReadyCoverage" checked> Готовые участки улиц</label>
+        <span id="draftReadyStatus" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-secondary" id="draftReadyRetry" hidden>Повторить</button>
+        <button type="button" class="btn btn-secondary" onclick="showSection('coverage')">Изменить покрытие</button>
+        <small>Зелёный — парковки внесены, синий — парковок не найдено. Только проверенные участки; не разрешение на стоянку.</small>
+      </div>
       <div class="draft-map-wrap">
         <div id="draftMap"></div>
         <div id="draftMapHint" class="draft-map-hint">Приблизьте карту, чтобы проверить расположение черновиков.</div>
@@ -1215,6 +1222,7 @@ function initDraftMap(){
       });
     }else draftMap.container.fitToViewport();
     renderDraftMap(true);
+    window.ParkyDraftCoverage?.open(draftMap);
   });
 }
 function renderDraftMap(fit=false){
@@ -2410,5 +2418,7 @@ checkSession();
 <script src="assets/street-editor.js"></script>
 <link rel="stylesheet" href="assets/coverage.css">
 <script src="assets/coverage.js"></script>
+<script src="assets/coverage-lines.js"></script>
+<script src="assets/draft-coverage.js"></script>
 </body>
 </html>
