@@ -13,13 +13,14 @@ function fakeMapRuntime(){
   class Events{constructor(){this.listeners={}}add(name,fn){(this.listeners[name]??=[]).push(fn);return this}fire(name,data){for(const f of this.listeners[name]||[])f({get:k=>data[k]})}}
   class Options{constructor(v={}){this.values=v}set(k,v){typeof k==='string'?this.values[k]=v:Object.assign(this.values,k)}get(k){return this.values[k]}}
   class Shape{constructor(coords,props={},opts={}){this.coords=coords;this.events=new Events();this.options=new Options(opts);this.properties=new Options(props);this.geometry={getCoordinates:()=>this.coords,setCoordinates:c=>this.coords=c,getBounds:()=>[[41,69],[41.01,69.01]]}}}
-  class Map{constructor(id,{center,zoom}){this.center=center;this.zoom=zoom;this.events=new Events();this.objects=[];this.geoObjects={add:o=>this.objects.push(o),remove:o=>this.objects=this.objects.filter(x=>x!==o)};this.container={fitToViewport(){}}}getCenter(){return this.center}getZoom(){return this.zoom}getBounds(){return [[40,68],[42,70]]}setCenter(c,z){this.center=c;if(z)this.zoom=z}setBounds(){return Promise.resolve()}panTo(c){this.center=c}}
+  class Map{constructor(id,{center,zoom}){(window.testMaps??={})[id]=this;this.center=center;this.zoom=zoom;this.events=new Events();this.objects=[];this.geoObjects={add:o=>this.objects.push(o),remove:o=>this.objects=this.objects.filter(x=>x!==o)};this.container={fitToViewport(){}}}getCenter(){return this.center}getZoom(){return this.zoom}getBounds(){return [[40,68],[42,70]]}setCenter(c,z){this.center=c;if(z)this.zoom=z}setBounds(){return Promise.resolve()}panTo(c){this.center=c}}
   class ObjectManager{constructor(){this.items=[];this.objects={events:new Events(),each:fn=>this.items.forEach(fn),getById:id=>this.items.find(x=>x.id===id),setObjectOptions(){}}}add(collection){this.items.push(...collection.features)}remove(ids){this.items=this.items.filter(x=>!ids.includes(x.id))}removeAll(){this.items=[]}}
   window.ymaps={ready:fn=>fn(),Map,Placemark:Shape,Polyline:Shape,ObjectManager};
   window.testCalls=[];
   window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}})},rpc:async(name,payload)=>{window.testCalls.push({name,payload});return {data:name==='admin_save_street_parking'?'00000000-0000-4000-8000-000000000001':null,error:null}}})};
 }
-(async()=>{
+module.exports={server,fakeMapRuntime};
+if(require.main===module)(async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const origin='http://127.0.0.1:'+server.address().port;
   let browser;

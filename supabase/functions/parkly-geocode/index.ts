@@ -106,6 +106,39 @@ async function reverseWithOpenStreetMap(lat: number, lng: number) {
   return address ? { address, label: address.split(",")[0] || address, provider: "openstreetmap" } : null;
 }
 
+// Place search is not reverse geocoding. An address-only fallback is explicitly
+// marked so the UI never pretends a street match is the requested business.
+async function searchDestinations(query: string, addressesOnly = false) {
+  const key = Deno.env.get("YANDEX_SEARCH_API_KEY");
+  if (key && !addressesOnly) {
+    const params = new URLSearchParams({apikey:key,text:query,lang:"ru_RU",results:"8",ll:"69.265,41.3111",spn:"0.65,0.5",rspn:"1"});
+    try {
+      const response = await fetchWithTimeout(`https://search-maps.yandex.ru/v1/?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        const results = (data.features || []).map((f: any) => ({
+          coords: [f.geometry?.coordinates?.[1], f.geometry?.coordinates?.[0]],
+          label: String(f.properties?.name || ""),
+          description: String(f.properties?.CompanyMetaData?.address || f.properties?.description || ""),
+        })).filter((f: any) => f.label && f.coords.every(Number.isFinite));
+        return {results,addressOnly:false};
+      }
+    } catch { /* address fallback below */ }
+  }
+  const geocoderKey = Deno.env.get("YANDEX_GEOCODER_API_KEY");
+  if (!geocoderKey) return null;
+  const params = new URLSearchParams({apikey:geocoderKey,geocode:query,format:"json",lang:"ru_RU",results:"8",ll:"69.265,41.3111",spn:"0.65,0.5",rspn:"1"});
+  const response = await fetchWithTimeout(`https://geocode-maps.yandex.ru/v1/?${params}`);
+  if (!response.ok) return null;
+  const payload = await response.json();
+  const results = (payload?.response?.GeoObjectCollection?.featureMember || []).map((item: any) => {
+    const o = item.GeoObject;
+    const [lng,lat] = String(o?.Point?.pos || "").split(/\s+/).map(Number);
+    return {coords:[lat,lng],label:String(o?.name || ""),description:String(o?.description || "")};
+  }).filter((f: any) => f.label && f.coords.every(Number.isFinite));
+  return {results,addressOnly:true};
+}
+
 export default {
   fetch: withSupabase({ auth: ["publishable", "secret"] }, async (request) => {
   const origin = request.headers.get("origin");
@@ -123,6 +156,12 @@ export default {
       return json(request, { error: "request_too_large" }, 413);
     }
     const input = JSON.parse(rawBody);
+    if (input?.mode === "search" || input?.mode === "search-address") {
+      const query = typeof input.query === "string" ? input.query.trim() : "";
+      if (query.length < 2 || query.length > 200) return json(request,{error:"invalid_query"},400);
+      const result = await searchDestinations(query, input.mode === "search-address");
+      return result ? json(request,result) : json(request,{error:"search_not_configured"},503);
+    }
     const lat = Number(input?.lat);
     const lng = Number(input?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {

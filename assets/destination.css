@@ -1,0 +1,9 @@
+#destinationChoices{display:grid;gap:7px;margin-top:12px}
+#destinationChoices button{min-height:48px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card);color:var(--ink);text-align:left;font:inherit}
+#destinationChoices button small{display:block;color:var(--ink2);margin-top:4px}
+.destination-summary{grid-column:1/-1;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);line-height:1.6}
+.destination-card{display:grid;gap:10px;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card);color:var(--ink)}
+.destination-card h3,.destination-card p{margin:0}.destination-card p{color:var(--ink2)}
+.destination-actions{display:flex;gap:8px;flex-wrap:wrap}.destination-actions button{min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}
+.destination-actions button:first-child{background:#0869ed;color:white;border-color:#0869ed}
+#parkingLoadStatus{padding:14px;line-height:1.6}

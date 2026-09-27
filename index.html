@@ -662,15 +662,18 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
     <div class="home-copy"><small>PARKY</small><h1 id="homeHeadline">Парковка рядом — без лишних кругов</h1><p id="homeSubtitle">Находите проверенные парковки, условия въезда и маршрут в одном приложении.</p></div>
     <label class="home-search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-      <input id="homeSearch" autocomplete="off" placeholder="Адрес, район или парковка" oninput="renderHomeList()" onkeydown="if(event.key==='Enter')homeSearchOnMap()">
+      <input id="homeSearch" autocomplete="off" maxlength="200" aria-label="Место назначения" placeholder="Введите место или адрес" oninput="window.ParkyDestination?.input()" onkeydown="if(event.key==='Enter'){event.preventDefault();homeSearchOnMap()}">
     </label>
-    <div class="home-switch"><button class="on" type="button" onclick="switchTab('map')" id="homeMapButton">Карта</button><button type="button" onclick="renderHome()" id="homeListButton">Список</button></div>
+    <div class="home-switch"><button id="destinationSearchButton" class="on" type="button" onclick="homeSearchOnMap()">Найти парковку</button><button id="destinationNearbyButton" type="button" onclick="window.ParkyDestination?.nearby()">Рядом со мной</button></div>
+    <div id="destinationChoices" aria-live="polite"></div>
+    <div class="home-switch"><button type="button" onclick="ParkyDestination.map()" id="homeMapButton">Карта</button><button type="button" onclick="renderHome()" id="homeListButton">Список</button></div>
   </div>
   <div class="home-body">
     <div class="home-near-title"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg><span id="homeNearTitle">Рядом со мной</span></div>
     <div class="home-radius" id="homeRadius"></div>
-    <div class="home-section-head"><h2 id="homeParkingTitle">Ближайшие парковки</h2><button type="button" onclick="switchTab('map')" id="homeAllButton">Все →</button></div>
+    <div class="home-section-head"><h2 id="homeParkingTitle">Ближайшие парковки</h2><button type="button" onclick="ParkyDestination.map()" id="homeAllButton">Все →</button></div>
     <div class="home-list" id="homeParkingList"></div>
+    <div id="parkingLoadStatus" role="status" aria-live="polite"></div>
   </div>
 </section>
 
@@ -1054,7 +1057,7 @@ async function supabaseRpc(name,payload){
 function fromDbRow(r){
   return {
     id: String(r.id), name: cleanText(r.name)||'Парковка', addr: cleanText(r.address),
-    lat: Number(r.lat_out), lng: Number(r.lng_out),
+    lat: r.lat_out==null?NaN:Number(r.lat_out), lng: r.lng_out==null?NaN:Number(r.lng_out),
     category: r.category,
     price_type: r.price_type,
     price_val: r.price_hour||0,
@@ -1123,6 +1126,18 @@ let parkingLoadController=null;
 let lastParkingLoadKey='';
 let lastParkingLoadAt=0;
 let parkingLoadGeneration=0;
+let parkingLoadState='loading';
+function renderParkingLoadState(){
+  const node=document.getElementById('parkingLoadStatus');if(!node)return;
+  node.replaceChildren();
+  if(window.ParkyDestination?.active())return;
+  if(parkingLoadState==='loading')node.textContent=({ru:'Загружаем парковки…',uz:'Avtoturargohlar yuklanmoqda…',en:'Loading parking…'})[lang];
+  if(parkingLoadState==='error'){
+    node.textContent=t('networkErr')+' ';
+    const retry=document.createElement('button');retry.type='button';retry.className='btn-outline';retry.textContent=({ru:'Повторить загрузку',uz:'Qayta yuklash',en:'Retry'})[lang];
+    retry.onclick=()=>{lastParkingLoadAt=0;const c=ymap?.getCenter()||[mePos?.lat,mePos?.lng];loadParkingsFromDB(c[0],c[1])};node.append(retry);
+  }
+}
 async function loadParkingsFromDB(lat, lng, radius){
   const body = {
     lat: Number.isFinite(Number(lat))&&lat!=null?Number(lat):41.3111, lng: Number.isFinite(Number(lng))&&lng!=null?Number(lng):69.2650,
@@ -1135,6 +1150,7 @@ async function loadParkingsFromDB(lat, lng, radius){
   parkingLoadController=new AbortController();
   const controller=parkingLoadController;
   const generation=++parkingLoadGeneration;
+  parkingLoadState='loading';renderParkingLoadState();
   const timeout=setTimeout(()=>controller.abort(),20000);
   let enriching=false;
   const cleanup=()=>{clearTimeout(timeout);if(controller===parkingLoadController)parkingLoadController=null};
@@ -1161,7 +1177,7 @@ async function loadParkingsFromDB(lat, lng, radius){
       if(activeTab==='fav')renderFav();
       if(activeTab==='home')renderHome();
     };
-    display();
+    parkingLoadState='ready';renderParkingLoadState();display();
     lastParkingLoadKey=requestKey;lastParkingLoadAt=Date.now();
     enriching=true;
     let details=new Map(),segments=null;
@@ -1172,6 +1188,7 @@ async function loadParkingsFromDB(lat, lng, radius){
   }catch(e){
     if(e.name==='AbortError'&&controller!==parkingLoadController)return false;
     console.warn('Supabase недоступен:',e);
+    parkingLoadState='error';renderParkingLoadState();if(activeTab==='home')renderHomeList();
     toast(t('networkErr'));
     return false;
   }finally{
@@ -1183,10 +1200,11 @@ let streetSegments=[],streetLines=new Map(),streetSegmentIds=new Set();
 async function loadStreetSegments(signal){
   try{
     const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/street_parking_segments_v2',{method:'POST',signal,headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},body:'{}'});
-    if(!res.ok){console.warn('Уличные участки недоступны:',res.status);return []}
+    if(!res.ok){console.warn('Уличные участки недоступны:',res.status);return null}
     const rows=await res.json();
-    return (Array.isArray(rows)?rows:[]).filter(x=>x.details?.legacy_point===true||ParkyStreetGeometry.valid(x.path));
-  }catch(e){if(e.name==='AbortError')throw e;console.warn('Уличные участки недоступны:',e);return []}
+    if(!Array.isArray(rows))return null;
+    return rows.filter(x=>x.details?.legacy_point===true||ParkyStreetGeometry.valid(x.path));
+  }catch(e){if(e.name==='AbortError')throw e;console.warn('Уличные участки недоступны:',e);return null}
 }
 function drawStreetSegments(){
   if(!ymap||!window.ymaps)return;
@@ -1421,6 +1439,7 @@ function showSelectedPointCard(){
     +'<div class="mc-place-facts"><div class="mc-place-fact"><small>'+t('distance')+'</small><b>'+escapeHtml(distance)+'</b></div><div class="mc-place-fact"><small>'+t('coordinates')+'</small><b>'+p.lat.toFixed(5)+', '+p.lng.toFixed(5)+'</b></div></div>'
     +'<div class="mc-main-actions"><button class="mc-btn" onclick="routeToSelectedPoint()">➤ '+t('routeHere')+'</button><button class="mc-btn secondary" onclick="sharePoint(selectedDestination)">↗ '+t('share')+'</button></div>'
     +'<div class="mc-tools"><button class="mc-btn" onclick="copyPointCoordinates()">⧉ '+t('copyCoordinates')+'</button><button class="mc-btn" onclick="centerSelectedPoint()">◎ '+t('centerMap')+'</button><button class="mc-btn" onclick="openPointInYandex()">↗ '+t('openYandex')+'</button></div>'
+    +'<button class="mc-btn" onclick="ParkyDestination.fromPoint()">'+({ru:'Найти парковку рядом с этой точкой',en:'Find parking near this point',uz:'Shu nuqta yaqinida avtoturargoh topish'})[lang]+'</button>'
     +'<div class="mc-place-note">'+t('pointNotice')+'</div></div>';
   el.classList.add('on');
 }
@@ -3028,16 +3047,16 @@ function homeDistance(p){
 function setHomeRadius(value){homeRadiusKm=Number(value)||5;renderHome()}
 function homeParkingIcon(){return '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4"><path d="M12 52V12h40v40"/><path d="M23 44V26c0-5 4-9 9-9s9 4 9 9v18"/><path d="M23 32h18"/><path d="M19 44h26"/></svg>'}
 function homeRows(){
-  const query=cleanText(document.getElementById('homeSearch')?.value).toLowerCase();
   return PARKINGS.map(p=>({p,d:homeDistance(p)}))
-    .filter(row=>(!query||(row.p.name+' '+row.p.addr).toLowerCase().includes(query))&&(!mePos||row.d<=homeRadiusKm))
+    .filter(row=>(!mePos||row.d<=homeRadiusKm))
     .sort((a,b)=>a.d-b.d||String(a.p.name).localeCompare(String(b.p.name),lang))
     .slice(0,12);
 }
 function renderHomeList(){
+  if(window.ParkyDestination?.render())return;
   const list=document.getElementById('homeParkingList');if(!list)return;
   const rows=homeRows();
-  if(!rows.length){list.innerHTML='<div class="home-empty"><b>'+t('homeEmpty')+'</b>'+t('homeEmptyHint')+'</div>';return}
+  if(!rows.length){list.innerHTML=parkingLoadState==='ready'?'<div class="home-empty"><b>'+t('homeEmpty')+'</b>'+t('homeEmptyHint')+'</div>':'';return}
   list.innerHTML=rows.map(({p,d})=>{
     const photo=p.photo?'<img src="'+escapeHtml(p.photo)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':homeParkingIcon();
     const distance=Number.isFinite(d)?(d<1?Math.max(1,Math.round(d*1000))+' '+t('unitM'):d.toFixed(1)+' '+t('unitKm')):'';
@@ -3054,12 +3073,12 @@ function renderHome(){
   const radius=document.getElementById('homeRadius');
   if(radius)radius.innerHTML=[.5,1,2,5].map(value=>'<button type="button" class="'+(homeRadiusKm===value?'on':'')+'" onclick="setHomeRadius('+value+')">'+(value<1?'500 '+t('unitM'):value.toFixed(1)+' '+t('unitKm'))+'</button>').join('');
   renderHomeList();
+  renderParkingLoadState();
 }
 async function toggleHomeFavorite(id){await toggleFav(id,null);renderHomeList()}
 function openHomeParking(id){switchTab('map');setTimeout(()=>selectParking(id),40)}
 function homeSearchOnMap(){
-  const query=cleanText(document.getElementById('homeSearch')?.value);if(!query)return;
-  const mapSearch=document.getElementById('search');mapSearch.value=query;switchTab('map');mapSearch.dispatchEvent(new Event('change'));
+  window.ParkyDestination?.search();
 }
 
 /* ═══════════ НАВИГАЦИЯ ПО ЭКРАНАМ ═══════════ */
@@ -3299,5 +3318,7 @@ if(authSession){
   else window.addEventListener('load',start);
 })();
 </script>
+<link rel="stylesheet" href="assets/destination.css">
+<script src="assets/destination.js"></script>
 </body>
 </html>

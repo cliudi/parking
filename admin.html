@@ -239,6 +239,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <button class="nav-item" id="pendingNav">◷ Парковки на модерации</button>
       <button class="nav-item" id="draftNav">◫ Черновики</button>
       <button class="nav-item" id="draftMapNav">⌖ Карта черновиков</button>
+      <button class="nav-item" id="coverageNav" onclick="showSection('coverage')">▱ Покрытие улиц</button>
       <button class="nav-item" id="approvedNav">✓ Опубликованные</button>
       <button class="nav-item" id="submissionsNav">＋ Заявки пользователей</button>
       <button class="nav-item" id="reportsNav">⚑ Сообщения об ошибках</button>
@@ -272,6 +273,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
       <article class="stat"><div class="stat-top"><span>С зарядкой</span><span class="stat-icon">⚡</span></div><div id="statEv" class="stat-value">0</div><div class="stat-note">EV-парковки и станции</div></article>
     </section>
 
+    <section id="coveragePanel" class="panel hidden"></section>
     <section id="parkingsPanel" class="panel">
       <div class="filters">
         <div class="search-wrap"><span>⌕</span><input id="search" class="control" placeholder="Поиск по названию, адресу или району"></div>
@@ -876,7 +878,7 @@ $('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=
 $('resetFilters').onclick=()=>{$('search').value='';['statusFilter','categoryFilter','qualityFilter','sourceFilter','photoFilter','updatedFromFilter','updatedToFilter'].forEach(id=>$(id).value='');parkingPage=0;showSection('parkings',{replaceRoute:true})};
 $('parkingPrev').onclick=()=>{if(parkingPage>0){parkingPage--;parkingServerMode?loadParkings():renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
 $('parkingNext').onclick=()=>{const pages=Math.ceil((parkingServerMode?parkingTotal:filtered().length)/parkingPageSize);if(parkingPage+1<pages){parkingPage++;parkingServerMode?loadParkings():renderRows();writeAdminRoute('parkings',true);$('parkingsPanel').scrollIntoView({behavior:'smooth'})}};
-$('refreshBtn').onclick=loadParkings;
+$('refreshBtn').onclick=()=>currentAdminSection==='coverage'?ParkyCoverage.load():showSection(currentAdminSection,{replaceRoute:true,preservePage:true});
 $('parkingsNav').onclick=()=>selectParkingSection('');
 $('pendingNav').onclick=()=>selectParkingSection('PENDING');
 $('draftNav').onclick=()=>selectParkingSection('DRAFT');
@@ -934,7 +936,7 @@ function parkingSectionInfo(){
 function updateSidebarActiveState(section){
   const parkingNav={PENDING:'pendingNav',DRAFT:'draftNav',APPROVED:'approvedNav'}[val('statusFilter')]||'parkingsNav';
   const activeId=section==='parkings'?parkingNav:({
-    'draft-map':'draftMapNav',submissions:'submissionsNav',reports:'reportsNav',audit:'auditNav',users:'usersNav',osm:'osmNav'
+    coverage:'coverageNav','draft-map':'draftMapNav',submissions:'submissionsNav',reports:'reportsNav',audit:'auditNav',users:'usersNav',osm:'osmNav'
   })[section];
   document.querySelectorAll('.nav-item').forEach(item=>{
     const active=item.id===activeId;
@@ -955,7 +957,7 @@ $('draftMapReset').onclick=()=>{
 };
 
 function readAdminRoute(){
-  const raw=location.hash.slice(1),parts=raw.split('?'),allowed=['parkings','draft-map','submissions','reports','audit','users','osm'];
+  const raw=location.hash.slice(1),parts=raw.split('?'),allowed=['parkings','draft-map','coverage','submissions','reports','audit','users','osm'];
   return {section:allowed.includes(parts[0])?parts[0]:'parkings',params:new URLSearchParams(parts[1]||'')};
 }
 function writeAdminRoute(section,replace=false){
@@ -1003,8 +1005,10 @@ function restoreAdminRoute(){
 window.addEventListener('hashchange',()=>{if(!$('adminView').classList.contains('hidden'))restoreAdminRoute()});
 
 function showSection(section,options={}){
+  if(currentAdminSection==='coverage'&&section!=='coverage'&&!ParkyCoverage.leave())return;
   currentAdminSection=section;
   const info=section==='parkings'?parkingSectionInfo():({
+    coverage:['Покрытие улиц','Личный учёт проверки улиц — не разрешение на парковку'],
     'draft-map':['Карта черновиков','Визуальная проверка, дубли и публикация парковок'],
     submissions:['Заявки пользователей','Проверка и публикация предложенных парковок'],
     reports:['Сообщения об ошибках','Проверка жалоб и исправлений пользователей'],
@@ -1014,6 +1018,9 @@ function showSection(section,options={}){
   }[section]);
   $('pageTitle').textContent=info[0];$('pageSubtitle').textContent=info[1];
   $('parkingsPanel').classList.toggle('hidden',section!=='parkings');
+  $('coveragePanel').classList.toggle('hidden',section!=='coverage');
+  document.querySelector('.stats').classList.toggle('hidden',section==='coverage');
+  if(section==='coverage')setTimeout(()=>ParkyCoverage.open(),0);
   $('draftMapPanel').classList.toggle('hidden',section!=='draft-map');
   $('submissionsPanel').classList.toggle('hidden',section!=='submissions');
   $('reportsPanel').classList.toggle('hidden',section!=='reports');
@@ -2401,5 +2408,7 @@ $('parkingForm').addEventListener('submit',async e=>{
 checkSession();
 </script>
 <script src="assets/street-editor.js"></script>
+<link rel="stylesheet" href="assets/coverage.css">
+<script src="assets/coverage.js"></script>
 </body>
 </html>

@@ -1,0 +1,89 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {server,fakeMapRuntime}=require('./test-street-ui');
+const {chromium}=require(process.env.PARKY_PLAYWRIGHT_MODULE||'playwright');
+(async()=>{
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  const origin='http://127.0.0.1:'+server.address().port;
+  const browser=await chromium.launch({headless:true,executablePath:process.env.PARKY_CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+  try{
+    const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];
+    page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+    await page.route('**/*',route=>route.request().url().startsWith(origin)?route.continue():route.fulfill({status:200,contentType:'application/json',body:'[]'}));
+    await page.addInitScript(fakeMapRuntime);
+    await page.goto(origin+'/admin.html');
+    await page.evaluate(()=>{
+      window.coverageRows=[];
+      sb.from=()=>({select:()=>({order:()=>({order:()=>({range:async()=>({data:coverageRows,error:null})})})})});
+      sb.rpc=async(name,args)=>{
+        testCalls.push({name,args});
+        if(name==='admin_save_street_coverage'){coverageRows=[{...args.p_data,id:'coverage-test',version:1}];return {data:'coverage-test',error:null}}
+        if(name==='admin_delete_street_coverage')coverageRows=[];
+        return {data:[],error:null};
+      };
+      document.getElementById('loginView').classList.add('hidden');document.getElementById('adminView').classList.remove('hidden');
+      showSection('coverage');
+    });
+    await page.waitForFunction(()=>window.testMaps?.coverageMap);
+    await page.locator('#coverageNew').click();
+    await page.evaluate(()=>{testMaps.coverageMap.events.fire('click',{coords:[41.3,69.2]});testMaps.coverageMap.events.fire('click',{coords:[41.301,69.202]})});
+    await page.locator('#coverageStatus').selectOption('no_parking');
+    await page.locator('#coverageSave').click();
+    assert.equal(await page.evaluate(()=>testCalls.filter(x=>x.name==='admin_save_street_coverage').length),0,'Completed surveys require checked date');
+    await page.locator('#coverageDate').fill('2026-09-20');
+    await page.locator('#coverageSide').selectOption('right');
+    await page.locator('#coverageReverse').click();
+    assert.equal(await page.locator('#coverageSide').inputValue(),'left');
+    await page.locator('#coverageSave').click();
+    await page.waitForFunction(()=>coverageRows.length===1);
+    await page.waitForFunction(()=>document.getElementById('coverageMessage').textContent.includes('Участок сохранён'));
+    assert.equal(await page.evaluate(()=>coverageRows[0].path.length),2);
+    await page.locator('#coverageList button').click();
+    assert(await page.locator('#coverageStatus').isDisabled(),'View mode must be read-only');
+    fs.mkdirSync('release/coverage-destination-checks',{recursive:true});
+    await page.screenshot({path:'release/coverage-destination-checks/coverage-mobile.png',fullPage:true});
+    await page.locator('#coverageEdit').click();
+    await page.evaluate(()=>testMaps.coverageMap.events.fire('click',{coords:[41.305,69.205]}));
+    await page.locator('#coverageSave').click();
+    await page.waitForFunction(()=>coverageRows[0].path.length===3);
+    await page.waitForFunction(()=>document.getElementById('coverageMessage').textContent.includes('Участок сохранён'));
+    await page.locator('#coverageList button').click();await page.locator('#coverageEdit').click();await page.locator('#coverageDelete').click();
+    await page.waitForFunction(()=>coverageRows.length===0);
+    assert.equal(await page.evaluate(()=>readAdminRoute().section),'coverage');
+    console.log('Coverage: create, date validation, reverse side, view lock, continue, delete, route OK');
+
+    await page.goto(origin+'/index.html');
+    await page.evaluate(()=>{localStorage.setItem('parkly-onboarding-complete','1');document.getElementById('brandSplash')?.remove()});
+    await page.evaluate(()=>finishOnboarding(false));
+    await page.route('**/rest/v1/rpc/parkings_nearby',async route=>{
+      const body=route.request().postDataJSON();
+      const row={id:'destination-parking',name:'Тестовая парковка',address:'Тестовый адрес',category:'OFFICIAL',price_type:'free',lat_out:body.lat+.0036,lng_out:body.lng,distance_m:400};
+      await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([row])});
+    });
+    await page.route('**/rest/v1/parkings?*',route=>route.fulfill({status:200,contentType:'application/json',body:'[{"id":"destination-parking","has_barrier":true}]'}));
+    await page.evaluate(()=>ParkyDestination.choose({coords:[41.35,69.3],label:'Тестовый ТЦ'}));
+    assert.match(await page.locator('#homeParkingList').innerText(),/500/,'400m result expands to 500m');
+    assert.match(await page.locator('#homeParkingList').innerText(),/Тестовая парковка/);
+    await page.screenshot({path:'release/coverage-destination-checks/destination-mobile.png',fullPage:true});
+    await page.evaluate(()=>loadParkingsFromDB(40,68,15000));
+    assert.match(await page.locator('#homeNearTitle').innerText(),/Тестовый ТЦ/,'GPS/map reload must not change destination');
+    await page.route('**/rest/v1/rpc/street_parking_segments_v2',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{parking_id:'line',path:[[41.36,69.3005],[41.3503,69.3005]],details:{parking_side:'right'}}])}));
+    await page.route('**/rest/v1/rpc/parkings_nearby',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{id:'line',name:'Линия рядом концом',category:'STREET_ALLOWED',price_type:'free',lat_out:41.36,lng_out:69.3005}])}));
+    await page.evaluate(()=>ParkyDestination.choose({coords:[41.35,69.3],label:'Конец участка'}));
+    assert.match(await page.locator('#homeParkingList').innerText(),/Линия рядом концом/,'Nearest line endpoint qualifies even when its start is over 1km away');
+    assert.doesNotMatch(await page.locator('#homeParkingList').innerText(),/Радиус расширен/);
+    await page.route('**/functions/v1/parkly-geocode',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({results:[{coords:[41.35,69.3],label:'Филиал один',description:'Адрес 1'},{coords:[41.36,69.31],label:'Филиал два',description:'Адрес 2'}]})}));
+    await page.locator('#homeSearch').fill('Филиал');await page.evaluate(()=>ParkyDestination.search());
+    assert.equal(await page.locator('#destinationChoices button').count(),2);
+    await page.route('**/rest/v1/rpc/parkings_nearby',route=>route.fulfill({status:503,body:'{}'}));
+    await page.evaluate(()=>ParkyDestination.choose({coords:[41.36,69.31],label:'Ошибка'}));
+    assert.match(await page.locator('#homeParkingList').innerText(),/Не удалось/);
+    assert.doesNotMatch(await page.locator('#homeParkingList').innerText(),/не найдено/,'Network failure is not zero results');
+    await page.route('**/rest/v1/rpc/parkings_nearby',route=>route.fulfill({status:200,contentType:'application/json',body:'[]'}));
+    await page.evaluate(()=>ParkyDestination.choose({coords:[41.36,69.31],label:'Пусто'}));
+    assert.match(await page.locator('#homeParkingList').innerText(),/1 км/);
+    for(const width of [320,390,768]){await page.setViewportSize({width,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))}
+    assert.deepEqual(errors,[]);
+    console.log('Destination: selection, 300/500/1000 bands, GPS isolation, server errors vs empty, mobile widths OK');
+  }finally{await browser.close();server.close()}
+})().catch(e=>{console.error(e);process.exitCode=1;server.close()});
