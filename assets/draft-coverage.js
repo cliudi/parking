@@ -9,7 +9,8 @@ window.ParkyDraftCoverage=(()=>{
     const joined=ParkyCoverageLines.chains(rows);
     for(const chain of joined){
       const label=chain.status==='parking_added'?'Готовое покрытие: парковки внесены':'Готовое покрытие: парковок не найдено';
-      const line=new ymaps.Polyline(chain.path,{hintContent:label+' · Это отметка проверки, не разрешение на стоянку.'},{strokeColor:colors[chain.status],strokeWidth:10,strokeOpacity:.5,strokeStyle:'solid',zIndex:10,zIndexHover:10});
+      // Background only: keep the existing parking icons and street geometry above it.
+      const line=new ymaps.Polyline(chain.path,{hintContent:label+' · Это отметка проверки, не разрешение на стоянку.'},{strokeColor:colors[chain.status],strokeWidth:10,strokeOpacity:.5,strokeStyle:'solid',pane:'areas',zIndex:-10,zIndexHover:-10,zIndexActive:-10,interactiveZIndex:false,interactivityModel:'default#transparent',openBalloonOnClick:false});
       line.parklyCoverage=true;map.geoObjects.add(line);lines.push(line);
     }
   }
