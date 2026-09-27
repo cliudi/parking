@@ -1904,15 +1904,19 @@ function resetFilters(){advFilters={price:'all',types:[],e247:false,cctv:false,d
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
 async function permState(){try{if(navigator.permissions){const p=await navigator.permissions.query({name:'geolocation'});return p.state}}catch(e){}return'unknown'}
-function yandexGeo(){return new Promise((res,rej)=>{if(!window.ymaps||!ymaps.geolocation)return rej();ymaps.geolocation.get({provider:'auto'}).then(r=>{const c=r.geoObjects.get(0).geometry.getCoordinates();res({lat:c[0],lng:c[1],acc:5000})},rej)})}
 const GeoPlugin=()=>(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Geolocation)||null;
 
 let meAcc=0,meSpeed=0,userPanned=false,precising=false,gpsGot=false,dbReloadedForUser=false;
 
-/* кэш последней позиции — только если она была точной */
-const LP_KEY='parkly-lastpos';
-function saveLastPos(lat,lng,acc){ if(acc&&acc>1000)return; try{localStorage.setItem(LP_KEY,JSON.stringify({lat,lng,acc,ts:Date.now()}))}catch(e){} }
-function loadLastPos(){try{const o=JSON.parse(localStorage.getItem(LP_KEY)||'null');if(o&&Date.now()-o.ts<12*3600*1000)return o}catch(e){}return null}
+// A saved coordinate is not the device's current location. Never restore it as mePos.
+function freshPosition(p){
+  const c=p?.coords,age=Date.now()-Number(p?.timestamp);
+  if(!c||!Number.isFinite(age)||age< -5000||age>30000||
+    !Number.isFinite(c.latitude)||Math.abs(c.latitude)>90||
+    !Number.isFinite(c.longitude)||Math.abs(c.longitude)>180||
+    !Number.isFinite(c.accuracy)||c.accuracy<=0||c.accuracy>2500)throw new Error('Unreliable location');
+  return {lat:c.latitude,lng:c.longitude,acc:c.accuracy};
+}
 
 /* зум под точность: нельзя показывать зум 16 при погрешности 5 км — это врёт пользователю */
 function zoomFor(acc){ if(!acc)return 15; if(acc<50)return 17; if(acc<200)return 16; if(acc<1000)return 14; if(acc<3000)return 12; return 11 }
@@ -1965,8 +1969,7 @@ const GPS_GOOD=60;      // настоящий спутниковый замер 
 const ROUGH_OVER=100;   // всё, что хуже 100 м, показываем как приблизительное
 const JUNK_OVER=2500;    // хуже 2.5 км — это определение по IP, ему верить нельзя
 function applyFix(lat,lng,acc,label,precise,heading,speed){
-  // мусорный замер (IP-геолокация) не показываем вовсе, если уже есть что-то лучше
-  if(acc>JUNK_OVER&&mePos&&meAcc&&meAcc<acc)return false;
+  if(!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180||!Number.isFinite(acc)||acc<=0||acc>JUNK_OVER)return false;
   const stale = Date.now()-lastFixTs>20000;   // старый замер устарел — берём любой новый
   const movingFix=routeGuidanceActive&&acc<=Math.max(120,(meAcc||60)*2.5);
   const better = movingFix || !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot) || stale;
@@ -1980,7 +1983,6 @@ function applyFix(lat,lng,acc,label,precise,heading,speed){
   if(!dbReloadedForUser && acc<3000){ dbReloadedForUser=true; loadParkingsFromDB(lat,lng,15000); }
   const jumped = mePos ? dist(mePos.lat,mePos.lng,lat,lng)>0.2 : true;
   putMe(lat,lng,acc,acc>ROUGH_OVER);
-  if(acc<=1000)saveLastPos(lat,lng,acc);
   if(precise)gpsGot=true;
   // Парковочные метки обновляем только при заметном перемещении пользователя.
   if(jumped)scheduleMarkerDraw();
@@ -1991,24 +1993,11 @@ function applyFix(lat,lng,acc,label,precise,heading,speed){
   return true;
 }
 
-/* МГНОВЕННО: последняя известная позиция от системы (от любого приложения).
-   ВАЖНО: ограничиваем возраст 10 минутами — иначе Android может отдать
-   координату многочасовой давности из совсем другого места (ложная "ошибка в 5 км"). */
-function instantFix(){
-  const Geo=GeoPlugin();
-  const o={enableHighAccuracy:false,timeout:3000,maximumAge:600000};
-  const wrap=p=>({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});
-  return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
-}
-
-/* быстрый замер: сеть/вышки. Кэш системы разрешаем только совсем свежий (30 сек) */
+/* Fresh device measurement; high accuracy is a request, not proof of GPS source. */
 function fastFix(){
   const Geo=GeoPlugin();
-  // в браузере низкая точность = определение по IP (промах в километры),
-  // поэтому в вебе сразу просим высокую точность
-  const o={enableHighAccuracy:!GeoPlugin(),timeout:7000,maximumAge:30000};
-  const wrap=p=>({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});
-  return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(wrap);
+  const o={enableHighAccuracy:true,timeout:20000,maximumAge:0};
+  return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(freshPosition);
 }
 
 /* КОМПАС: конус направления поворачивается вслед за телефоном */
@@ -2076,7 +2065,7 @@ async function startPreciseWatch(){
   const Geo=GeoPlugin();
   const o={enableHighAccuracy:true,timeout:45000,maximumAge:0};
   const onFix=p=>{
-    if(!p||!p.coords)return;
+    try{freshPosition(p)}catch(e){return}
     const acc=p.coords.accuracy;
     const first=!gpsGot&&acc<=GPS_GOOD;
     applyFix(p.coords.latitude,p.coords.longitude,acc,first?t('geoPrecise'):null,acc<=GPS_GOOD,p.coords.heading,p.coords.speed);
@@ -2095,12 +2084,7 @@ async function locate(silent){
   if(!GeoPlugin()&&!navigator.geolocation){if(!silent)toast(t('geoNo'));return false}
   if(!isNative&&!GeoPlugin()&&location.protocol!=='https:'&&location.hostname!=='localhost'){if(!silent)toast(t('geoHttp'));return false}
 
-  // мгновенно: последняя точная точка из кэша
-  const cached=loadLastPos();
-  if(cached&&!mePos){putMe(cached.lat,cached.lng,cached.acc);drawMarkers();
-    if(ymap)ymap.setCenter([cached.lat,cached.lng],zoomFor(cached.acc));
-    if(!silent)toast(t('geoCached'))}
-  else if(!silent)toast(t('geoing'));
+  if(!silent)toast(t('geoing'));
 
   const ok=await ensurePermission();
   if(!ok){if(!silent)toast(t('geoDeny'));return false}
@@ -2108,11 +2092,6 @@ async function locate(silent){
   gpsGot=false;
   startPreciseWatch();                       // GPS стартует СРАЗУ, не ждёт сеть
 
-  // МГНОВЕННО: системная последняя позиция (обычно 0-100 мс)
-  instantFix().then(i=>{
-    if(gpsGot)return;
-    applyFix(i.lat,i.lng,i.acc,silent?null:(i.acc<=ROUGH_OVER?t('geoOk'):t('geoRoughWait')),false);
-  }).catch(()=>{});
 
   // сеть — как быстрая заглушка, пока GPS ищет спутники
   fastFix().then(f=>{
@@ -2125,11 +2104,7 @@ async function locate(silent){
   // если через 25 сек GPS так и не поймал — честно говорим
   setTimeout(()=>{ if(!gpsGot&&!silent&&mePos&&meAcc>500)toast(t('geoStillRough')) },25000);
 
-  // совсем нет ничего — грубо по IP через Яндекс
-  setTimeout(async()=>{
-    if(mePos)return;
-    try{const y=await yandexGeo();applyFix(y.lat,y.lng,y.acc,silent?null:t('geoRough'),false)}catch(e){}
-  },8000);
+  // No IP fallback: a network estimate must not impersonate the current position.
 
   return true;
 }
@@ -2143,23 +2118,25 @@ async function centerOnMyLocation(){
   userPanned=false;
   const btn=document.getElementById('locbtn');
   btn.classList.add('on');
-  if(mePos&&ymap){
-    ymap.setCenter([mePos.lat,mePos.lng],zoomFor(meAcc||60),{duration:350});
+  btn.disabled=true;toast(t('geoing'));
+  if(Date.now()-lastFixTs>30000){
+    mePos=null;meAcc=0;pendingCenter=null;
+    if(meMark)ymap?.geoObjects.remove(meMark);
+    if(meCircle)ymap?.geoObjects.remove(meCircle);
+    meMark=null;meCircle=null;
+    document.getElementById('accbadge')?.classList.remove('on');
+    renderHome();
   }
-  await locate(true);
-  let tries=0;
-  const timer=setInterval(()=>{
-    tries++;
-    if(mePos&&ymap){
-      ymap.setCenter([mePos.lat,mePos.lng],zoomFor(meAcc||60),{duration:300});
-      clearInterval(timer);
-      toast(t('geoOk'));
-    }else if(tries>=12){
-      clearInterval(timer);
-      toast(t('geoTime'));
-    }
-  },500);
-  setTimeout(()=>btn.classList.remove('on'),900);
+  try{
+    if(!await ensurePermission()){toast(t('geoDeny'));return}
+    const f=await fastFix();
+    // Explicit refresh replaces an older "more accurate" coordinate immediately.
+    lastFixTs=0;dbReloadedForUser=false;
+    applyFix(f.lat,f.lng,f.acc,f.acc>ROUGH_OVER?t('geoRoughWait'):t('geoOk'),f.acc<=GPS_GOOD);
+    if(ymap)ymap.setCenter([f.lat,f.lng],zoomFor(f.acc),{duration:300});
+    showAcc(f.acc);startPreciseWatch();
+  }catch(e){toast(t(e?.code===1?'geoDeny':'geoTime'))}
+  finally{btn.disabled=false;btn.classList.remove('on')}
 }
 document.getElementById('locbtn').onclick=centerOnMyLocation;
 document.getElementById('zin').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()+1,{duration:200});
@@ -3042,7 +3019,7 @@ document.getElementById('legendbtn').onclick=openLegend;
 let homeRadiusKm=5;
 function homeDistance(p){
   if(mePos)return favoriteDistance(p);
-  return Number.isFinite(p.distance_m)?p.distance_m/1000:Infinity;
+  return Infinity;
 }
 function setHomeRadius(value){homeRadiusKm=Number(value)||5;renderHome()}
 function homeParkingIcon(){return '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4"><path d="M12 52V12h40v40"/><path d="M23 44V26c0-5 4-9 9-9s9 4 9 9v18"/><path d="M23 32h18"/><path d="M19 44h26"/></svg>'}
@@ -3054,6 +3031,9 @@ function homeRows(){
 }
 function renderHomeList(){
   if(window.ParkyDestination?.render())return;
+  document.getElementById('homeNearTitle').textContent=mePos?t('homeNear'):({ru:'Местоположение не определено',en:'Location not determined',uz:'Joylashuv aniqlanmadi'})[lang];
+  document.getElementById('homeParkingTitle').textContent=mePos?t('homeParkingTitle'):({ru:'Парковки на карте',en:'Parking on the map',uz:'Xaritadagi avtoturargohlar'})[lang];
+  document.getElementById('homeRadius').hidden=!mePos;
   const list=document.getElementById('homeParkingList');if(!list)return;
   const rows=homeRows();
   if(!rows.length){list.innerHTML=parkingLoadState==='ready'?'<div class="home-empty"><b>'+t('homeEmpty')+'</b>'+t('homeEmptyHint')+'</div>':'';return}
@@ -3262,14 +3242,8 @@ if(authSession){
   loadRemoteFavorites();
   Promise.all([loadMySubmissions(),loadMyReports()]).then(()=>{renderProfile();updateNotificationBadge()});
 }
-/* АВТООПРЕДЕЛЕНИЕ ПРИ ЗАПУСКЕ (как в Яндекс.Картах).
-   Кэш показываем сразу, а системный запрос разрешения откладываем,
-   пока окно приложения не окажется реально на экране — иначе Android
-   иногда "теряет" диалог, если его показать во время сплэша/анимации запуска. */
+/* Request a fresh location after onboarding; never display the saved location as current. */
 (function bootLocate(){
-  // 1) мгновенно: наш сохранённый кэш (0 мс) — точка есть до загрузки карты
-  const cached=loadLastPos();
-  if(cached)putMe(cached.lat,cached.lng,cached.acc);
 
   async function tryGrantOnce(){
     const Geo=GeoPlugin();
@@ -3287,7 +3261,6 @@ if(authSession){
   async function afterGrant(){
     gpsGot=false;
     startPreciseWatch();
-    instantFix().then(i=>{if(!gpsGot)applyFix(i.lat,i.lng,i.acc,null,false)}).catch(()=>{});
     fastFix().then(f=>{if(!gpsGot)applyFix(f.lat,f.lng,f.acc,null,false)}).catch(()=>{});
     // пока спутники не пойманы — раз в 5 сек пробуем сеть заново (данные Wi-Fi/вышек
     // могут уточниться по мере сканирования), но не дольше минуты
@@ -3320,5 +3293,7 @@ if(authSession){
 </script>
 <link rel="stylesheet" href="assets/destination.css">
 <script src="assets/destination.js"></script>
+<link rel="stylesheet" href="assets/telegram.css">
+<script src="assets/telegram.js"></script>
 </body>
 </html>

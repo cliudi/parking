@@ -105,7 +105,7 @@ window.ParkyDestination=(()=>{
   }
   function nearby(){
     input();controller?.abort();sequence++;target=null;state='idle';rows=[];el('homeSearch').value='';el('homeRadius').hidden=false;el('homeNearTitle').textContent=t('homeNear');el('homeParkingTitle').textContent=t('homeParkingTitle');renderHome();recent();
-    loadParkingsFromDB(mePos?.lat,mePos?.lng,15000);
+    centerOnMyLocation();
   }
   function fromPoint(){if(!selectedDestination)return;const point={coords:[selectedDestination.lat,selectedDestination.lng],label:selectedDestination.label||t('selectedPoint')};switchTab('home');choose(point)}
   labels();recent();

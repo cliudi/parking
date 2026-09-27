@@ -1,0 +1,23 @@
+/* All overrides are opt-in: normal browser and Capacitor are unchanged. */
+html.telegram-app{
+  --top:max(env(safe-area-inset-top,0px),var(--parky-tg-top,0px));
+  --bot:max(env(safe-area-inset-bottom,0px),var(--parky-tg-bottom,0px));
+  --tg-gap:max(0px,calc(100% - var(--parky-tg-height,100%)));
+}
+.telegram-app #screen-map,.telegram-app #routeBetaScreen,
+.telegram-app .mask,.telegram-app .onboarding,.telegram-app .duplicate-mask{
+  bottom:auto;height:var(--parky-tg-height,100%);
+}
+.telegram-app .screen{bottom:auto;height:calc(var(--parky-tg-height,100%) - var(--nav) - var(--bot))}
+.telegram-app .bottomnav{bottom:var(--tg-gap)}
+.telegram-app #minicard,.telegram-app #routepanel{bottom:calc(var(--tg-gap) + var(--nav) + var(--bot) + 10px)}
+.telegram-app .mask{padding-top:var(--top)}
+.telegram-app #sheet{max-height:calc(var(--parky-tg-height,100vh) - var(--top) - 12px)}
+.telegram-app .onboarding,.telegram-app .duplicate-mask{
+  padding-top:calc(16px + var(--top));padding-bottom:calc(16px + var(--bot));
+}
+.telegram-app .onboarding-card,.telegram-app .duplicate-dialog{max-height:100%;overflow:auto}
+.telegram-app .screen,.telegram-app .bottomnav{
+  padding-left:var(--parky-tg-left,0px);padding-right:var(--parky-tg-right,0px);
+}
+.telegram-app .topwrap{left:calc(12px + var(--parky-tg-left,0px));right:calc(12px + var(--parky-tg-right,0px))}
