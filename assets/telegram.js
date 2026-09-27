@@ -109,6 +109,7 @@
     observer.observe(document.getElementById('bottomnav'),{childList:true});
     observer.observe(document.body,{subtree:true,attributes:true,attributeFilter:['open']});
     layout();sync();app.ready();app.expand();
+    window.dispatchEvent(new Event('parky:telegram-ready'));
   }
   if(window.Telegram?.WebApp){connect();return}
   const script=document.createElement('script');

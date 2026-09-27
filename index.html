@@ -1174,6 +1174,7 @@ async function loadParkingsFromDB(lat, lng, radius){
       if(generation!==parkingLoadGeneration)return;
       if(segments){streetSegments=segments;streetSegmentIds=new Set(segments.map(s=>String(s.parking_id)))}
       PARKINGS=rows.map(row=>fromDbRow({...row,...(accessById.get(String(row.id))||{})})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&streetVisible(p));
+      window.ParkyLinks?.retain();
       lastMarkerSignature='';
       requestAnimationFrame(()=>{if(generation===parkingLoadGeneration){drawStreetSegments();drawMarkers(true)}});
       if(activeTab==='fav')renderFav();
@@ -1403,6 +1404,7 @@ function initMap(){
     if(hit){selectParking(hit.id);return}
     setSelectedPoint(e.get('coords'));
   });
+  window.ParkyLinks?.mapReady();
 }
 
 let viewportLoadTimer=null;
@@ -1824,10 +1826,7 @@ async function toggleFav(id,btn){
   try{await syncFavorite(id,added)}catch(e){console.warn(e);toast(t('sendFailed'))}
 }
 function shareParking(id){
-  const p=PARKINGS.find(x=>x.id===id);
-  const url='https://yandex.uz/maps/?pt='+p.lng+','+p.lat;
-  if(navigator.share){navigator.share({title:p.name,text:p.addr,url}).catch(()=>{})}
-  else{navigator.clipboard&&navigator.clipboard.writeText(url);toast(t('linkCopied'))}
+  return window.ParkyLinks?.share(id);
 }
 
 /* ═══════════ SHEET (модалка) ═══════════ */
@@ -3191,5 +3190,7 @@ if(authSession){
 <script src="assets/telegram.js"></script>
 <link rel="stylesheet" href="assets/map-layout.css">
 <script src="assets/map-layout.js"></script>
+<link rel="stylesheet" href="assets/parking-links.css">
+<script src="assets/parking-links.js"></script>
 </body>
 </html>
