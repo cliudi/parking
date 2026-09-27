@@ -1,4 +1,17 @@
 .location-status{font-size:13px;line-height:1.5;margin:12px 0 8px;max-width:760px}
 .location-manual{padding:10px 14px;min-height:44px;border-radius:12px;border:1px solid #ffffff80;color:#fff;background:#ffffff18;text-align:left;font:inherit;font-size:13px;cursor:pointer}
 .location-manual:focus-visible{outline:3px solid #fff;outline-offset:3px}
-.accbadge{max-width:min(85vw,340px);white-space:normal;text-align:center}
+/* The accuracy label must not participate in the control column's sizing. */
+.sidefabs{width:var(--tap,48px);align-items:flex-end}
+.sidefabs>.sfab{flex:none}
+.sidefabs>.zoomcol{width:var(--tap,48px);flex:none}
+.sidefabs>.zoomcol button{width:100%;flex:none}
+.sidefabs>.accbadge{
+  position:absolute;right:calc(100% + 10px);
+  top:calc((var(--tap,48px) + 9px)*2);
+  width:max-content;max-width:min(240px,calc(100vw - var(--tap,48px) - 48px));
+  white-space:normal;overflow-wrap:anywhere;text-align:left;line-height:1.4;
+  pointer-events:none;
+}
+.sidefabs>.accbadge.bad{color:#92400e}
+html[data-theme="dark"] .sidefabs>.accbadge.bad{color:#FBBF24}
