@@ -336,7 +336,7 @@ tbody tr:hover{background:#fafcff} .parking-title{font-weight:800;color:#101828}
         <span id="draftReadyStatus" role="status" aria-live="polite"></span>
         <button type="button" class="btn btn-secondary" id="draftReadyRetry" hidden>Повторить</button>
         <button type="button" class="btn btn-secondary" onclick="showSection('coverage')">Изменить статус участков</button>
-        <small>Сплошная зелёная линия — сделано, прозрачность 50%. Значки парковок остаются сверху. Статус «Сделано / Не сделано» меняется в «Покрытие улиц». Покрытие не означает разрешение на стоянку.</small>
+        <small>Зелёная линия под значками: готовое покрытие или минимум 3 опубликованные парковки подряд на одной улице, до 250 м между соседями. Автолиния соединяет точки приблизительно, не повторяет точную геометрию дороги. Черновики и ручное «Не сделано» разрывают её. Только для админки; не разрешение на стоянку.</small>
       </div>
       <div class="draft-map-wrap">
         <div id="draftMap"></div>
@@ -1262,6 +1262,7 @@ function renderDraftMap(fit=false){
     if(draftMapMarkerSignatures.get(id)!==signature){marker.options.set({...draftMapMarkerOptions(p,selected,compare),draggable:draftMapMoveState?.id===id});draftMapMarkerSignatures.set(id,signature)}
   });
   const drafts=allFiltered.filter(p=>p.status==='DRAFT'),duplicateCount=drafts.filter(p=>draftMapDuplicateIds.has(String(p.id))).length;
+  window.ParkyDraftCoverage?.refresh();
   $('draftMapCounts').innerHTML=[['Найдено',allFiltered.length],['На карте',filteredList.length],['Черновики',drafts.length],['OSM',drafts.filter(p=>p.source==='OSM').length],['ADMIN',drafts.filter(p=>p.source==='ADMIN').length],['USER',drafts.filter(p=>p.source==='USER').length],['Без адреса',drafts.filter(p=>!String(p.address||'').trim()).length],['Возможные дубли',duplicateCount]].map(([name,count])=>`<span class="badge badge-info">${name}: ${count}</span>`).join('');
   if(fit&&list.length){
     const bounds=list.reduce((box,p)=>{
@@ -2419,6 +2420,7 @@ checkSession();
 <link rel="stylesheet" href="assets/coverage.css">
 <script src="assets/coverage.js"></script>
 <script src="assets/coverage-lines.js"></script>
+<script src="assets/ready-parking-lines.js"></script>
 <script src="assets/draft-coverage.js"></script>
 </body>
 </html>

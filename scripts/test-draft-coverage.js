@@ -86,6 +86,29 @@ assert.equal(chains([item('1',[a,b]),item('2',[b,c]),item('3',[c,a])]).length,1,
     // Every page is fetched; exactly repeated paths still render once.
     await page.evaluate(()=>{coverageTestRows=Array.from({length:501},(_,i)=>({...coverageTestRows[0],id:'page-'+i}));coveragePageCalls=[];return ParkyDraftCoverage.open(draftMap)});
     assert.deepEqual(await page.evaluate(()=>coveragePageCalls),[0,500]);assert.equal((await read()).length,1);
+    // Existing approved point pins produce lines even without manually drawn coverage.
+    await page.evaluate(()=>{
+      coverageTestRows=[];
+      records=Array.from({length:3},(_,i)=>({id:'auto-'+i,name:'Готовая '+i,category:'OFFICIAL',status:'APPROVED',lat:41.31+i*.001,lng:69.25,address:'улица Навои, '+(i+1)}));
+      renderDraftMap();return ParkyDraftCoverage.open(draftMap);
+    });
+    assert.equal((await read()).length,1,'Empty coverage table still shows inferred ready chain');
+    assert.equal(await page.evaluate(()=>testMaps.draftMap.objects.filter(o=>o.parklyAutomaticCoverage).length),1);
+    assert.equal(await page.evaluate(()=>draftMapMarkers.size),3,'All original pins remain');
+    await page.locator('#draftMapStatus').selectOption('DRAFT');await page.evaluate(()=>renderDraftMap());
+    assert.equal((await read()).length,1,'Inference uses all records, not the active display filter');
+    await page.evaluate(()=>{records[1].status='DRAFT';renderDraftMap()});assert.equal((await read()).length,0,'Changing point status refreshes the inferred line');
+    await page.evaluate(()=>{records[1].status='APPROVED';renderDraftMap()});assert.equal((await read()).length,1);
+    await page.evaluate(()=>{coverageTestRows=[{id:'manual-break',status:'recheck',path:[[41.3108,69.25],[41.3112,69.25]]}];return ParkyDraftCoverage.open(draftMap)});
+    assert.equal((await read()).length,0,'Manual not-done overrides auto line');
+    await page.evaluate(()=>{coverageTestRows=[];return ParkyDraftCoverage.open(draftMap)});
+    assert.equal((await read()).length,1);
+    await page.locator('#draftReadyCoverage').uncheck();assert.equal((await read()).length,0);
+    await page.locator('#draftReadyCoverage').check();await page.waitForFunction(()=>testMaps.draftMap.objects.some(o=>o.parklyAutomaticCoverage));
+    await page.evaluate(()=>{coverageError=true;return ParkyDraftCoverage.open(draftMap)});
+    assert.equal((await read()).length,0,'Do not infer while manual overrides are unavailable');
+    await page.evaluate(()=>{coverageError=false;return ParkyDraftCoverage.open(draftMap)});
+    await page.locator('#draftMapReset').click();
     assert.equal(await page.evaluate(()=>testCalls.length),0,'Visual layer never writes to the database');
     for(const width of [1280,390]){
       await page.setViewportSize({width,height:900});
