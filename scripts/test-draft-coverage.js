@@ -45,6 +45,7 @@ assert.equal(chains([item('1',[a,b]),item('2',[b,c]),item('3',[c,a])]).length,1,
     assert.deepEqual(lines[0].path,[a,b,c,d]);
     for(const line of lines){
       assert.equal(line.options.strokeStyle,'solid');assert.equal(line.options.strokeOpacity,.5);
+      assert.equal(line.options.strokeColor,'#159b64','All completed survey results are green');
       assert.equal(line.options.pane,'areas');assert.equal(line.options.zIndex,-10);
       assert.equal(line.options.zIndexHover,-10);assert.equal(line.options.zIndexActive,-10);
       assert.equal(line.options.interactiveZIndex,false);assert.equal(line.options.interactivityModel,'default#transparent');

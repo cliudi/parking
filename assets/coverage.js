@@ -1,6 +1,12 @@
 /* Survey coverage is deliberately independent of public parking geometry. */
 window.ParkyCoverage=(()=>{
-  const statuses={parking_added:['Парковки внесены','#159b64'],no_parking:['Парковок не найдено','#2673df'],partial:['Проверено частично','#c38a05'],recheck:['Требует перепроверки','#dc3545']};
+  const statuses={parking_added:['Парковки внесены','#159b64'],no_parking:['Парковок не найдено','#159b64'],partial:['Проверено частично','#8491a3'],recheck:['Требует перепроверки','#8491a3']};
+  const isDone=status=>['parking_added','no_parking'].includes(status);
+  const statusLabel=status=>(isDone(status)?'Сделано':'Не сделано')+' · '+statuses[status][0];
+  const lineStyle=row=>{
+    const done=isDone(row.status)&&Boolean(row.checked_on);
+    return {strokeColor:done?'#159b64':'#8491a3',strokeWidth:10,strokeStyle:done?'solid':'dash',strokeOpacity:done ? .5 : .85,pane:'areas',zIndex:-10,interactiveZIndex:false};
+  };
   let map,rows=[],objects=[],vertices=[],draft=null,editing=false,dirty=false,busy=false,loading=false,selected=-1;
   const el=id=>document.getElementById(id),message=text=>el('coverageMessage').textContent=text;
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -10,14 +16,15 @@ window.ParkyCoverage=(()=>{
       <button class="btn btn-primary" id="coverageNew">＋ Отметить участок</button>
       <button class="btn btn-secondary" id="coverageRefresh">Обновить</button>
       <label><input type="checkbox" id="coverageParkings" checked>Парковки</label>
-      ${Object.entries(statuses).map(([key,[name,color]])=>`<label><input type="checkbox" data-coverage-status="${key}" checked><span style="color:${color}">━</span>${name}</label>`).join('')}
+      ${Object.entries(statuses).map(([key,[name,color]])=>`<label><input type="checkbox" data-coverage-status="${key}" checked><span style="color:${color}">${isDone(key)?'━':'┄'}</span>${statusLabel(key)}</label>`).join('')}
     </div><p id="coverageMessage" role="status" aria-live="polite">Загрузка…</p>
     <div class="coverage-layout"><div id="coverageMap" aria-label="Карта покрытия улиц"></div><div class="coverage-editor">
-      <p>Пунктир — проверенный участок, круглая P — парковка. Отметка покрытия не означает разрешение на стоянку.</p>
+      <p>Сплошная зелёная линия — сделано, серый пунктир — не сделано. Значки парковок остаются сверху. Выберите участок, нажмите «Изменить статус / участок» и сохраните изменения. Покрытие не означает разрешение на стоянку.</p>
       <div id="coverageList" aria-label="Сохранённые участки"></div>
       <form id="coverageForm" hidden>
         <fieldset id="coverageFields" disabled style="border:0;padding:0;display:grid;gap:10px">
-          <label>Статус<select id="coverageStatus">${Object.entries(statuses).map(([key,[name]])=>`<option value="${key}">${name}</option>`).join('')}</select></label>
+          <label>Статус работы<select id="coverageCompletion"><option value="done">Сделано</option><option value="todo">Не сделано</option></select></label>
+          <label>Уточнение<select id="coverageStatus">${Object.entries(statuses).map(([key,[name]])=>`<option value="${key}">${name}</option>`).join('')}</select></label>
           <label>Проверенная сторона<select id="coverageSide"><option value="unspecified">Не указана</option><option value="both">Обе стороны</option><option value="left">Левая по направлению линии</option><option value="right">Правая по направлению линии</option></select></label>
           <label>Дата фактической проверки<input type="date" id="coverageDate"></label>
           <label>Район (необязательно)<input id="coverageDistrict" maxlength="120"></label>
@@ -25,7 +32,7 @@ window.ParkyCoverage=(()=>{
         </fieldset>
         <p id="coverageGeometryHint"></p>
         <div class="coverage-tools" style="padding:8px 0">
-          <button type="button" class="btn btn-secondary" id="coverageEdit">Редактировать / продолжить</button>
+          <button type="button" class="btn btn-secondary" id="coverageEdit">Изменить статус / участок</button>
           <button type="button" class="btn btn-secondary" id="coverageRemoveVertex">Удалить вершину</button>
           <button type="button" class="btn btn-secondary" id="coverageReverse">Развернуть</button>
           <button type="submit" class="btn btn-primary" id="coverageSave">Сохранить</button>
@@ -39,6 +46,14 @@ window.ParkyCoverage=(()=>{
     el('coverageParkings').onchange=draw;
     document.querySelectorAll('[data-coverage-status]').forEach(input=>input.onchange=draw);
     el('coverageFields').oninput=()=>{dirty=true};
+    el('coverageCompletion').onchange=()=>{
+      const status=el('coverageStatus');
+      if(el('coverageCompletion').value==='done'&&!isDone(status.value))status.value=isDone(draft.status)?draft.status:'parking_added';
+      if(el('coverageCompletion').value==='todo'&&isDone(status.value))status.value=!isDone(draft.status)?draft.status:'recheck';
+      dirty=true;draw();
+    };
+    el('coverageStatus').onchange=()=>{el('coverageCompletion').value=isDone(el('coverageStatus').value)?'done':'todo';dirty=true;draw()};
+    el('coverageDate').onchange=()=>{dirty=true;draw()};
     el('coverageForm').onsubmit=save;
     el('coverageEdit').onclick=()=>{editing=true;formState();draw()};
     el('coverageCancel').onclick=()=>{if(leave()){draft=null;editing=false;form();draw()}};
@@ -78,6 +93,7 @@ window.ParkyCoverage=(()=>{
   }
   function select(row){if(!leave())return;draft=JSON.parse(JSON.stringify(row));editing=false;selected=-1;form();draw();map.setBounds(vertices.length?vertices[0].geometry.getBounds():[row.path[0],row.path[row.path.length-1]],{checkZoomRange:true,maxZoom:17})}
   function form(){el('coverageForm').hidden=!draft;if(!draft)return;
+    el('coverageCompletion').value=isDone(draft.status)?'done':'todo';
     el('coverageStatus').value=draft.status;el('coverageSide').value=draft.side;
     el('coverageDate').value=draft.checked_on||'';el('coverageDistrict').value=draft.district||'';el('coverageComment').value=draft.comment||'';formState();
   }
@@ -94,13 +110,14 @@ window.ParkyCoverage=(()=>{
     const add=o=>{map.geoObjects.add(o);objects.push(o);return o};
     const allowed=new Set([...document.querySelectorAll('[data-coverage-status]:checked')].map(i=>i.dataset.coverageStatus));
     const visible=rows.filter(r=>allowed.has(r.status));
-    el('coverageList').innerHTML=visible.map(r=>`<button class="btn btn-secondary" data-id="${escape(r.id)}">${escape(statuses[r.status]?.[0])} · ${escape(r.district||'Участок')} · ${escape(r.checked_on||'Дата не указана')}</button>`).join('');
+    el('coverageList').innerHTML=visible.map(r=>`<button class="btn btn-secondary" data-id="${escape(r.id)}">${escape(statusLabel(r.status))} · ${escape(r.district||'Участок')} · ${escape(r.checked_on||'Дата не указана')}</button>`).join('');
     el('coverageList').querySelectorAll('button').forEach(b=>b.onclick=()=>select(rows.find(r=>r.id===b.dataset.id)));
-    visible.filter(r=>r.id!==draft?.id).forEach(r=>{const line=add(new ymaps.Polyline(r.path,{hintContent:escape(statuses[r.status][0])},{strokeColor:statuses[r.status][1],strokeWidth:7,strokeStyle:'dash',strokeOpacity:.85}));line.events.add('click',event=>{event.stopPropagation?.();select(r)})});
+    visible.filter(r=>r.id!==draft?.id).forEach(r=>{const line=add(new ymaps.Polyline(r.path,{hintContent:escape(statusLabel(r.status))},lineStyle(r)));line.events.add('click',event=>{event.stopPropagation?.();select(r)})});
     if(el('coverageParkings').checked)(records||[]).forEach(p=>{if(!Number.isFinite(Number(p.lat))||!Number.isFinite(Number(p.lng))||p.lat==null||p.lng==null)return;add(new ymaps.Placemark([Number(p.lat),Number(p.lng)],{iconContent:'P',hintContent:escape(p.name)+' · '+escape(p.status)},{preset:p.status==='APPROVED'?'islands#blueCircleIcon':'islands#grayCircleIcon'}))});
     if(!draft)return;
-    const line=add(new ymaps.Polyline(draft.path,{}, {strokeColor:'#0e2947',strokeWidth:8,strokeStyle:'dash'}));vertices.push(line);
-    draft.path.forEach((point,i)=>{
+    const preview=editing?{...draft,status:el('coverageStatus').value,checked_on:el('coverageDate').value}:draft;
+    const line=add(new ymaps.Polyline(draft.path,{}, {...lineStyle(preview),strokeWidth:12}));vertices.push(line);
+    if(editing)draft.path.forEach((point,i)=>{
       const marker=add(new ymaps.Placemark(point,{iconContent:String(i+1)+(selected===i?' •':'')},{preset:'islands#blueCircleIcon',draggable:editing&&!busy}));
       marker.events.add('click',event=>{event.stopPropagation?.();selected=i;draw()});
       marker.events.add('dragend',()=>{draft.path[i]=marker.geometry.getCoordinates();selected=i;dirty=true;draw()});
