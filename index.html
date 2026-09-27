@@ -666,6 +666,8 @@ html[data-theme="dark"] .searchbar{border-color:#2B3B56}
     </label>
     <div class="home-switch"><button id="destinationSearchButton" class="on" type="button" onclick="homeSearchOnMap()">Найти парковку</button><button id="destinationNearbyButton" type="button" onclick="window.ParkyDestination?.nearby()">Рядом со мной</button></div>
     <div id="destinationChoices" aria-live="polite"></div>
+    <div class="location-status" role="status" id="locationStatus"></div>
+    <button class="location-manual" type="button" onclick="ParkyLocation.pick()" id="manualLocationButton">Моя точка неверна — указать на карте</button>
     <div class="home-switch"><button type="button" onclick="ParkyDestination.map()" id="homeMapButton">Карта</button><button type="button" onclick="renderHome()" id="homeListButton">Список</button></div>
   </div>
   <div class="home-body">
@@ -1354,9 +1356,9 @@ function dist(a,b,c,d){
   return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
 }
 function distText(p){
-  if(!mePos) return '';
+  const origin=routeOrigin();if(!origin) return '';
   p=streetDestination(p);if(!p)return '';
-  const km=dist(mePos.lat,mePos.lng,p.lat,p.lng);
+  const km=dist(origin.lat,origin.lng,p.lat,p.lng);
   return km<1?Math.round(km*1000)+' '+t('unitM'):km.toFixed(1)+' '+t('unitKm');
 }
 function toast(x){const el=document.getElementById('toast');el.innerHTML=x;el.classList.add('show');
@@ -1394,6 +1396,7 @@ function initMap(){
     drawMarkers();
   }
   ymap.events.add('click',e=>{
+    if(window.ParkyLocation?.picking()){setSelectedPoint(e.get('coords'));return}
     /* Если пользователь попал рядом с визуальным пином, выбираем ближайший.
        Это страхует маленькие экраны и частично перекрывающиеся метки. */
     const hit=findNearestVisibleParking(e.get('coords'),28);
@@ -1440,6 +1443,7 @@ function showSelectedPointCard(){
     +'<div class="mc-main-actions"><button class="mc-btn" onclick="routeToSelectedPoint()">➤ '+t('routeHere')+'</button><button class="mc-btn secondary" onclick="sharePoint(selectedDestination)">↗ '+t('share')+'</button></div>'
     +'<div class="mc-tools"><button class="mc-btn" onclick="copyPointCoordinates()">⧉ '+t('copyCoordinates')+'</button><button class="mc-btn" onclick="centerSelectedPoint()">◎ '+t('centerMap')+'</button><button class="mc-btn" onclick="openPointInYandex()">↗ '+t('openYandex')+'</button></div>'
     +'<button class="mc-btn" onclick="ParkyDestination.fromPoint()">'+({ru:'Найти парковку рядом с этой точкой',en:'Find parking near this point',uz:'Shu nuqta yaqinida avtoturargoh topish'})[lang]+'</button>'
+    +'<button class="mc-btn" onclick="ParkyLocation.manual(selectedDestination)">'+({ru:'Я здесь — использовать как моё место',en:'I am here — use this location',uz:'Men shu yerdaman — joylashuv sifatida ishlatish'})[lang]+'</button>'
     +'<div class="mc-place-note">'+t('pointNotice')+'</div></div>';
   el.classList.add('on');
 }
@@ -1450,7 +1454,7 @@ function copyPointCoordinates(){
   if(navigator.clipboard)navigator.clipboard.writeText(text).then(()=>toast(t('coordinatesCopied'))).catch(()=>toast(text));else toast(text)
 }
 function centerSelectedPoint(){if(selectedDestination&&ymap)ymap.setCenter([selectedDestination.lat,selectedDestination.lng],Math.max(16,ymap.getZoom()),{duration:300})}
-function openPointInYandex(){if(!selectedDestination)return;window.open('https://yandex.uz/maps/?pt='+selectedDestination.lng+','+selectedDestination.lat+'&z=17','_blank','noopener')}
+function openPointInYandex(){if(!selectedDestination)return;openParkyLink('https://yandex.uz/maps/?pt='+selectedDestination.lng+','+selectedDestination.lat+'&z=17')}
 function sharePoint(point){
   if(!point)return;const url='https://yandex.uz/maps/?pt='+point.lng+','+point.lat;
   if(navigator.share)navigator.share({title:point.label||t('selectedPoint'),url}).catch(()=>{});else{navigator.clipboard&&navigator.clipboard.writeText(url);toast(t('linkCopied'))}
@@ -1906,17 +1910,8 @@ const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(
 async function permState(){try{if(navigator.permissions){const p=await navigator.permissions.query({name:'geolocation'});return p.state}}catch(e){}return'unknown'}
 const GeoPlugin=()=>(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Geolocation)||null;
 
-let meAcc=0,meSpeed=0,userPanned=false,precising=false,gpsGot=false,dbReloadedForUser=false;
+let meAcc=0,meSpeed=0,userPanned=false,dbReloadedForUser=false;
 
-// A saved coordinate is not the device's current location. Never restore it as mePos.
-function freshPosition(p){
-  const c=p?.coords,age=Date.now()-Number(p?.timestamp);
-  if(!c||!Number.isFinite(age)||age< -5000||age>30000||
-    !Number.isFinite(c.latitude)||Math.abs(c.latitude)>90||
-    !Number.isFinite(c.longitude)||Math.abs(c.longitude)>180||
-    !Number.isFinite(c.accuracy)||c.accuracy<=0||c.accuracy>2500)throw new Error('Unreliable location');
-  return {lat:c.latitude,lng:c.longitude,acc:c.accuracy};
-}
 
 /* зум под точность: нельзя показывать зум 16 при погрешности 5 км — это врёт пользователю */
 function zoomFor(acc){ if(!acc)return 15; if(acc<50)return 17; if(acc<200)return 16; if(acc<1000)return 14; if(acc<3000)return 12; return 11 }
@@ -1957,7 +1952,7 @@ function putMe(lat,lng,acc,rough){
 }
 function showCurrentPositionCard(){
   if(!mePos)return;const el=document.getElementById('minicard');
-  el.innerHTML='<div class="mc-place-card"><div class="mc-place-hero position"><div class="mc-ic">●</div><div class="mc-body"><div class="mc-kicker">'+t('geoposition')+'</div><h3>'+t('currentPosition')+'</h3><div class="mc-sub">'+t('accuracy')+' ±'+Math.round(meAcc||0)+' '+t('unitM')+'</div></div><button class="mc-dismiss" aria-label="'+t('close')+'" onclick="closeMiniCard()">✕</button></div>'
+  el.innerHTML='<div class="mc-place-card"><div class="mc-place-hero position"><div class="mc-ic">●</div><div class="mc-body"><div class="mc-kicker">'+t('geoposition')+'</div><h3>'+escapeHtml(window.ParkyLocation?.label()||t('currentPosition'))+'</h3><div class="mc-sub">'+escapeHtml(window.ParkyLocation?.accuracy()||'')+'</div></div><button class="mc-dismiss" aria-label="'+t('close')+'" onclick="closeMiniCard()">✕</button></div>'
     +'<div class="mc-place-facts"><div class="mc-place-fact"><small>'+t('latitude')+'</small><b>'+Number(mePos.lat).toFixed(5)+'</b></div><div class="mc-place-fact"><small>'+t('longitude')+'</small><b>'+Number(mePos.lng).toFixed(5)+'</b></div></div>'
     +'<div class="mc-main-actions"><button class="mc-btn" onclick="selectedStart={lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')};toast(t(\'useAsStart\'))">'+t('useAsStart')+'</button><button class="mc-btn secondary" onclick="sharePoint({lat:mePos.lat,lng:mePos.lng,label:t(\'currentPosition\')})">↗ '+t('share')+'</button></div></div>';
   el.classList.add('on');
@@ -1965,25 +1960,20 @@ function showCurrentPositionCard(){
 
 /* применяем координату, если она лучше текущей */
 let lastFixTs=0;
-const GPS_GOOD=60;      // настоящий спутниковый замер — до 60 м
+const GPS_GOOD=60;      // reported accuracy, not proof of satellite reception
 const ROUGH_OVER=100;   // всё, что хуже 100 м, показываем как приблизительное
-const JUNK_OVER=2500;    // хуже 2.5 км — это определение по IP, ему верить нельзя
-function applyFix(lat,lng,acc,label,precise,heading,speed){
-  if(!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180||!Number.isFinite(acc)||acc<=0||acc>JUNK_OVER)return false;
-  const stale = Date.now()-lastFixTs>20000;   // старый замер устарел — берём любой новый
-  const movingFix=routeGuidanceActive&&acc<=Math.max(120,(meAcc||60)*2.5);
-  const better = movingFix || !mePos || !meAcc || acc<=meAcc*0.8 || (precise&&!gpsGot) || stale;
-  if(!better)return false;
-  lastFixTs=Date.now();
+function applyFix(lat,lng,acc,label,precise,heading,speed,timestamp=Date.now()){
+  if(!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180||!Number.isFinite(acc)||acc<=0||acc>100000)return false;
+  // Provider races, age and quality are checked by ParkyLocation before display.
+  lastFixTs=timestamp;
   meSpeed=Number.isFinite(speed)&&speed>0?speed:0;
   if(Number.isFinite(heading)&&heading>=0&&(meSpeed>.6||meHeading==null)){
     const delta=((heading-(meHeading==null?heading:meHeading)+540)%360)-180;
     meHeading=(meHeading==null?heading:(meHeading+delta*.35)+360)%360;
   }
-  if(!dbReloadedForUser && acc<3000){ dbReloadedForUser=true; loadParkingsFromDB(lat,lng,15000); }
+  if((!dbReloadedForUser||!mePos||dist(mePos.lat,mePos.lng,lat,lng)>1) && acc<3000){ dbReloadedForUser=true; loadParkingsFromDB(lat,lng,15000); }
   const jumped = mePos ? dist(mePos.lat,mePos.lng,lat,lng)>0.2 : true;
   putMe(lat,lng,acc,acc>ROUGH_OVER);
-  if(precise)gpsGot=true;
   // Парковочные метки обновляем только при заметном перемещении пользователя.
   if(jumped)scheduleMarkerDraw();
   // переезжаем, если пользователь сам карту не двигал
@@ -1993,12 +1983,6 @@ function applyFix(lat,lng,acc,label,precise,heading,speed){
   return true;
 }
 
-/* Fresh device measurement; high accuracy is a request, not proof of GPS source. */
-function fastFix(){
-  const Geo=GeoPlugin();
-  const o={enableHighAccuracy:true,timeout:20000,maximumAge:0};
-  return (Geo?Geo.getCurrentPosition(o):getPos(o)).then(freshPosition);
-}
 
 /* КОМПАС: конус направления поворачивается вслед за телефоном */
 let meHeading=null, headingInit=false;
@@ -2059,55 +2043,7 @@ function showAcc(acc){
   }
 }
 
-/* точный GPS: постоянно слушаем, уточняем точку */
-async function startPreciseWatch(){
-  if(watchId!=null||precising)return;precising=true;
-  const Geo=GeoPlugin();
-  const o={enableHighAccuracy:true,timeout:45000,maximumAge:0};
-  const onFix=p=>{
-    try{freshPosition(p)}catch(e){return}
-    const acc=p.coords.accuracy;
-    const first=!gpsGot&&acc<=GPS_GOOD;
-    applyFix(p.coords.latitude,p.coords.longitude,acc,first?t('geoPrecise'):null,acc<=GPS_GOOD,p.coords.heading,p.coords.speed);
-    showAcc(acc);
-  };
-  try{
-    if(Geo) watchId=await Geo.watchPosition(o,onFix);
-    else watchId=navigator.geolocation.watchPosition(onFix,()=>{},o);
-    document.getElementById('locbtn').classList.add('live');
-  }catch(e){precising=false}
-}
-
-/* главная: сеть и GPS запускаются ОДНОВРЕМЕННО, кто быстрее — тот и показан */
-async function locate(silent){
-  userPanned=false;
-  if(!GeoPlugin()&&!navigator.geolocation){if(!silent)toast(t('geoNo'));return false}
-  if(!isNative&&!GeoPlugin()&&location.protocol!=='https:'&&location.hostname!=='localhost'){if(!silent)toast(t('geoHttp'));return false}
-
-  if(!silent)toast(t('geoing'));
-
-  const ok=await ensurePermission();
-  if(!ok){if(!silent)toast(t('geoDeny'));return false}
-
-  gpsGot=false;
-  startPreciseWatch();                       // GPS стартует СРАЗУ, не ждёт сеть
-
-
-  // сеть — как быстрая заглушка, пока GPS ищет спутники
-  fastFix().then(f=>{
-    if(gpsGot)return;                        // GPS уже успел — грубую не показываем
-    applyFix(f.lat,f.lng,f.acc,silent?null:(f.acc>1000?t('geoRoughWait'):t('geoOk')),false);
-  }).catch(e=>{
-    if(e&&e.code===1&&!silent)toast(t('geoDeny'));
-  });
-
-  // если через 25 сек GPS так и не поймал — честно говорим
-  setTimeout(()=>{ if(!gpsGot&&!silent&&mePos&&meAcc>500)toast(t('geoStillRough')) },25000);
-
-  // No IP fallback: a network estimate must not impersonate the current position.
-
-  return true;
-}
+async function locate(silent){return window.ParkyLocation?.request(!silent)}
 
 /* если пользователь сам двигает карту — перестаём её перецентровывать */
 function trackPan(){ if(!ymap)return;
@@ -2115,28 +2051,7 @@ function trackPan(){ if(!ymap)return;
 }
 
 async function centerOnMyLocation(){
-  userPanned=false;
-  const btn=document.getElementById('locbtn');
-  btn.classList.add('on');
-  btn.disabled=true;toast(t('geoing'));
-  if(Date.now()-lastFixTs>30000){
-    mePos=null;meAcc=0;pendingCenter=null;
-    if(meMark)ymap?.geoObjects.remove(meMark);
-    if(meCircle)ymap?.geoObjects.remove(meCircle);
-    meMark=null;meCircle=null;
-    document.getElementById('accbadge')?.classList.remove('on');
-    renderHome();
-  }
-  try{
-    if(!await ensurePermission()){toast(t('geoDeny'));return}
-    const f=await fastFix();
-    // Explicit refresh replaces an older "more accurate" coordinate immediately.
-    lastFixTs=0;dbReloadedForUser=false;
-    applyFix(f.lat,f.lng,f.acc,f.acc>ROUGH_OVER?t('geoRoughWait'):t('geoOk'),f.acc<=GPS_GOOD);
-    if(ymap)ymap.setCenter([f.lat,f.lng],zoomFor(f.acc),{duration:300});
-    showAcc(f.acc);startPreciseWatch();
-  }catch(e){toast(t(e?.code===1?'geoDeny':'geoTime'))}
-  finally{btn.disabled=false;btn.classList.remove('on')}
+  return window.ParkyLocation?.request(true);
 }
 document.getElementById('locbtn').onclick=centerOnMyLocation;
 document.getElementById('zin').onclick=()=>ymap&&ymap.setZoom(ymap.getZoom()+1,{duration:200});
@@ -2150,7 +2065,7 @@ let routeBetaMap=null,routeBetaStartMarker=null,routeBetaEndMarker=null,routeBet
 const NAVIGATION_CONFIG={external:true,ors:true,osrm:false,valhalla:false};
 const ROUTE_TILE_STYLE={version:8,sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© OpenStreetMap contributors, ODbL'}},layers:[{id:'osm',type:'raster',source:'osm'}]};
 const routeCache=new Map(),ROUTE_CACHE_MS=5*60*1000;
-function routeOrigin(){return mePos}
+function routeOrigin(){return window.ParkyLocation?ParkyLocation.origin():mePos}
 function routeCacheKey(origin,target,mode){return [mode,origin.lat.toFixed(5),origin.lng.toFixed(5),target.lat.toFixed(5),target.lng.toFixed(5)].join(':')}
 function formatRouteDistance(m){return m<1000?Math.round(m)+' '+t('unitM'):(m/1000).toFixed(m<10000?1:0)+' '+t('unitKm')}
 function formatRouteDuration(s){const min=Math.max(1,Math.round(s/60));return min<60?min+' '+t('minuteShort'):Math.floor(min/60)+' '+t('hourShort')+' '+(min%60?min%60+' '+t('minuteShort'):'')}
@@ -2187,7 +2102,7 @@ async function initRouteBetaMap(target){
   routeBetaEndMarker=new maplibregl.Marker({element:end}).setLngLat([target.lng,target.lat]).addTo(routeBetaMap);
 }
 async function openRouteBeta(target,mode){
-  if(!target)return;if(!mePos){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!mePos){toast(t('geoDeny'));return}}
+  if(!target)return;if(!routeOrigin()){toast(t('needGeoRoute'));await centerOnMyLocation();if(!routeOrigin()){toast(t('needGeoRoute'));return}}
   target=streetDestination(target);if(!target){toast(streetCopy().missing);return}
   routeTarget=target;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');
   const screen=document.getElementById('routeBetaScreen');screen.classList.add('on');screen.setAttribute('aria-hidden','false');document.getElementById('bottomnav').classList.add('hidden');document.getElementById('routeBetaDestination').textContent=target.name||target.label||t('routeDestination');
@@ -2199,7 +2114,8 @@ function routeToSelectedPoint(){if(selectedDestination)requestNavigation({...sel
 function requestNavigation(target){target=streetDestination(target);if(!target){toast(streetCopy().missing);return}const preferred=localStorage.getItem('parkly_navigation_provider');if(preferred)launchNavigationProvider(preferred,target);else openNavigationChooser(target)}
 function isAppleDevice(){return /iPad|iPhone|iPod|Macintosh/i.test(navigator.userAgent)}
 function navigationUrl(provider,target,mode='auto'){
-  const destination=`${Number(target.lat).toFixed(6)},${Number(target.lng).toFixed(6)}`,origin=mePos?`${mePos.lat.toFixed(6)},${mePos.lng.toFixed(6)}`:'';
+  const current=routeOrigin();
+  const destination=`${Number(target.lat).toFixed(6)},${Number(target.lng).toFixed(6)}`,origin=current?`${current.lat.toFixed(6)},${current.lng.toFixed(6)}`:'';
   if(provider==='google'){const q=new URLSearchParams({api:'1',destination,travelmode:mode==='pedestrian'?'walking':'driving',dir_action:'navigate'});if(origin)q.set('origin',origin);return 'https://www.google.com/maps/dir/?'+q}
   if(provider==='apple'){const q=new URLSearchParams({daddr:destination,dirflg:mode==='pedestrian'?'w':'d'});if(origin)q.set('saddr',origin);return 'https://maps.apple.com/?'+q}
   const points=origin?`${origin}~${destination}`:destination;return `https://yandex.com/maps/?rtext=${encodeURIComponent(points)}&rtt=${mode==='pedestrian'?'pd':'auto'}`;
@@ -2220,7 +2136,12 @@ function chooseNavigationProvider(provider){
   const remember=document.getElementById('rememberNavProvider')?.checked;if(remember)localStorage.setItem('parkly_navigation_provider',provider);else localStorage.removeItem('parkly_navigation_provider');
   closeSheet();launchNavigationProvider(provider,routeTarget);
 }
-function launchNavigationProvider(provider,target){if(provider==='ors')openRouteBeta(target,routeMode);else{window.open(navigationUrl(provider,target,routeMode),'_blank','noopener');toast(t('externalOpened'))}}
+function openParkyLink(url){
+  const parsed=new URL(url,location.href);if(parsed.protocol!=='https:')return;
+  if(window.ParkyTelegram?.openLink(parsed.href))return;
+  window.open(parsed.href,'_blank','noopener');
+}
+function launchNavigationProvider(provider,target){if(provider==='ors')openRouteBeta(target,routeMode);else{openParkyLink(navigationUrl(provider,target,routeMode));toast(t('externalOpened'))}}
 async function buildRouteToTarget(p,mode){
   if(!routeOrigin()){toast(t('needGeoRoute'));const ok=await locate(true);if(!ok||!routeOrigin()){toast(t('geoDeny'));return}}
   routeTarget=p;routeMode=mode||routeMode;document.getElementById('minicard').classList.remove('on');clearRoute();drawRoutePanel(null);
@@ -2240,10 +2161,10 @@ function selectRouteAlternative(index){
   if(!route||!route.alternatives||!route.alternatives[index])return;const alternatives=route.alternatives;routeAlternative=index;drawRoadRoutes(alternatives,index);
   const r=alternatives[index];routeInfo={dist:formatRouteDistance(r.distance),time:formatRouteDuration(r.duration),alternatives:alternatives.length};drawRoutePanel(routeInfo);
 }
-async function startRouteGuidance(){if(!routeTarget||!routeInfo||routeInfo.error)return;if(!mePos){toast(t('needGeoRoute'));await locate(true);if(!mePos)return}routeGuidanceActive=true;selectedStart=null;userPanned=false;lastRouteRefreshAt=Date.now();lastRouteOrigin={lat:mePos.lat,lng:mePos.lng};initHeading();await startPreciseWatch();centerRouteBetaOnUser();drawRoutePanel(routeInfo)}
+async function startRouteGuidance(){if(!routeTarget||!routeInfo||routeInfo.error)return;if(ParkyLocation.isManual()){toast(ParkyLocation.label());return}if(!routeOrigin()){toast(t('needGeoRoute'));await centerOnMyLocation();if(!routeOrigin())return}routeGuidanceActive=true;selectedStart=null;userPanned=false;lastRouteRefreshAt=Date.now();lastRouteOrigin={...routeOrigin()};initHeading();ParkyLocation.request(false);centerRouteBetaOnUser();drawRoutePanel(routeInfo)}
 function stopRouteGuidance(silent){routeGuidanceActive=false;if(!silent)toast(t('guidanceStopped'));if(routeTarget)drawRoutePanel(routeInfo)}
 function updateRouteGuidance(){
-  if(!routeGuidanceActive||!routeTarget||!mePos)return;const directLeft=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng),progress=routeProgressState(),left=progress.remaining;
+  if(!routeGuidanceActive||!routeTarget||!routeOrigin())return;const directLeft=dist(mePos.lat,mePos.lng,routeTarget.lat,routeTarget.lng),progress=routeProgressState(),left=progress.remaining;
   if(directLeft<0.04){toast(t('routeArrived'));stopRouteGuidance(true)}
   const now=Date.now();
   const offRoute=progress.deviation>Math.max(.045,(meAcc||30)/1000*1.5);
@@ -2281,7 +2202,7 @@ function drawRoutePanel(info){
     +'<div class="route-actions"><button class="route-action" onclick="openExternalNavigationFromBeta()">'+t('externalNavigator')+'</button><button class="route-action" onclick="closeRoute()">'+t('stopRoute')+'</button></div>'
     +'<div class="route-attribution">'+t('routeAttribution')+'</div>';
 }
-function openExternalNavigationFromBeta(){if(routeTarget)window.open(navigationUrl('external-yandex',routeTarget,routeMode),'_blank','noopener')}
+function openExternalNavigationFromBeta(){if(routeTarget)openParkyLink(navigationUrl('external-yandex',routeTarget,routeMode))}
 
 /* ═══════════ ПРОБКИ (в этом дизайне вызывается из легенды-меню — оставим на fab позже) ═══════════ */
 function toggleTraffic(){
@@ -2644,7 +2565,7 @@ async function sendReport(id,reason,providedComment){
 
 /* ═══════════ ИЗБРАННОЕ ═══════════ */
 function favoriteSortMode(){try{return localStorage.getItem('parkly-favorite-sort')||'distance'}catch(e){return'distance'}}
-function favoriteDistance(parking){const target=streetDestination(parking);return mePos&&target?dist(mePos.lat,mePos.lng,target.lat,target.lng):Infinity}
+function favoriteDistance(parking){const target=streetDestination(parking),origin=routeOrigin();return origin&&target?dist(origin.lat,origin.lng,target.lat,target.lng):Infinity}
 function setFavoriteSort(mode){try{localStorage.setItem('parkly-favorite-sort',mode)}catch(e){};closeSheet();renderFav()}
 function openFavoriteSort(){
   const current=favoriteSortMode();
@@ -3025,15 +2946,16 @@ function setHomeRadius(value){homeRadiusKm=Number(value)||5;renderHome()}
 function homeParkingIcon(){return '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4"><path d="M12 52V12h40v40"/><path d="M23 44V26c0-5 4-9 9-9s9 4 9 9v18"/><path d="M23 32h18"/><path d="M19 44h26"/></svg>'}
 function homeRows(){
   return PARKINGS.map(p=>({p,d:homeDistance(p)}))
-    .filter(row=>(!mePos||row.d<=homeRadiusKm))
+    .filter(row=>(!routeOrigin()||row.d<=homeRadiusKm))
     .sort((a,b)=>a.d-b.d||String(a.p.name).localeCompare(String(b.p.name),lang))
     .slice(0,12);
 }
 function renderHomeList(){
   if(window.ParkyDestination?.render())return;
   document.getElementById('homeNearTitle').textContent=mePos?t('homeNear'):({ru:'Местоположение не определено',en:'Location not determined',uz:'Joylashuv aniqlanmadi'})[lang];
-  document.getElementById('homeParkingTitle').textContent=mePos?t('homeParkingTitle'):({ru:'Парковки на карте',en:'Parking on the map',uz:'Xaritadagi avtoturargohlar'})[lang];
-  document.getElementById('homeRadius').hidden=!mePos;
+  document.getElementById('homeParkingTitle').textContent=routeOrigin()?t('homeParkingTitle'):({ru:'Парковки на карте',en:'Parking on the map',uz:'Xaritadagi avtoturargohlar'})[lang];
+  document.getElementById('homeRadius').hidden=!routeOrigin();
+  window.ParkyLocation?.render();
   const list=document.getElementById('homeParkingList');if(!list)return;
   const rows=homeRows();
   if(!rows.length){list.innerHTML=parkingLoadState==='ready'?'<div class="home-empty"><b>'+t('homeEmpty')+'</b>'+t('homeEmptyHint')+'</div>':'';return}
@@ -3213,12 +3135,12 @@ function buildQchips(){
 /* ═══════════ СТАРТ ═══════════ */
 document.getElementById('search').placeholder=t('searchPh');
 /* ═══════════ ТЕМА: светлая/тёмная ═══════════ */
-function applyTheme(dark){
+function applyTheme(dark,persist=true){
   document.documentElement.setAttribute('data-theme', dark?'dark':'light');
   PIN_CACHE.clear();
   document.getElementById('themebtn').textContent = dark?'☀️':'🌙';
   document.querySelector('meta[name="theme-color"]').setAttribute('content',dark?'#0B1220':'#0B7AFB');
-  try{localStorage.setItem('pl-theme', dark?'dark':'light')}catch(e){}
+  if(persist)try{localStorage.setItem('pl-theme', dark?'dark':'light')}catch(e){}
   PIN_CACHE.clear();
   if(ymap){
     // Перерисовываем и карту, и фирменные пины под новую тему.
@@ -3245,43 +3167,13 @@ if(authSession){
 /* Request a fresh location after onboarding; never display the saved location as current. */
 (function bootLocate(){
 
-  async function tryGrantOnce(){
-    const Geo=GeoPlugin();
-    try{
-      if(Geo){
-        const p=await Geo.checkPermissions();
-        if(p.location==='granted'||p.coarseLocation==='granted')return true;
-        const r=await Geo.requestPermissions();
-        return (r.location==='granted'||r.coarseLocation==='granted');
-      }
-      return (await permState())!=='denied';
-    }catch(e){return false}
-  }
-
-  async function afterGrant(){
-    gpsGot=false;
-    startPreciseWatch();
-    fastFix().then(f=>{if(!gpsGot)applyFix(f.lat,f.lng,f.acc,null,false)}).catch(()=>{});
-    // пока спутники не пойманы — раз в 5 сек пробуем сеть заново (данные Wi-Fi/вышек
-    // могут уточниться по мере сканирования), но не дольше минуты
-    for(let i=0;i<12&&!gpsGot;i++){
-      await new Promise(r=>setTimeout(r,5000));
-      if(gpsGot)break;
-      try{const f=await fastFix();applyFix(f.lat,f.lng,f.acc,null,false)}catch(e){}
-    }
-  }
 
   async function run(){
     const useLocation=await onboardingReady;
     if(!useLocation)return;
-    let granted=await tryGrantOnce();
-    if(!granted){
-      // окно приложения могло быть ещё не в фокусе — пробуем ещё раз чуть позже
-      await new Promise(r=>setTimeout(r,1200));
-      granted=await tryGrantOnce();
-    }
-    if(granted)afterGrant();
-    // если так и не дали доступ — молча остаёмся на Ташкенте, кнопка ◎ остаётся рабочей
+    // Telegram location permission is requested only from its explicit location button.
+    if(new URLSearchParams(location.hash.slice(1)).has('tgWebAppVersion')||window.Telegram?.WebApp?.initData)return;
+    window.ParkyLocation?.request(false);
   }
 
   // ждём, пока окно реально прогрузится (не просто DOM, а весь load),
@@ -3293,6 +3185,8 @@ if(authSession){
 </script>
 <link rel="stylesheet" href="assets/destination.css">
 <script src="assets/destination.js"></script>
+<link rel="stylesheet" href="assets/location.css">
+<script src="assets/location.js"></script>
 <link rel="stylesheet" href="assets/telegram.css">
 <script src="assets/telegram.js"></script>
 </body>

@@ -1,0 +1,4 @@
+.location-status{font-size:13px;line-height:1.5;margin:12px 0 8px;max-width:760px}
+.location-manual{padding:10px 14px;min-height:44px;border-radius:12px;border:1px solid #ffffff80;color:#fff;background:#ffffff18;text-align:left;font:inherit;font-size:13px;cursor:pointer}
+.location-manual:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.accbadge{max-width:min(85vw,340px);white-space:normal;text-align:center}
